@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yalla Ride — Concept, Core Logic and Project Guide</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; background: #f3f5f7; color: #202632; font: 16px/1.65 system-ui, sans-serif; }
+  main { max-width: 960px; margin: 32px auto; padding: 44px; background: white; border-radius: 12px; }
+  h1,h2,h3 { line-height: 1.25; color: #152338; }
+  h1 { font-size: 2.5rem; margin-bottom: 12px; }
+  h2 { margin-top: 42px; padding-top: 12px; border-top: 1px solid #dde3eb; }
+  a { color: #9a1959; } th { text-align: left; background: #eef2f6; }
+  table { border-collapse: collapse; width: 100%; font-size: .94rem; }
+  td,th { padding: 12px; border: 1px solid #dce2e9; vertical-align: top; }
+  .note { background: #fff3df; border-left: 4px solid #b46b00; padding: 16px 20px; }
+  .lead { font-size: 1.15rem; color: #46546a; }
+  code { overflow-wrap: anywhere; background: #f0f2f5; padding: 2px 4px; }
+  nav ol { columns: 2; } .table-wrap { overflow-x: auto; }
+  @media(max-width:640px) { main { margin: 0; padding: 24px 18px; border-radius: 0; } h1 { font-size: 2rem; } nav ol { columns: 1; } }
+  @media print { body { background: white; font-size: 11pt; } main { margin: 0; padding: 0; max-width: none; } h2,h3 { break-after: avoid; } tr { break-inside: avoid; } nav { display:none; } }
+</style>
+</head>
+<body><main>
+<header>
+<p><strong>PROJECT DOCUMENTATION · 28 NOVEMBER 2026</strong></p>
+<h1>Yalla Ride</h1>
+<p class="lead">The concept, the core ride-sharing logic, what has been built, and what remains before a real launch.</p>
+<p>This guide describes the implementation present in the main project after the planned-ride and friends-group work merged. It is a product and technical handover, not a claim of production readiness.</p>
+</header>
+<aside class="note"><strong>Status in one sentence:</strong> Yalla Ride is a working student ride-sharing demo with a web dashboard, live web booking flow and Expo phone app. It does not yet book real Jeeny cars, send real verification emails or collect payments.</aside>
+<nav aria-label="Contents"><h2>Contents</h2><ol>
+<li><a href="#concept">Concept and purpose</a></li><li><a href="#journey">Student journey</a></li>
+<li><a href="#parts">Product surfaces</a></li><li><a href="#matching">Core matching logic</a></li>
+<li><a href="#pricing">Fare calculation</a></li><li><a href="#verification">Verification and profiles</a></li>
+<li><a href="#planned">Planned rides</a></li><li><a href="#friends">Friends and preferences</a></li>
+<li><a href="#lifecycle">Ride lifecycle</a></li><li><a href="#architecture">System architecture</a></li>
+<li><a href="#status">Completion and limitations</a></li><li><a href="#verification-status">Checks and handover</a></li>
+</ol></nav>
+<section id="concept">
+<h2>1. Concept and purpose</h2>
+<p>Yalla Ride is a proposed shared-ride feature for university students within the Jeeny experience. Instead of each student paying for a separate car, students travelling along compatible routes at compatible times can share one car and see their individual price before accepting.</p>
+<p>The intended value is lower travel cost, fewer separate car journeys, predictable pickup arrangements and preferences that students can understand before committing. The current model supports travel both <strong>to campus and from campus</strong>.</p>
+<h3>The central principle</h3>
+<p>Sharing is allowed only when it respects the passengers' route, timing, capacity and ride preferences. A cheaper trip is not considered a good match if it creates an unacceptable wait or detour.</p>
+<p>The design assumes that a real Jeeny profile will supply identity and gender rather than asking students to invent those details during each booking. The demo uses local profile values; it is not connected to Jeeny identity services.</p>
+</section>
+<section id="journey">
+<h2>2. The student journey</h2>
+<ol>
+<li><strong>Join the demonstration:</strong> an operator creates a ride batch and gives the student its joining code. The phone app joins the same batch used by the dashboard.</li>
+<li><strong>Select a university:</strong> search the available universities and campuses. Unavailable campuses can collect a request to be notified.</li>
+<li><strong>Verify student status:</strong> provide a university email address, request a code and confirm it. The current delivery method is simulated.</li>
+<li><strong>Request a ride:</strong> select a destination or stop and the relevant class time. The live web flow additionally exposes the richer planned-ride controls described below.</li>
+<li><strong>Set preferences:</strong> ride with anyone or select the available same-gender option; book alone or with friends. The live web flow also records quiet-ride preference.</li>
+<li><strong>Wait for matching:</strong> the operator runs matching for the batch. This is an operator-led demo, not an autonomous live dispatch system.</li>
+<li><strong>Review the plan:</strong> view pickup details, the assigned ride and individual fare information. Accept or decline.</li>
+<li><strong>Handle changes:</strong> affected students may receive an updated plan when another passenger declines. A confirmed passenger's price is protected by the demo's cover rules.</li>
+</ol>
+<p>Not every surface implements every step in the same way. In particular, the phone booking form does not yet expose all planned-ride controls available in the live web flow.</p>
+</section>
+<section id="parts">
+<h2>3. What was built for people to use</h2>
+<div class="table-wrap"><table><thead><tr><th>Surface</th><th>Purpose and current scope</th></tr></thead><tbody>
+<tr><td>Operator web dashboard</td><td>Create sample or empty batches, see requests, run matching and inspect trips, passengers and prices.</td></tr>
+<tr><td>Live Yalla Ride web flow</td><td>Connected booking and review screens, including planned-ride options, estimates, matching and demo ride states. Access through <code>/yalla?live=1</code>.</td></tr>
+<tr><td>Design-screen recreation</td><td>39 supplied visual screens and a share dialog, with the supplied example content. Screens are available under <code>/yalla/design/01</code> through <code>/yalla/design/39</code>. These are visual references, not proof that every depicted action is live.</td></tr>
+<tr><td>Expo student app</td><td>Join a batch, verify university status, book, start or join a friends group, select the profile-appropriate gender preference, and review, confirm or decline a plan.</td></tr>
+<tr><td>Shared booking service</td><td>A common backend for the dashboard and phone app, with token-scoped access and shared validation and ride logic.</td></tr>
+</tbody></table></div>
+<p>Some artifact names, package names and older documents still say “Campus Connect.” Those are historical technical labels. The product name is <strong>Yalla Ride</strong>.</p>
+</section>
+<section id="matching">
+<h2>4. The core: how matching works</h2>
+<p>Each request is converted into a ride model containing a corridor, travel direction, location along the road, side offset, timing requirements and preferences. The engine evaluates feasible shared cars and uses OR-Tools optimization to assign passengers while reducing unnecessary vehicle travel.</p>
+<h3>Rules that determine a valid shared car</h3>
+<ul>
+<li><strong>Capacity:</strong> at most four passengers.</li>
+<li><strong>Route compatibility:</strong> passengers share a corridor and travel direction.</li>
+<li><strong>Time compatibility:</strong> the configured class-time gap is ten minutes, with a minimum shared departure window of five minutes.</li>
+<li><strong>Walking:</strong> the model permits up to 200 metres of walking. Additional side distance is represented as a vehicle turn-in rather than unlimited passenger walking.</li>
+<li><strong>Detour:</strong> in-car distance must satisfy both limits: no more than 1.5 times the solo distance and no more than the solo distance plus four kilometres.</li>
+<li><strong>Personal timing limits:</strong> planned pickup cannot be before readiness or beyond the student's permitted gate wait; extra travel time must remain within the student's allowed limit.</li>
+<li><strong>Gender preferences:</strong> men-only and women-only requests must be respected.</li>
+<li><strong>Friends:</strong> members of a valid friends group stay in one car. A closed group does not accept strangers.</li>
+<li><strong>Savings:</strong> standard new shared matches use a 25% minimum saving compared with solo travel. Existing-car and friends-group repricing have specific exceptions; the floor is not a universal guarantee for every later state.</li>
+</ul>
+<p>If a valid shared match is not available, the demo offers solo or waiting-related alternatives rather than forcing an invalid shared journey.</p>
+<p>Road locations, travel times and movement are modeled. There is no live traffic feed or GPS-based dispatch integration.</p>
+</section>
+<section id="pricing">
+<h2>5. The core: how the fare is split</h2>
+<p><strong>First calculate one fare for the car's route. Then split the journey's distance charges among the riders aboard each segment.</strong> This follows the requested principle: each kilometre is shared by the people actually riding together on that kilometre.</p>
+<ul>
+<li>The starting charge is shared equally.</li>
+<li>Distance charges are shared segment by segment among occupants.</li>
+<li>All money is calculated in integer fils; 1,000 fils equals JOD 1.</li>
+<li>Rounding preserves the total rather than losing or creating small amounts.</li>
+<li>Solo-price caps and confirmed-price protection apply through the ride logic. Any applicable demo subsidy is explicit cover, not an unexplained fare increase.</li>
+</ul>
+<h3>A simple illustrative example</h3>
+<p>Suppose three passengers share the first 4 km, two share the next 3 km, and one rides the final 2 km. The first section's distance charge is divided by three, the second by two and the final section is paid by its remaining passenger. Each also pays their portion of the starting charge. This is <strong>not</strong> an equal three-way division of the whole bill.</p>
+<h3>Current configured tariff assumptions</h3>
+<div class="table-wrap"><table><thead><tr><th>Period</th><th>Starting charge</th><th>Distance charge</th></tr></thead><tbody>
+<tr><td>Day</td><td>468 fils</td><td>336 fils/km</td></tr>
+<tr><td>Night</td><td>480 fils</td><td>396 fils/km</td></tr>
+</tbody></table></div>
+<p>These are the code's configured values, not a live fare quote or a fresh regulatory verification. The 22:00–06:00 night window is explicitly an assumption in the implementation.</p>
+<p>The estimate service provides a low/high share range using a full car and a two-person car, plus a drop-off ETA. It is an estimate, not a guaranteed final price. Older documents' 20% saving and proportional-distance examples are historical; the current rules above take precedence.</p>
+</section>
+<section id="verification">
+<h2>6. University verification and profiles</h2>
+<p>The phone app and service implement university search, university-specific email-domain checks, verification start, resend and confirmation. Booking through the student API requires a verified profile, and the booking identity is taken from that profile.</p>
+<ul>
+<li>Six-digit codes expire after five minutes.</li>
+<li>Resending has a 30-second cooldown.</li>
+<li>The attempt limit is five incorrect code submissions; a fresh code is needed after lockout.</li>
+<li>Verification success issues an updated student token.</li>
+</ul>
+<p>The seeded university list includes Al-Balqa Applied University as available, with University of Jordan and Yarmouk marked unavailable in the current demo data.</p>
+<aside class="note"><strong>Not real email verification yet:</strong> the service generates and checks codes, but prints delivery information locally instead of sending email. A verified demo record is not evidence of a real-world identity check. The separate web demo also uses simulated verification state.</aside>
+</section>
+<section id="planned">
+<h2>7. Planned rides and time limits</h2>
+<p>The planned-ride work extended shared storage, validation, matching, the API and the live web booking flow.</p>
+<ul>
+<li>Ride date, class end, time ready at pickup and a preferred pickup slot.</li>
+<li>Three slot choices: readiness time, five minutes later or ten minutes later.</li>
+<li>Maximum gate wait: ten minutes by default, configurable up to 30.</li>
+<li>Maximum additional in-car time: ten minutes by default, configurable up to 30.</li>
+<li>Quiet-ride preference, stored and shown but not used to split passengers into separate groups.</li>
+<li>Cash as the accepted request payment method; no money is collected.</li>
+<li>Estimate range, estimated drop-off time and route/time/preference matching checks.</li>
+</ul>
+<p><strong>Scope boundary:</strong> this work did not build all of these controls into the Expo booking screen. Backend support must not be confused with complete phone UI coverage.</p>
+</section>
+<section id="friends">
+<h2>8. Friends groups and gender preferences</h2>
+<p>The phone app now offers “Just me,” “Start a group” and “Join a group.” Starting returns a group code that friends can enter. The creator can allow other students to fill empty seats or keep the group closed.</p>
+<p>Group validation rejects an unknown code, a full group, incompatible route or timing requirements, and friends bookings after matching has closed. Group information is returned with the plan.</p>
+<p>The demo profile defaults to a male student. The phone offers “Anyone” and “Men only” for that profile; a female profile gets “Anyone” and “Women only.” The earlier self-declared gender switch has been removed from the phone UI.</p>
+<p><strong>Remaining enforcement gap:</strong> some compatibility paths still accept client-supplied gender. Locking gender to the trusted profile for every booking path remains unfinished. This must be closed before treating the preference as a production safety control.</p>
+<p>QR/deep-link group sharing, a dedicated pre-match friends-member list and one-tap group-code sharing are not part of the completed group scope.</p>
+</section>
+<section id="lifecycle">
+<h2>9. Ride lifecycle and demo operations</h2>
+<ul>
+<li><strong>Booking and matching:</strong> requests wait until the operator runs matching, then passengers receive a plan.</li>
+<li><strong>Confirmation:</strong> students accept or decline. Changed plans are version-checked so an outdated plan cannot silently be accepted.</li>
+<li><strong>Regrouping:</strong> declines release seats and can produce revised arrangements for affected students.</li>
+<li><strong>Price protection:</strong> a confirmed passenger's share does not rise; modeled cover records a shortfall where needed.</li>
+<li><strong>Pickup and ride codes:</strong> code validation and captain-facing demo information are implemented.</li>
+<li><strong>No shared match:</strong> web/backend scenarios support solo now, waiting ten minutes or leaving open to sharing.</li>
+<li><strong>Moving-car scenarios:</strong> the model considers only future pickups ahead of the car, not impossible pickups behind it. This is simulated movement, not live tracking.</li>
+<li><strong>Demo clock:</strong> hold and departure scenarios use modeled time; a hold lasts two demo-clock minutes.</li>
+</ul>
+<p>These capabilities are distributed across the engine, dashboard and web scenarios. They are not all exposed as complete phone-app features or a real captain application.</p>
+</section>
+<section id="architecture">
+<h2>10. How the system is organized</h2>
+<div class="table-wrap"><table><thead><tr><th>Layer</th><th>Responsibility</th><th>Main location</th></tr></thead><tbody>
+<tr><td>Dashboard and server</td><td>Flask application and operator pages</td><td><code>app.py</code>, <code>templates/</code>, <code>static/</code></td></tr>
+<tr><td>Yalla Ride web experience</td><td>Live student flow and design references</td><td><code>yalla.py</code>, <code>templates/yalla/</code></td></tr>
+<tr><td>Student API</td><td>Joining, verification, requests, estimates, plans and responses</td><td><code>api.py</code>, under <code>/api/v1</code></td></tr>
+<tr><td>Persistence and actions</td><td>SQLite records, booking, matching and state changes</td><td><code>store.py</code>, <code>instance/</code></td></tr>
+<tr><td>Ride engine</td><td>Feasibility, routing model, optimization, repricing and codes</td><td><code>pooling/</code>, <code>sharing.py</code>, <code>go_now.py</code></td></tr>
+<tr><td>Student verification</td><td>University discovery, challenges and verified identity</td><td><code>student_verification.py</code></td></tr>
+<tr><td>Phone application</td><td>Expo/React Native screens and API client</td><td><code>artifacts/campus-connect/</code></td></tr>
+<tr><td>Tests and simulations</td><td>Rule tests, API/UI tests and repeatable scenarios</td><td><code>tests/</code>, mobile tests, <code>simulation.py</code></td></tr>
+</tbody></table></div>
+<h3>Access and reliability controls</h3>
+<p>Student bearer tokens are scoped to their batch and bound booking. Operator tokens have batch-level operations. Repeated booking submissions use an idempotency identifier to avoid accidental duplicates. Shared actions provide consistent validation, and database transactions protect state changes. These are useful controls, not a substitute for a production security review.</p>
+<h3>Preview recovery work</h3>
+<p>A leftover Flask process that occupied the dashboard port was stopped, and missing phone dependencies were installed. A post-merge setup script now installs JavaScript and Python dependencies before workflow reconciliation. This reduces dependency-related failures; it does not guarantee previews can never fail.</p>
+</section>
+<section id="status">
+<h2>11. Completion versus the original idea</h2>
+<h3>Implemented and merged into the main project</h3>
+<ul>
+<li>The core route/time/preference-based pooling engine and distance-segment fare split.</li>
+<li>Both campus travel directions and modeled street pickup constraints.</li>
+<li>Operator dashboard, connected live web flow and phone-to-dashboard booking demo.</li>
+<li>University verification workflow and API booking restrictions.</li>
+<li>Planned-ride service and live web options, estimates and personal time limits.</li>
+<li>Friends start/join groups and profile-appropriate gender choices in the phone app.</li>
+<li>Plan review, confirm/decline and relevant regrouping behaviors.</li>
+<li>The supplied design-screen recreations.</li>
+</ul>
+<h3>Still required before a real launch</h3>
+<ol>
+<li>Real Jeeny authentication, trusted profile identity/gender and driver dispatch integration.</li>
+<li>Real email delivery and operational verification safeguards.</li>
+<li>Strict server-side profile gender enforcement across all clients.</li>
+<li>Complete phone UI coverage for planned rides and other web-only scenarios.</li>
+<li>Real maps, road distances, traffic-aware ETAs and any required live tracking.</li>
+<li>Production-grade operations: security review, monitoring, recovery, privacy handling and a real pilot.</li>
+<li>Payment integration if required by the chosen business flow. The current demo records cash only.</li>
+<li>A full combined walkthrough of the latest merged features on a physical phone and the dashboard.</li>
+</ol>
+<p>Additional unbuilt draft ideas include batch joining by QR code and automated checks for broken phone previews. Draft suggestions are not completed features.</p>
+</section>
+<section id="verification-status">
+<h2>12. Checks, demonstration and handover</h2>
+<p>The repository includes Python tests for matching, pricing, geography, groups, codes, APIs, planned requests, street directions and web screens. The phone package includes TypeScript checking, unit tests and an API-check command. Earlier checks passed before the final planned-ride and friends merges; those historical results do not certify the latest combined state.</p>
+<p>Documentation preparation reviews source and existing implementation records. Unless separately reported with fresh results, it does not constitute a new full end-to-end run.</p>
+<h3>Useful validation commands</h3>
+<ul>
+<li><code>python -m pytest -q</code></li>
+<li><code>pnpm --dir artifacts/campus-connect typecheck</code></li>
+<li><code>pnpm --dir artifacts/campus-connect test</code></li>
+<li><code>pnpm --dir artifacts/campus-connect test:api</code></li>
+</ul>
+<h3>A practical demonstration</h3>
+<ol>
+<li>Open the dashboard and create an empty batch; note its joining code.</li>
+<li>Join that batch on the phone and complete the simulated university verification.</li>
+<li>Book a ride and start a friends group; use another student session to join it.</li>
+<li>Run matching from the dashboard and inspect the plan on the phone.</li>
+<li>Confirm or decline and observe the plan state changes.</li>
+<li>Use the live web flow separately to demonstrate pickup slots, time limits and the estimate range.</li>
+<li>Use the design-screen collection to explain visual states that are not part of that live walkthrough.</li>
+</ol>
+<h3>Final explanation</h3>
+<p><strong>The concept:</strong> students going the same way at compatible times share a car and reduce their travel cost.</p>
+<p><strong>The core:</strong> validate each request, find a feasible group, calculate the actual modeled car journey, divide its charge by occupancy along the route, then obtain passenger confirmation.</p>
+<p><strong>The current result:</strong> a functional prototype that demonstrates that concept across a web dashboard, a live web flow and a connected phone app. The next stage is completing integration and validation, not claiming that simulated rides are already real bookings.</p>
+</section>
+<footer><hr><p>Prepared from the current source, configuration and implementation records. Where older examples conflict with current configuration, this guide distinguishes the historical examples from the implemented rules. No credentials or student verification codes are included.</p></footer>
+</main></body>
+</html>
