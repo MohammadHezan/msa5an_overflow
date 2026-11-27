@@ -195,3 +195,49 @@ button, input, select { font: inherit; color: inherit; }
 @keyframes toast { 0%, 80% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
 .sheet.tall { max-height: calc(100% - 300px); }
 .sheet-actions { position: sticky; bottom: -26px; margin: 0 -18px -26px; padding: 10px 18px 16px; background: #fff; box-shadow: 0 -8px 16px rgba(255,255,255,.9); }
+
+/* ---------- Ride options (booking), modelled on Jeeny's "choose a ride" screen ---------- */
+.round.square { border-radius: 14px; font-size: 1.6rem; line-height: 1; }
+.book-route { position: absolute; top: 0; left: 0; width: 100%; height: 330px; }
+.book-route .drive { fill: none; stroke: #2B2B2B; stroke-width: 4.5; stroke-linejoin: round; stroke-linecap: round; }
+.book-route .here { fill: #3B7BF6; stroke: #fff; stroke-width: 3; }
+.callout { position: absolute; top: 108px; left: 50%; transform: translateX(-46%); display: grid; grid-template-columns: 1fr auto; column-gap: 14px;
+  background: #fff; border-radius: 6px; padding: 7px 10px 8px; box-shadow: 0 2px 10px rgba(0,0,0,.16); width: 220px; }
+.callout::after { content: ""; position: absolute; left: 46%; bottom: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #fff; }
+.callout small { grid-column: 1; color: var(--pink); font-size: .7rem; font-weight: 500; }
+.callout span { grid-column: 1; font-size: .8rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.callout b { grid-column: 2; grid-row: 1 / 3; align-self: center; color: #999; font-weight: 400; font-size: 1.1rem; }
+
+.sheet.rides { top: max(250px, 38%); max-height: none; display: flex; flex-direction: column; padding: 0; overflow: hidden; border-radius: 22px 22px 0 0; }
+.rides-note { margin: 0; padding: 18px 16px 10px; text-align: center; color: var(--muted); font-size: .78rem; border-bottom: 1px solid var(--line); }
+.ride-list { flex: 1; overflow-y: auto; }
+.ride { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 18px 12px 14px; cursor: pointer; }
+.ride + .ride::before, .campus-details + .ride::before { content: ""; position: absolute; top: 0; left: 96px; right: 0; border-top: 1px solid var(--line); }
+.ride input { position: absolute; opacity: 0; pointer-events: none; }
+.ride img { width: 74px; height: 44px; object-fit: contain; flex: 0 0 auto; }
+.ride-name { flex: 1; font-weight: 500; font-size: .98rem; }
+.ride-name em { font-style: normal; font-size: .62rem; font-weight: 600; color: #fff; background: var(--green); padding: 1px 7px; border-radius: 99px; vertical-align: 2px; margin-left: 4px; }
+.ride-name small { display: block; font-size: .72rem; font-weight: 400; color: var(--muted); }
+.ride-price { text-align: right; }
+.ride-price b { display: block; font-weight: 600; font-size: .95rem; }
+.ride-price small { display: block; color: var(--muted); font-size: .75rem; margin-top: 2px; }
+.ride:has(input:checked) { background: var(--pink-soft); box-shadow: inset 4px 0 0 var(--pink); }
+.ride:has(input:checked) .ride-price b { color: var(--pink); }
+.ride:has(input:checked)::before, .ride:has(input:checked) + .ride::before { display: none; }
+.ride:has(input:focus-visible) { outline: 3px solid #47B2E4; outline-offset: -3px; }
+.campus-details { display: grid; gap: 8px; padding: 10px 18px 14px; background: #FFF6FB; border-bottom: 1px solid #F7D3E7; }
+.ride-list:not(:has(#ride-campus:checked)) .campus-details { display: none; }
+.box.wide select { width: 100%; border: 0; padding: 0; background: none; font-weight: 600; }
+.campus-details .box { background: #fff; }
+.campus-details .toggle { padding: 3px 0; }
+.details-note { margin: 0; font-size: .72rem; color: var(--muted); }
+.rides-foot { padding: 0 16px 16px; border-top: 1px solid var(--line); box-shadow: 0 -6px 14px rgba(0,0,0,.04); }
+.rides-foot .payrow { padding: 14px 0; font-size: .9rem; color: var(--ink); font-weight: 500; }
+.rides-foot .payrow span { display: flex; align-items: center; gap: 8px; }
+.rides-foot .payrow b { color: #999; font-weight: 400; margin-left: 6px; }
+.rides-foot .payrow .sep { height: 32px; }
+.cash { width: 22px; height: 15px; border-radius: 3px; background: #2EAA57; box-shadow: inset 0 0 0 3px #4CC173; }
+.promo-tag { width: 20px; height: 14px; border: 2px solid #444; border-radius: 3px; }
+.demo-note { margin: 0 0 8px; font-size: .75rem; color: #7A5200; text-align: center; }
+.demo-note:empty { display: none; }
+.rides-foot .cta { border-radius: 14px; padding: 15px; font-size: 1rem; }

@@ -28,7 +28,8 @@ if (form) {
   }
 
   form.addEventListener("input", update);
-  form.addEventListener("submit", (event) => {
+  // Click runs before the browser's required-field check, which would block on the hidden Campus fields.
+  confirm.addEventListener("click", (event) => {
     if (selected().value !== "campus") {
       event.preventDefault();
       note.textContent = "This demo books Campus Connect only. Pick it above to continue.";
