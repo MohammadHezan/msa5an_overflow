@@ -1,0 +1,12 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('12') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Cancel request", "Plans changed?", "Review the details before cancelling.") }}
+  {{ ui.timeline("Al-Balqa · Main gate", "Pickup · 4:15 PM", "Dabouq", "Your drop-off · about 4:44 PM") }}
+  <dl class="yr-facts">
+    <div><dt>Booking status</dt><dd>Captain not assigned</dd></div>
+    <div><dt>Cancellation fee</dt><dd class="green">JOD 0.00</dd></div>
+  </dl>
+  {{ ui.info("help", "Your seat will be released", "Other riders may receive an updated plan. You’ll get a cancellation confirmation.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Keep my ride", go('12'), cls="ghost") }}{{ ui.cta("Cancel this request", go('33')) }}</div>{% endblock %}

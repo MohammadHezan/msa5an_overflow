@@ -1,0 +1,8 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('26') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Connection lost", "Your request is safe.", "We couldn’t refresh the latest ride status.") }}
+  <div class="yr-state grey"><svg class="yr-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="19" r=".8"/></svg><p>Reconnect to see the latest plan.</p></div>
+  {{ ui.info("shield", "No duplicate booking", "Retry checks your existing request. You don’t need to submit another one.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Back to my trips", go('26'), cls="ghost") }}{{ ui.cta("Try again", go('12')) }}</div>{% endblock %}

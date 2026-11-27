@@ -1,0 +1,17 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('15') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Trip in progress", "Next stop: your destination", "Boarding verified · Quiet ride") }}
+  {{ ui.map("Al-Balqa campus", "Main gate", "Your stop") }}
+{% endblock %}
+{% block foot %}
+<div class="dz-scrim"></div>
+<section class="dz-sheet" role="dialog" aria-labelledby="share-title">
+  <i class="dz-grab"></i>
+  <h2 id="share-title">Share your ride</h2>
+  <p>Let someone you trust follow your captain, vehicle and trip progress.</p>
+  <div class="yr-info">{{ ui.icon("shield") }}<div><strong>Jeeny · Live trip link</strong><p>Only this trip is shared</p></div></div>
+  {{ ui.cta("Copy trip link", go('15', 'copied')) }}
+  {{ ui.cta("Close", go('15'), cls="ghost") }}
+</section>
+{% endblock %}

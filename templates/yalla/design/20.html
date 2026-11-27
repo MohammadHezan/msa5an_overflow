@@ -1,0 +1,10 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('19') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Student match", "Share the ride with Lina?", "Verified student · Women-only group") }}
+  {{ ui.price("Your new maximum", "JOD 3.00", "Down from your approved JOD 4.50 cap", "Save 33%") }}
+  {{ people([("Lina", "Campus Road · Stop A", "Joining")]) }}
+  {{ ui.row("pin", "Pickup ahead", "Stop A · Adds about 2 minutes") }}
+  {{ ui.info("shield", "Everyone confirms first", "The pickup is added only after both riders accept. The captain checks Lina’s own code.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Keep my current route", go('24'), cls="ghost") }}{{ ui.cta("Accept pickup · Max JOD 3.00", go('38')) }}</div>{% endblock %}

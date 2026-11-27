@@ -1,6 +1,6 @@
 {% extends "yalla/base.html" %}
 {# Exact copies of the design exports in docs/design/campus-connect-screens, with the design's own example values. #}
-{% block statusbar %}<div class="dz-status" aria-hidden="true"><span>3:47 PM</span><span class="dz-sys"><svg viewBox="0 0 16 12"><path d="M8 11L1 4a10 10 0 0 1 14 0z"/></svg><svg viewBox="0 0 16 12"><path d="M1 11h2V8H1zM5 11h2V6H5zM9 11h2V3H9zM13 11h2V0h-2z"/></svg><b>57</b></span></div>{% endblock %}
+{% block statusbar %}<div class="dz-status" aria-hidden="true"><span>3:47 PM</span><span class="dz-sys"><svg viewBox="0 0 16 12"><path d="M8 11L1 4a10 10 0 0 1 14 0z"/></svg><svg viewBox="0 0 16 12"><path d="M1 11h2V8H1zM5 11h2V6H5zM9 11h2V3H9zM13 11h2V0h-2z"/></svg><b>57</b></span></div>{% if toast %}<div class="dz-toast" role="status"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg><div><strong>{{ toast.title }}</strong><p>{{ toast.text }}</p></div></div>{% endif %}{% endblock %}
 {% block header %}
 <header class="yr-head">
   <a class="yr-round" href="{% block back %}{{ url_for('yalla.design', screen='01') }}{% endblock %}" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></a>

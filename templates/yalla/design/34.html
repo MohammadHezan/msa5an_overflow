@@ -1,0 +1,10 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('15') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Campus ride help", "What do you need?", "Support and trip controls, close at hand.") }}
+  <div class="yr-card yr-help">{{ ui.icon("phone") }}<div><strong>Contact your captain</strong><p>Pickup directions or a quick trip question. Keep your personal number private.</p><span class="yr-pinklink">Call or message in Jeeny</span></div></div>
+  <a class="yr-card yr-help" href="{{ go('dialog-share') }}">{{ ui.icon("shield") }}<div><strong>Share your trip</strong><p>Share your live trip and captain details with someone you trust.</p><span class="yr-pinklink">Choose a trusted contact</span></div></a>
+  <div class="yr-card yr-help">{{ ui.icon("headset") }}<div><strong>Report a ride issue</strong><p>Tell support about a pickup, payment or passenger concern.</p><span class="yr-pinklink">Open Jeeny Help Center</span></div></div>
+  {{ ui.info("alert", "Need urgent assistance?", "If you are in immediate danger, contact your local emergency services.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Back to my trip", go('15')) }}</div>{% endblock %}

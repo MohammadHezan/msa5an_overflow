@@ -127,10 +127,31 @@ def render(template, **context):
                            rules=RULES, draft=draft(), **context)
 
 
+# ---------- exact copies of the design images ----------
+
+DESIGN_DIR = Path(__file__).parent / "templates" / "yalla" / "design"
+DESIGN_TOASTS = {
+    "code": {"title": "New code sent", "text": "Check your university inbox. You can now use the latest code."},
+    "copied": {"title": "Trip link copied", "text": "Paste it into the app you choose. Other students’ personal details stay private."},
+    "notify": {"title": "We’ll keep you posted", "text": "You’ll see a Jeeny notification when your campus becomes available."},
+}
+
+
+@yalla.get("/design/<screen>")
+def design(screen):
+    """Pixel copies of docs/design/campus-connect-screens with the design's own example values. Buttons move between them."""
+    if not re.fullmatch(r"\d\d|dialog-share", screen) or not (DESIGN_DIR / f"{screen}.html").exists():
+        abort(404)
+    return render_template(f"yalla/design/{screen}.html", asset_version=asset_version(),
+                           toast=DESIGN_TOASTS.get(request.args.get("toast")))
+
+
 # ---------- 01 · home ----------
 
 @yalla.get("")
 def home():
+    if not request.args.get("live"):  # The user asked for the design screens only; ?live=1 opens the working flow
+        return redirect(url_for("yalla.design", screen="01"))
     _, rider = current_rider()
     return render("home.html", rider=rider)
 

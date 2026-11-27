@@ -1,0 +1,9 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block bodyclass %} with-nav{% endblock %}
+{% block body %}
+  {{ ui.intro("My campus trips", "Your next ride, sorted.", "Pickup details and boarding codes in one place.") }}
+  <nav class="yr-tabs" aria-label="Trips"><a href="{{ go('26') }}" class="on">Upcoming</a><a href="{{ go('27') }}">Past rides</a></nav>
+  <a class="yr-card yr-trip" href="{{ go('12') }}"><p class="yr-eyebrow">Today · 4:15 PM</p><strong>Main gate → Dabouq</strong><small>3 women students · Quiet ride</small><span><b>JOD 1.67</b><em class="green">Confirmed</em></span></a>
+  {{ ui.info("shield", "Your code stays with your trip", "Open your booking when you reach the gate. Show the code to your assigned captain.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Plan another campus ride", go('05'), cls="ghost") }}</div>{{ nav('trips') }}{% endblock %}

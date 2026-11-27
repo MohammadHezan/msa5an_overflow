@@ -1,0 +1,8 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('32') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Request cancelled", "You’re all clear.", "Your seat has been released.") }}
+  <div class="yr-state green">{{ ui.icon("tick") }}<p>JOD 0.00 charged</p></div>
+  {{ ui.info("shield", "Your booking is no longer active", "The old boarding code will not work. You can request another ride when ready.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Plan a new ride", go('05'), cls="ghost") }}{{ ui.cta("Back to Campus Connect", go('01')) }}</div>{% endblock %}

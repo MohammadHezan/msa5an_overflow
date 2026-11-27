@@ -43,7 +43,8 @@ def verify(client, email="lina.k@cedar.edu"):
 
 
 def test_home_shows_yalla_ride_entry_points(client):
-    page = text(client.get("/yalla"))
+    assert client.get("/yalla").location == "/yalla/design/01"
+    page = text(client.get("/yalla?live=1"))
     assert "Same campus." in page and "Plan a shared ride" in page and "Leave now &amp; share" in page
     assert "Campus Connect" not in page
     assert client.get("/yalla/help").status_code == 200
@@ -206,3 +207,14 @@ def test_personal_email_goes_to_recovery(client):
     response = post(client, "/yalla/verify", email="sara.a@example.com")
     assert response.headers["Location"].startswith("/yalla/verify/check")
     assert "sara.a@example.com" in text(client.get("/yalla/verify/check"))
+
+
+def test_design_copies_show_the_design_values(client):
+    import os
+    screens = sorted(f[:-5] for f in os.listdir("templates/yalla/design") if not f.startswith("_"))
+    assert len(screens) == 40  # 01-39 and the share dialog
+    for screen in screens:
+        assert client.get(f"/yalla/design/{screen}").status_code == 200, screen
+    assert "JOD 1.67" in text(client.get("/yalla/design/10")) and "Main gate" in text(client.get("/yalla/design/12"))
+    assert "New code sent" in text(client.get("/yalla/design/03?toast=code"))
+    assert client.get("/yalla/design/99").status_code == 404

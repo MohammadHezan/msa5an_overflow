@@ -1,0 +1,9 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('10') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Offer updated", "Your group has changed.", "A student left before you confirmed the offer.") }}
+  {{ ui.price("Updated two-person share", "JOD 2.39", "Previous unconfirmed quote · JOD 1.67", "Save 47%") }}
+  {{ people([("You", "Dabouq", "1st stop"), ("Rama", "Al Bayader", "2nd stop")]) }}
+  {{ ui.info("shield", "A new price needs a new yes", "You have not confirmed this fare. Accept it, or look for another group without a charge.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Find a different group", go('29'), cls="ghost") }}{{ ui.cta("Accept updated fare · JOD 2.39", go('31')) }}</div>{% endblock %}

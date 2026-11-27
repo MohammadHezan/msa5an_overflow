@@ -1,0 +1,10 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('18') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("You’re on your way", "Heading to Sweileh", "Boarding verified · Sharing is on") }}
+  {{ ui.map("Al-Balqa campus", "Main gate", "Sweileh") }}
+  {{ ui.price("Your current maximum", "JOD 4.50", "It can go down when students join", "Fare cap") }}
+  {{ ui.info("users", "A compatible student is ahead", "Lina requested a pickup on your route. Review the stop, added time and lower fare.") }}
+  <a class="yr-textlink" href="{{ go('24') }}">What if nobody joins?</a>
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Review student match", go('20')) }}</div>{% endblock %}

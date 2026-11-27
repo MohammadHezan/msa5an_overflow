@@ -1,0 +1,10 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('38') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("One more match", "A lower fare with Noor", "Lina has joined · One more pickup ahead") }}
+  {{ ui.price("Your new maximum", "JOD 2.75", "Down from your last JOD 3.00 cap", "Save 39%") }}
+  {{ people([("Noor", "Campus Road · Stop B", "Joining")]) }}
+  {{ ui.row("pin", "Pickup ahead", "Stop B · Adds about 1 minute") }}
+  {{ ui.info("route", "Still within your extra-time limit", "All passengers are women students. Review the stop before it joins your route.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Keep the two-person route", go('39'), cls="ghost") }}{{ ui.cta("Accept pickup · Max JOD 2.75", go('22')) }}</div>{% endblock %}

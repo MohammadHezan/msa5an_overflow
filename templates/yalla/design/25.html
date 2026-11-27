@@ -1,0 +1,17 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('23') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Fare details", "Pay for the legs you ride", "One JOD 4.50 fare, split as students join.") }}
+  <ol class="yr-stops">
+    <li><b>1</b><span><strong>Campus → Stop A</strong><small>You ride alone · Your share JOD 1.50</small></span></li>
+    <li><b>2</b><span><strong>Stop A → Stop B</strong><small>You + Lina · JOD 0.75 each</small></span></li>
+    <li><b>3</b><span><strong>Stop B → Sweileh</strong><small>You + Lina + Noor · JOD 0.50 each</small></span></li>
+  </ol>
+  <dl class="yr-facts">
+    <div><dt>Your total</dt><dd>JOD 2.75</dd></div>
+    <div><dt>Lina’s total</dt><dd>JOD 1.25</dd></div>
+    <div><dt>Noor’s total</dt><dd>JOD 0.50</dd></div>
+  </dl>
+  <dl class="yr-facts"><div><dt>Whole car fare</dt><dd>JOD 4.50</dd></div></dl>
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Back to my ride", go('22')) }}</div>{% endblock %}

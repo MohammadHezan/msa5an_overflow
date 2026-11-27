@@ -1,0 +1,9 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('21') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Shared trip in progress", "Three students. One ride.", "You, Lina & Noor · Quiet ride") }}
+  {{ ui.map("Al-Balqa campus", "Stop A", "Sweileh") }}
+  {{ ui.price("Your approved maximum", "JOD 2.75", "JOD 1.75 less than your solo quote", "Save 39%") }}
+  <a class="yr-textlink" href="{{ go('25') }}">How each part of the ride is split</a>
+{% endblock %}
+{% block foot %}<div class="yr-foot yr-two"><a class="yr-cta ghost" href="{{ go('dialog-share') }}">Share trip</a>{{ ui.cta("Get help", go('23')) }}</div>{% endblock %}

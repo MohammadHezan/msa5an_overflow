@@ -1,0 +1,10 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block bodyclass %} with-nav{% endblock %}
+{% block body %}
+  {{ ui.intro("My campus trips", "Small shares. Real savings.", "A receipt for every completed campus ride.") }}
+  <nav class="yr-tabs" aria-label="Trips"><a href="{{ go('26') }}">Upcoming</a><a href="{{ go('27') }}" class="on">Past rides</a></nav>
+  <a class="yr-card yr-trip" href="{{ go('16') }}"><p class="yr-eyebrow">Today · 4:15 PM</p><strong>Main gate → Dabouq</strong><small>Planned shared ride · 3 students</small><span><b>JOD 1.67</b><em>Completed</em></span></a>
+  <a class="yr-card yr-trip" href="{{ go('23') }}"><p class="yr-eyebrow">Today · 4:05 PM</p><strong>Al-Balqa → Sweileh</strong><small>Shared along the way · 3 students</small><span><b>JOD 2.75</b><em>Completed</em></span></a>
+  {{ ui.info("money", "Know what you saved", "Receipts compare your fare with the solo quote you saw for that trip.") }}
+{% endblock %}
+{% block foot %}{{ nav('trips') }}{% endblock %}

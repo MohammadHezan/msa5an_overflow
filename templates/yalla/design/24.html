@@ -1,0 +1,13 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('19') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Ride complete", "Home, at the fare you chose.", "Al-Balqa → Sweileh · Private ride") }}
+  {{ ui.price("Paid with cash", "JOD 4.50", "Exactly the maximum you approved", "No extra fee") }}
+  {{ ui.info("shield", "No compatible students joined", "You continued on your existing route. There’s no added charge for trying to share.") }}
+  <dl class="yr-facts">
+    <div><dt>Original fare cap</dt><dd>JOD 4.50</dd></div>
+    <div><dt>Final fare</dt><dd>JOD 4.50</dd></div>
+    <div><dt>Sharing search fee</dt><dd class="green">JOD 0.00</dd></div>
+  </dl>
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Done", go('01')) }}</div>{% endblock %}

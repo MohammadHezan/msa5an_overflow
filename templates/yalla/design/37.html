@@ -1,0 +1,9 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('02') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Email verification", "Let’s check that email.", "We couldn’t verify this university address.") }}
+  {{ ui.row("mail", "University email", "sara.a@example.com", go('02')) }}
+  {{ ui.info("alert", "Use your university-issued email", "Check the spelling and university selection. A personal email cannot verify student status.") }}
+  <a class="yr-textlink" href="{{ go('34') }}">Need help verifying your student status?</a>
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Choose my university", go('04'), cls="ghost") }}{{ ui.cta("Edit university email", go('02')) }}</div>{% endblock %}

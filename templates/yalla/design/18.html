@@ -1,0 +1,9 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('17') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Your captain is arriving", "Meet at the main gate", "Your ride can start with just you.") }}
+  {{ captain() }}
+  <div class="yr-code-card"><small>Show only to your captain</small><strong>CC-7351</strong><span>Your approved fare cap · JOD 4.50</span></div>
+  {{ ui.info("users", "Sharing stays optional", "Compatible students may join from designated stops ahead, only after everyone accepts.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("I’m at the gate", go('19')) }}</div>{% endblock %}

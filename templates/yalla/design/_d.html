@@ -1,6 +1,6 @@
 {% import "yalla/_ui.html" as ui with context %}
-{% macro go(n) %}{{ url_for('yalla.design', screen=n) }}{% endmacro %}
-{% macro people(rows) %}<ul class="yr-people">{% for r in rows %}<li><span class="yr-initial">{{ r[0][0] }}</span><span><strong>{{ r[0] }}</strong><small>{{ r[1] }}</small></span><em>{{ r[2] }}</em>{{ ui.icon("check") }}</li>{% endfor %}</ul>{% endmacro %}
+{% macro go(n, toast=none) %}{{ url_for('yalla.design', screen=n, toast=toast) }}{% endmacro %}
+{% macro people(rows) %}<ul class="yr-people">{% for r in rows %}<li><span class="yr-initial">{{ "S" if r[0] == "You" else r[0][0] }}</span><span><strong>{{ r[0] }}</strong><small>{{ r[1] }}</small></span><em>{{ r[2] }}</em>{{ ui.icon("check") }}</li>{% endfor %}</ul>{% endmacro %}
 {% macro captain() %}
 <div class="yr-card yr-captain">
   <span class="yr-initial big">MA</span>

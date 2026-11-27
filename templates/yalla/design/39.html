@@ -1,0 +1,14 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('38') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Ride complete", "Your share went down.", "Al-Balqa → Sweileh · 2 students shared") }}
+  {{ ui.price("Paid with cash", "JOD 3.00", "Saved JOD 1.50 from your JOD 4.50 cap", "Save 33%") }}
+  <dl class="yr-facts">
+    <div><dt>Your initial maximum</dt><dd>JOD 4.50</dd></div>
+    <div><dt>Your final fare</dt><dd class="green">JOD 3.00</dd></div>
+    <div><dt>What you saved</dt><dd class="green">JOD 1.50</dd></div>
+  </dl>
+  <div class="dz-gap big"></div>
+  {{ ui.info("money", "You paid for your part", "Only the legs you rode are included. Every rider has their own fare and receipt.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Done", go('01')) }}</div>{% endblock %}

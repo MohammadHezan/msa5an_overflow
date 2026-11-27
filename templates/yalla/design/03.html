@@ -4,7 +4,7 @@
   {{ ui.intro("Student access", "Check your university email", "Enter the 6-digit code sent to s***@bau.edu.jo.") }}
   <div class="yr-code" data-otp>{% for d in "186245" %}<input name="digit" value="{{ d }}" inputmode="numeric" maxlength="1" aria-label="Digit {{ loop.index }}">{% endfor %}</div>
   <p class="yr-muted">Code expires in 04:32</p>
-  <a class="yr-textlink" href="{{ go('03') }}">Resend code</a>
+  <a class="yr-textlink" href="{{ go('03', 'code') }}">Resend code</a>
   <a class="yr-textlink" href="{{ go('02') }}">Use a different email</a>
   {{ ui.info("shield", "Your email is not shared", "Other students see your first name and student-verification badge, not your email.") }}
 {% endblock %}

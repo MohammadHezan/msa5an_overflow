@@ -1,0 +1,10 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block body %}
+  {{ ui.intro("On-the-go sharing", "Leave now. Save if matched.", "No need to wait for a group to fill.") }}
+  {{ ui.price("Your maximum fare", "JOD 4.50", "If nobody joins, you pay this solo fare", "Fare cap") }}
+  {{ ui.row("cap", "From", "Al-Balqa · Main gate") }}
+  {{ ui.row("pin", "To", "Sweileh") }}
+  <div class="yr-chips"><span>Women-only</span><span>Quiet ride</span></div>
+  {{ ui.info("shield", "Only pickups you agree to", "See added time and your revised cap first. If you decline, your existing route continues.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Request ride · Max JOD 4.50", go('18')) }}</div>{% endblock %}

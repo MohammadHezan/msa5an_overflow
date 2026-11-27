@@ -273,3 +273,26 @@ a.yr-row:hover, label.yr-row:hover { border-color: #D3D3D3; }
 .screen.yr { position: relative; }
 .yr-offline { position: absolute; z-index: 9; left: 0; right: 0; bottom: 0; top: 70px; background: #fff; display: flex; flex-direction: column; }
 .yr-offline[hidden] { display: none !important; }
+
+/* Exact design copies (/yalla/design/NN) */
+.dz-status { display: flex; justify-content: space-between; align-items: center; padding: 12px 22px 0; font-size: .82rem; font-weight: 500; color: var(--ink); }
+.dz-sys { display: flex; gap: 6px; align-items: center; }
+.dz-sys svg { width: 15px; height: 12px; fill: var(--ink); }
+.dz-sys b { font-size: .62rem; border: 1.5px solid var(--ink); border-radius: 4px; padding: 0 3px; line-height: 1.3; }
+.yr-uni.dz-on { border-color: var(--pink); background: #FFF0F7; }
+.dz-pills { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.dz-pills span { text-align: center; padding: 9px 0; border: 1px solid var(--line); border-radius: 999px; font-size: .85rem; }
+.dz-pills span.on { border-color: var(--pink); background: #FFF0F7; color: var(--pink); }
+.dz-gap { height: 8px; }
+.dz-gap.big { height: 70px; }
+.dz-tight { margin-top: 4px; }
+.dz-scrim { position: absolute; inset: 0; background: rgba(16,20,25,.42); z-index: 20; }
+.dz-sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 21; background: #fff; border-radius: 24px 24px 0 0; padding: 12px 24px 26px; display: flex; flex-direction: column; gap: 12px; }
+.dz-grab { width: 36px; height: 4px; border-radius: 2px; background: #D9DBE0; align-self: center; margin-bottom: 6px; }
+.dz-sheet h2 { margin: 0; font-size: 1.5rem; font-weight: 600; }
+.dz-sheet > p { margin: 0 0 6px; color: var(--muted); font-size: .9rem; }
+.dz-toast { position: absolute; left: 16px; right: 16px; top: 52px; z-index: 30; background: #fff; border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 10px 30px rgba(16,20,25,.14); display: flex; gap: 16px; padding: 18px 20px; animation: dz-out 0s 3.5s forwards; }
+.dz-toast svg { flex: none; width: 24px; height: 24px; fill: none; stroke: var(--ink); stroke-width: 1.8; margin-top: 4px; }
+.dz-toast strong { font-size: 1.05rem; font-weight: 600; }
+.dz-toast p { margin: 6px 0 0; color: var(--muted); font-size: .86rem; }
+@keyframes dz-out { to { visibility: hidden; } }

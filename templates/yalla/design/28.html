@@ -1,0 +1,9 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block bodyclass %} with-nav{% endblock %}
+{% block body %}
+  {{ ui.intro("Saved routes", "Same route. Fewer taps.", "Save the details you use after class.") }}
+  <div class="yr-card yr-saved">{{ ui.icon("bookmark") }}<div><strong>Home after class</strong><small>Al-Balqa · Main gate → Dabouq</small><small>Ready at 4:10 PM · Quiet ride</small><a class="yr-textlink" href="{{ go('08') }}">Use this route</a></div></div>
+  <div class="yr-card yr-saved">{{ ui.icon("route") }}<div><strong>Sweileh, when I’m ready</strong><small>Al-Balqa → Sweileh</small><small>Leave now and share if someone matches</small><a class="yr-textlink" href="{{ go('17') }}">Check today’s fare</a></div></div>
+  {{ ui.info("shield", "A shortcut, not a standing charge", "A saved route never books or charges you automatically. Review it each time.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Add a campus route", go('05'), cls="ghost") }}</div>{{ nav('saved') }}{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people, captain, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('30') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Updated offer accepted", "Your new plan is confirmed.", "You approved this two-person ride.") }}
+  {{ ui.timeline("Al-Balqa · Main gate", "Pickup · 4:15 PM", "Dabouq", "Your drop-off · about 4:44 PM") }}
+  <div class="yr-stats"><div><b>4:15 PM</b><small>Pickup time</small></div><div><b>JOD 2.39</b><small>Approved share</small></div><div><b>2 riders</b><small>In your car</small></div></div>
+  {{ ui.info("shield", "You stayed in control", "The previous offer was replaced only after you accepted the new fare.") }}
+  {{ people([("You", "Dabouq", "1st stop"), ("Rama", "Al Bayader", "2nd stop")]) }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Done", go('26')) }}</div>{% endblock %}
