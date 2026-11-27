@@ -12,10 +12,14 @@ from store import FIXTURE
 def make_riders(rows):
     """Rows of (name, class end, stop, gender, preference). The old (woman, women_only) booleans still work."""
     riders = []
-    for i, (name, end, stop, gender, preference) in enumerate(rows):
+    for i, row in enumerate(rows):
+        name, end, stop, gender, preference, *extra = row
         if isinstance(gender, bool):
             gender, preference = ("woman" if gender else "man"), ("women" if preference else "mixed")
-        riders.append({"id": i + 1, "name": name, "class_end": end, "stop": stop, "gender": gender, "preference": preference})
+        direction = extra[0] if extra else "from_campus"
+        class_start = extra[1] if len(extra) > 1 else None
+        riders.append({"id": i + 1, "name": name, "class_end": end, "class_start": class_start, "stop": stop,
+                       "gender": gender, "preference": preference, "direction": direction})
     return riders
 
 

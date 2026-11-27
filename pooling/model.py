@@ -83,6 +83,10 @@ def basic_ok(riders: Sequence[Rider]) -> tuple[datetime, datetime] | None:
     if first.corridor is not None:
         if any(r.direction != first.direction or r.corridor != first.corridor for r in riders):
             return None
+        if not gender_ok(riders):
+            return None
+        if len({r.request_id for r in riders}) != len(riders):
+            return None
         if first.direction == "from_campus":
             ready = [r.ready_at for r in riders]
             if any(t is None for t in ready) or max(ready) - min(ready) > timedelta(minutes=config.MAX_GAP_MIN):
@@ -207,7 +211,7 @@ def _street_shares(total: int, rider_ids: list[str], segments: list[tuple[float,
 
 def _evaluate_street(riders: tuple[Rider, ...], strict: bool, window) -> GroupPlan | None:
     """Evaluate one direction along a simulated corridor with street pickups and drop-offs."""
-        from_campus = riders[0].direction == "from_campus"
+    from_campus = riders[0].direction == "from_campus"
     if riders[0].direction not in ("from_campus", "to_campus"):
         return None
     first = riders[0]

@@ -73,7 +73,11 @@ def _rider(r):
     direction = r.get("direction", "from_campus")
     if r.get("corridor") is not None and r.get("start_km") is not None and r.get("end_km") is not None:
         def local_time(value):
-            return _at(to_minutes(value)) if value else None
+            if not value:
+                return None
+            if "T" in value:
+                return datetime.fromisoformat(value)
+            return _at(to_minutes(value))
 
         ready_at = local_time(r.get("ready_at"))
         if ready_at is None and direction == "from_campus":
