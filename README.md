@@ -1,4 +1,6 @@
-# Campus Connect
+# Yalla Ride
+
+For the current concept, core matching and pricing rules, completed features and known limitations, see the [Yalla Ride project guide](docs/yalla-ride-project-guide.html). The older overview below contains historical demo assumptions; use the guide and current configuration for the implemented rules.
 
 A proposed Jeeny feature that helps students pay less by sharing rides home with other students going the same way. A student books before class ends. Campus Connect groups students leaving the same campus in the same direction at about the same time, sets one meeting point and pickup time, and shows each student's share before they confirm. The price reflects how far each student rides. Women students can choose to match only with other women students.
 
