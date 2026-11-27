@@ -20,7 +20,7 @@
   {% macro clock_button() %}
     <form action="{{ url_for('move_clock') }}" method="post" class="clock-form">{{ token() }}
       <input type="hidden" name="back" value="{{ request.full_path }}">
-      <button class="ghost-btn" type="submit">Demo clock {{ now.strftime("%H:%M") }} · move +5 min ›</button>
+      <button class="ghost-btn" type="submit" name="minutes" value="5">Demo: move the clock 5 minutes ›</button>
     </form>
   {% endmacro %}
 
@@ -291,7 +291,7 @@
             {% else %}
               <p class="eyebrow">Your shared ride</p>
               <h2>Meet at the {{ plan.gate | lower }} at {{ plan.pickup }}</h2>
-              {% if selected.hold_until %}<p class="warn">Seat held until {{ selected.hold_until.strftime("%H:%M") }}. Confirm within {{ rules.hold_minutes }} minutes or the seat goes to someone else.</p>{% endif %}
+              {% if selected.hold_until %}<p class="warn">Your seat is held for {{ ((selected.hold_until - now).total_seconds() / 60) | round(0, "ceil") | int }} more min. Confirm before then or it goes back to the others.</p>{% endif %}
             {% endif %}
             <div class="riders">
               <span class="stack">{% for m in plan.members %}{{ avatar(m, m.id == selected.id) }}{% endfor %}</span>
@@ -353,7 +353,7 @@
             {% elif selected.status == "waiting_match" %}
               <div class="searching" aria-hidden="true"><span></span><span></span><span></span></div>
               <h2>Waiting for a match</h2>
-              <p class="sub">We'll put you in a car with the next student going toward {{ selected.stop }}. Waiting until {{ selected.wait_until.strftime("%H:%M") }}.</p>
+              <p class="sub">We'll put you in a car with the next student going toward {{ selected.stop }}. We'll keep looking for {{ ((selected.wait_until - now).total_seconds() / 60) | round(0, "ceil") | int }} more min.</p>
             {% else %}
               <h2>No one's going your way yet</h2>
               <p class="sub">{% if selected.wait_expired %}No one going your way booked in {{ rules.wait_minutes }} minutes.{% else %}No student heading toward {{ selected.stop }} finishes within {{ rules.gap }} minutes of {{ selected.class_end }}{% if selected.preference in only_names %} with {{ only_names[selected.preference] | lower }} matching{% endif %}.{% endif %} Pick how you want to go.</p>

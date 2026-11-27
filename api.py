@@ -325,6 +325,8 @@ def confirm(rider_id):
         with db:
             respond_to_plan(db, locked_batch(db, batch_id), rider_id, "confirm", reviewed)
     except Problem as problem:
+        if problem.code == "already_confirmed":  # A retried confirm returns the confirmed rider
+            return jsonify(rider_json(*load_rider(db, batch_id, rider_id)))
         if problem.code != "plan_changed":
             raise
         return error(problem.code, problem.message, 409, rider=rider_json(*load_rider(db, batch_id, rider_id)))

@@ -183,7 +183,7 @@ def respond(rider_id, action):
             else:
                 rider = respond_to_plan(db, batch, rider_id, action, request.form.get("plan"))
     except Problem as problem:
-        if problem.code not in ("plan_changed", "not_alone", "on_the_way"):
+        if problem.code not in ("plan_changed", "not_alone", "on_the_way", "already_confirmed"):
             abort(404)
         if problem.code != "plan_changed":
             flash(problem.message)
@@ -216,13 +216,16 @@ def driver_check():
 
 @app.post("/clock")
 def move_clock():
-    """Demo control: move this batch's clock forward 5 minutes (seat holds, waiting, cars on the way)."""
+    """Demo control: move this batch's clock forward (seat holds, waiting, cars on the way follow it)."""
+    minutes = 1 if request.form.get("minutes") == "1" else 5
     db = database()
     with db:
-        batch = locked_batch(db, session.get("batch"))
+        batch = get_batch(db, session.get("batch"))
         if batch:
-            advance_clock(db, batch["id"], 5)
-    flash("Demo clock moved forward 5 minutes.")
+            advance_clock(db, batch["id"], minutes)
+    if batch:
+        refresh(db, batch["id"])  # Release holds that ran out at the new time
+    flash(f"Demo clock moved forward {minutes} minute{'s' if minutes > 1 else ''}.")
     return redirect(request.form.get("back") if request.form.get("back", "").startswith("/") else url_for("index", view="trips"))
 
 

@@ -4,7 +4,7 @@ import itertools
 import pytest
 
 from pooling.model import evaluate
-from sharing import SEATS, STOPS, _rider, compatible, group_riders, plan_car, solo_fare
+from sharing import SEATS, STOPS, _rider, group_riders, plan_car, solo_fare
 
 from store import FIXTURE
 

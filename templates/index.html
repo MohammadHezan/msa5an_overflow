@@ -198,8 +198,9 @@
         {% endif %}
       </form>
       <form action="{{ url_for('move_clock') }}" method="post" class="clock-row">{{ token() }}
-        <span class="hint">Demo clock {{ now.strftime("%H:%M") }} · seat holds, waiting and cars on the way follow it</span>
-        <button class="secondary" type="submit">Move clock +5 min</button>
+        <span class="hint">Demo clock (moves only when you press) · seat holds, waiting and cars on the way follow it</span>
+        <span><button class="secondary" name="minutes" value="1" type="submit">+1 min</button>
+          <button class="secondary" name="minutes" value="5" type="submit">+5 min</button></span>
       </form>
       <div class="cars">
         {% for car in cars %}

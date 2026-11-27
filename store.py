@@ -18,7 +18,7 @@ from pooling.codes import new_code
 from pooling.model import PREFERENCES
 from sharing import (
     BASE_FARE, CORRIDORS, MAX_GAP, MIN_SAVING_PCT, PER_KM, SEATS, STOPS, WALK,
-    group_problem, group_riders, plan_car, sample_share, solo_fare,
+    group_problem, group_riders, plan_car, sample_share, solo_fare, trip_time,
 )
 
 AMMAN = ZoneInfo("Asia/Amman")
@@ -78,7 +78,7 @@ RIDER_COLUMNS = {  # Columns added after the first release, with their definitio
     "hold_until": "TEXT", "choice": "TEXT", "wait_until": "TEXT", "board_km": "REAL",
     "released": "INTEGER NOT NULL DEFAULT 0",
 }
-BATCH_COLUMNS = {"created_at": "TEXT", "clock_offset": "INTEGER NOT NULL DEFAULT 0"}
+BATCH_COLUMNS = {"created_at": "TEXT", "clock_offset": "INTEGER NOT NULL DEFAULT 0", "clock_start": "TEXT"}
 
 
 class Problem(Exception):
@@ -99,7 +99,7 @@ def database():
         g.db.executescript("""
             CREATE TABLE IF NOT EXISTS batches (
                 id TEXT PRIMARY KEY, trip_date TEXT NOT NULL, matched INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT, clock_offset INTEGER NOT NULL DEFAULT 0
+                created_at TEXT, clock_offset INTEGER NOT NULL DEFAULT 0, clock_start TEXT
             );
             CREATE TABLE IF NOT EXISTS riders (
                 id INTEGER PRIMARY KEY, batch TEXT NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
@@ -172,8 +172,11 @@ def now():
 
 
 def clock(batch):
-    """The batch's demo clock: real Amman time plus the operator's "advance the clock" offset."""
-    return now() + timedelta(seconds=batch["clock_offset"] or 0)
+    """The batch's simulated demo clock. It starts when the batch is created and only moves when the
+    operator presses "move clock", so seat holds, waiting and cars on the way never run out while
+    someone is presenting. (Batches from before the demo clock follow real time.)"""
+    start = datetime.fromisoformat(batch["clock_start"]) if batch["clock_start"] else now()
+    return start + timedelta(seconds=batch["clock_offset"] or 0)
 
 
 def _at(stamp):
@@ -216,7 +219,8 @@ def create_batch(db, seeded, replaces=None):
     trip_date = now().date() + timedelta(days=1)
     with db:
         delete_old_batches(db)
-        db.execute("INSERT INTO batches (id, trip_date, created_at) VALUES (?, ?, ?)", (batch, trip_date.isoformat(), utc_stamp()))
+        db.execute("INSERT INTO batches (id, trip_date, created_at, clock_start) VALUES (?, ?, ?, ?)",
+                   (batch, trip_date.isoformat(), utc_stamp(), now().isoformat()))
         for row in rows:
             add_rider(db, batch, *row)
         if replaces:
@@ -246,15 +250,17 @@ def signature(plan, rider_id):
 
 def _go_plan(members, car_row, at):
     """Plan for an option-C car that left with one student and picks others up on the way."""
-    departed = _at(car_row["departed_at"])
+    departed = _at(car_row["departed_at"])  # On the demo clock, for the car's position
     corridor = members[0]["corridor"]
+    lead = min(members, key=lambda m: (m["board_km"] or 0.0, m["id"]))
+    pickup = plan_car([lead])["pickup"]  # The trip-day time the car left the gate; fares use the same tariff as the solo fare
     riders = [(m["id"], m["board_km"] or 0.0, float(m["km"])) for m in members]
-    shares, fare, route_km = go_now.split(riders, departed)
+    shares, fare, route_km = go_now.split(riders, trip_time(pickup))
     position = go_now.position_km(departed, at, route_km)
     ordered = sorted(members, key=lambda m: (m["km"], m["id"]))
     boards = {m["id"]: go_now.pickup_point(corridor, m["board_km"] or 0.0)[0] for m in members}
     return {
-        "gate": CORRIDORS[corridor]["gate"], "corridor": corridor, "pickup": departed.strftime("%H:%M"),
+        "gate": CORRIDORS[corridor]["gate"], "corridor": corridor, "pickup": pickup,
         "members": ordered, "car_fare": fare, "route_km": route_km, "shares": shares,
         "shared": len(members) > 1, "only": None, "women_only": False,
         "go": True, "position_km": round(position, 1), "arrived": position >= route_km, "boards": boards,
@@ -545,6 +551,8 @@ def respond_to_plan(db, batch, rider_id, action, reviewed):
     if rider["status"] in ("on_the_way", "arrived"):
         raise Problem("on_the_way", "This ride has already left.")
     if action == "confirm":
+        if rider["status"] in ("confirmed", "solo_confirmed") and reviewed == rider["signature"]:
+            raise Problem("already_confirmed", "This seat is already confirmed.")
         if reviewed != rider["signature"]:
             raise Problem("plan_changed", "This plan changed before you confirmed. Review the updated plan.")
         db.execute("UPDATE riders SET confirmed_plan = ?, choice = NULL, wait_until = NULL WHERE id = ?",

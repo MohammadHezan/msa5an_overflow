@@ -78,6 +78,11 @@ def _rider(r):
     )
 
 
+def trip_time(clock):
+    """A trip-day datetime for an "HH:MM" time (prices depend only on the clock time)."""
+    return _at(to_minutes(clock))
+
+
 def solo_fare(stop, at_minutes=16 * 60):
     return car_fare(STOPS[stop]["km"], _at(at_minutes))
 
