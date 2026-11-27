@@ -25,5 +25,14 @@ def split_fare(total: int, weights: Sequence[float]) -> list[int]:
     - a larger weight never gets a smaller share;
     - all-zero weights split equally.
     """
-    # TODO(human): implement the proportional split with integer rounding.
-    raise NotImplementedError
+    n = len(weights)
+    if n == 0:
+        return []
+    weight_sum = sum(weights)
+    raw = [total * w / weight_sum for w in weights] if weight_sum else [total / n] * n
+    shares = [int(r) for r in raw]  # floor (all values are non-negative)
+    # Largest remainder: hand the leftover fils to the biggest fractions, earlier rider first on ties.
+    leftover = total - sum(shares)
+    for i in sorted(range(n), key=lambda i: (-(raw[i] - shares[i]), i))[:leftover]:
+        shares[i] += 1
+    return shares
