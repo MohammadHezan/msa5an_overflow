@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from flask import Flask, abort, flash, jsonify, redirect, render_template, request, session, url_for
 
 from api import api
+import ai_api  # noqa: F401  (adds the /api/v1/ai routes to the api blueprint)
 from join_qr import make_join_qr
 from pooling import config
 from yalla import yalla
