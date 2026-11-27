@@ -24,7 +24,7 @@
     const selected = chosen();
     if (!selected) return;
     const label = selected.closest(".ride").querySelector(".ride-name").childNodes[0].textContent.trim();
-    confirm.textContent = selected.value === "campus" ? "Choose Campus Connect" :
+    confirm.textContent = selected.value === "campus" ? "Choose Yalla Ride" :
       selected.value === "comfort" ? "Confirm Comfort" : `Confirm ${label}`;
   };
   const previewFor = (estimate, direction) => {

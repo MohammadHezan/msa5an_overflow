@@ -3,6 +3,7 @@
 Shared rides to and from campus for students (proposed Jeeny feature, hackathon demo).
 
 ## Current brief contract
+- The student-facing shared option is called **Yalla Ride** and belongs in the same ride-options list as Taxi and Comfort, not a separate app section.
 - Follow `docs/replit-briefs/README.md` in order, one phase at a time. Skip implemented behavior that passes tests. After each implemented phase run `python -m pytest`, inspect Preview at phone width, commit, and report before starting the next phase.
 - Brief 02 explicitly permits tested engine changes for street geography, both directions and segment pricing. Brief 03 is UI integration only: do not change `pooling/` or pricing rules there.
 - Street locations are simulated: corridor km plus 0–400 m side offset. Riders walk at most 200 m at 1.4 m/s; excess adds a round-trip car turn-in.

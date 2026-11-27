@@ -1,5 +1,6 @@
 """Backend contracts for the Jeeny chooser and demo-only student verification."""
 import math
+import re
 
 import pytest
 
@@ -70,3 +71,51 @@ def test_non_campus_choices_cannot_create_a_real_request(client):
 
 def test_verification_requires_the_existing_csrf_token(client):
     assert client.post("/demo/student-verification", data={"email": "demo@cedar.example"}).status_code == 400
+
+
+def test_yalla_is_a_peer_in_the_existing_ride_options(client):
+    html = client.get("/?screen=book").get_data(as_text=True)
+    rows = re.findall(r'<label class="ride[^"]*"[^>]*>(.*?)</label>', html, re.S)
+    assert len(rows) == 5
+    assert [re.search(r'name="ride" value="([^"]+)"', row)[1] for row in rows] == [
+        "economy", "taxi", "comfort", "campus", "box"]
+    for row, name in zip(rows, ["Economy", "Taxi", "Jeeny Comfort", "Yalla Ride", "Box"]):
+        assert name in row
+    assert 'value="economy" checked' in rows[0]
+    assert "Students" in rows[3]
+    assert 'id="shared"' in rows[3]
+    assert 'id="campus-saving"' in rows[3]
+    assert "Campus Connect" not in html
+
+
+def test_yalla_does_not_have_a_separate_home_or_menu_section(client):
+    for screen in ("home", "menu"):
+        html = client.get(f"/?screen={screen}").get_data(as_text=True)
+        assert 'class="campus-home-entry"' not in html
+        assert 'class="campus-menu-card"' not in html
+        assert "Campus Connect" not in html
+
+
+def test_yalla_preserves_selected_and_verification_states(client):
+    html = client.get("/?screen=book&ride=campus").get_data(as_text=True)
+    assert 'id="ride-campus" checked' in html
+    assert '<h2 id="details-title">Yalla Ride</h2>' in html
+    post(client, "/demo/student-verification", action="reset")
+    html = client.get("/?screen=book&ride=campus").get_data(as_text=True)
+    assert 'aria-label="Verify your university email to unlock Yalla Ride"' in html
+    assert 'id="ride-campus"' not in html
+    assert 'value="economy" checked' in html
+
+
+def test_yalla_uses_the_existing_shared_booking_handler(client):
+    post(client, "/reset", mode="empty")
+    response = post(client, "/requests", ride="campus", name="Yalla tester",
+                    stop="Dabouq", class_end="16:00", gender="woman",
+                    preference="mixed", direction="from_campus")
+    assert response.status_code == 302
+    assert "rider=" in response.location
+    with campus.app.app_context():
+        rider = campus.database().execute(
+            "SELECT * FROM riders WHERE name = 'Yalla tester'").fetchone()
+        assert rider is not None
+        assert rider["stop"] == "Dabouq"

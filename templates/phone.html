@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#EC008C">
-  <title>Jeeny · Campus Connect</title>
+  <title>Jeeny · Yalla Ride</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -27,8 +27,8 @@
   <div class="stage">
     <aside class="side">
       <img class="logo" src="{{ url_for('static', filename='jeeny-logo.png') }}" alt="Jeeny">
-      <h1>Campus Connect</h1>
-      <p>A proposed shared-ride option in Jeeny's ride section. Students leaving the same campus in the same direction share one car and split the fare.</p>
+      <h1>Yalla Ride</h1>
+      <p>A shared-ride option in Jeeny's ride section. Students leaving the same campus in the same direction share one car and split the fare.</p>
       <div class="side-card">
         <p class="side-label">View the app as</p>
         <div class="people">
@@ -129,7 +129,6 @@
             <nav class="menu-links" aria-label="App menu">
               <a href="{{ url_for('index', screen='book') }}">My Rides <span>›</span></a><a href="{{ url_for('index', screen='book') }}">Notifications <span>›</span></a><a href="{{ url_for('index', screen='book') }}">Promotions <span>›</span></a><a href="{{ url_for('index', screen='book') }}">Wallet <span>›</span></a><a href="{{ url_for('index', screen='book') }}">Help Center <span>›</span></a>
             </nav>
-            <a class="campus-menu-card" href="{{ url_for('index', screen='book', ride='campus') }}"><span class="campus-cap">CC</span><span><strong>Campus Connect</strong><small>Shared rides for students</small><em>NEW</em></span><b>›</b></a>
             <a class="menu-back" href="{{ url_for('index') }}">‹ Back to Jeeny</a>
           </section>
         {% elif not selected and screen != "book" %}
@@ -148,7 +147,6 @@
             </a>
             <a class="whereto" href="{{ url_for('index', screen='book') }}"><span aria-hidden="true">⌕</span> Where to? <span class="skip">Skip</span></a>
             <div class="home-recent"><span>◷</span><span><strong>Cedar Campus</strong><small>Amman, Jordan</small></span><button type="button" aria-label="Save Cedar Campus">♡</button></div>
-            <a class="campus-home-entry" href="{{ url_for('index', screen='book', ride='campus') }}"><span class="campus-cap">CC</span><span><strong>Campus Connect</strong><small>Shared rides for students</small></span><b>›</b></a>
           </section>
 
         {% elif not selected and screen == "book" %}
@@ -171,8 +169,8 @@
               {% endfor %}
               {% set campus_price = initial.get("shared", 0) %}
               {% if student_verified|default(true) %}<label class="ride campus-ride" id="campus-row"><input type="radio" name="ride" value="campus" id="ride-campus"{% if request.args.get("ride") == "campus" %} checked{% endif %}>
-              {% else %}<div class="ride campus-ride locked" id="campus-row" role="button" tabindex="0" aria-label="Verify your university email to unlock Campus Connect">{% endif %}
-                <img src="{{ url_for('static', filename='rides/campus.webp') }}" alt=""><span class="ride-name">Campus Connect <em>Students</em><small>{% if student_verified|default(true) %}Share with students going your way{% else %}Verify your university email{% endif %}</small></span>
+                {% else %}<div class="ride campus-ride locked" id="campus-row" role="button" tabindex="0" aria-label="Verify your university email to unlock Yalla Ride">{% endif %}
+                 <img src="{{ url_for('static', filename='rides/campus.webp') }}" alt=""><span class="ride-name">Yalla Ride <em>Students</em><small>{% if student_verified|default(true) %}Share with students going your way{% else %}Verify your university email{% endif %}</small></span>
                 <span class="campus-price"><b>from <span id="shared">{{ campus_price | jod }}</span></b><s id="campus-solo">{{ initial.get("solo", 0) | jod }}</s><small id="campus-saving">save ~{{ initial.get("save_percent", ((100 * (initial.get("solo", 0) - campus_price) / initial.get("solo", 1))|round|int)) }}%</small></span>
                 {% if not student_verified|default(true) %}<button class="verify-row-button" type="button" id="open-verification">Verify</button></div>{% else %}</label>{% endif %}
               {% set price = initial.get("box", initial.get("solo", 0)) %}
@@ -181,7 +179,7 @@
             <script type="application/json" id="estimates">{{ estimates | tojson }}</script>
             <div class="rides-foot"><p class="demo-note" id="demo-note" role="status"></p><button class="cta" type="button" id="confirm">Confirm Economy</button></div>
             <section class="campus-details" id="campus-details" aria-labelledby="details-title" hidden>
-              <div class="details-heading"><button type="button" class="round square" id="details-back" aria-label="Back to ride options">‹</button><div><h2 id="details-title">Campus Connect</h2><small>Verified student · Cedar Campus</small></div></div>
+              <div class="details-heading"><button type="button" class="round square" id="details-back" aria-label="Back to ride options">‹</button><div><h2 id="details-title">Yalla Ride</h2><small>Verified student · Cedar Campus</small></div></div>
               <div class="details-scroll">
                 <fieldset class="choice three gender-choice"><legend>I am</legend><label><input type="radio" name="gender" value="woman" checked disabled><span>Woman</span></label><label><input type="radio" name="gender" value="man" disabled><span>Man</span></label></fieldset>
                 <fieldset class="choice direction-choice"><legend>Direction</legend><label><input type="radio" name="direction" value="to_campus" disabled><span>To campus</span></label><label><input type="radio" name="direction" value="from_campus" checked disabled><span>From campus</span></label></fieldset>

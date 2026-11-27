@@ -120,10 +120,10 @@ def check_form():
 def submit_request():
     form = request.form
     if form.get("ride", "campus") != "campus":
-        flash("Demo only. This prototype books Campus Connect rides only.")
+        flash("Demo only. This prototype books Yalla Ride shared rides only.")
         return redirect(url_for("index", screen="book"))
     if not session.get("student_verified", True):
-        flash("Verify your university email to choose Campus Connect. This is a demo check only.")
+        flash("Verify your university email to choose Yalla Ride. This is a demo check only.")
         return redirect(url_for("index", screen="book", ride="campus"))
     direction = form.get("direction", "from_campus")
     class_end, class_start, stop = form.get("class_end", ""), form.get("class_start", ""), form.get("stop", "")
