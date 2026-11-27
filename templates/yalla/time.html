@@ -11,7 +11,13 @@
     {{ ui.row("calendar", "Ride date", batch_date) }}
     {% if draft.direction == "from_campus" %}
       <label class="yr-row yr-field">{{ ui.icon("clock") }}<span class="yr-row-text"><small>My class ends</small><input type="time" name="class_end" value="{{ draft.class_end }}" min="08:00" max="21:00" required data-ready="{{ pickup.walk_minutes }}"></span>{{ ui.chevron() }}</label>
-      <div class="yr-row">{{ ui.icon("nav") }}<span class="yr-row-text"><small>I can reach {{ pickup.street }} by</small><strong data-ready-out>{{ ready | ampm }}</strong></span>{{ ui.chevron() }}</div>
+      <label class="yr-row yr-field">{{ ui.icon("nav") }}<span class="yr-row-text"><small>I can reach {{ pickup.street }} by</small><input type="time" name="ready_at" value="{{ ready }}" required data-ready-out data-auto="{{ 'yes' if not draft.ready_at else '' }}"></span>{{ ui.chevron() }}</label>
+      <input type="hidden" name="ready_default" value="{{ ready_default }}" data-ready-default>
+      <fieldset class="yr-seg yr-slots"><legend>Preferred pickup</legend>
+        {% for offset, slot in slots %}
+        <label><input type="radio" name="slot" value="{{ offset }}"{% if draft.slot == offset %} checked{% endif %}><span><b data-slot="{{ offset }}">{{ slot | ampm }}</b><small>{{ "As soon as I’m ready" if offset == 0 else "+" ~ offset ~ " min" }}</small></span></label>
+        {% endfor %}
+      </fieldset>
     {% else %}
       <label class="yr-row yr-field">{{ ui.icon("clock") }}<span class="yr-row-text"><small>My class starts</small><input type="time" name="class_start" value="{{ draft.class_start }}" min="07:00" max="23:00" required></span>{{ ui.chevron() }}</label>
       <div class="yr-row">{{ ui.icon("nav") }}<span class="yr-row-text"><small>Arrive at campus by</small><strong>{{ arrive | ampm }}</strong></span>{{ ui.chevron() }}</div>
@@ -19,6 +25,6 @@
   </form>
   <p class="yr-label">Your pickup street</p>
   <div class="yr-chips"><span class="on">{{ ui.icon("walk") }} Walk {{ pickup.walk_minutes }} min · {{ pickup.walk_meters }} m to {{ pickup.street }}</span></div>
-  {{ ui.info("clock", "Your time matters", "The default wait limit is " ~ rules.gap ~ " minutes. You’ll see the exact pickup before confirming.") }}
+  {{ ui.info("clock", "Your time matters", "Pickup is never before you’re ready, and never more than your wait limit (" ~ draft.max_gate_wait ~ " min) after it. You’ll see the exact pickup before confirming.") }}
 {% endblock %}
 {% block foot %}<div class="yr-foot"><button class="yr-cta" form="time-form" type="submit">Choose ride preferences</button></div>{% endblock %}

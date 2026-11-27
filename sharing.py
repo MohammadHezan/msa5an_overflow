@@ -12,6 +12,7 @@ Every rule and price comes from pooling/:
 Distances, gates and coordinates are simulated assumptions for the demo.
 """
 import math
+from dataclasses import replace
 from datetime import date, datetime, timedelta
 
 from pooling import config
@@ -79,13 +80,17 @@ def _rider(r):
                 return datetime.fromisoformat(value)
             return _at(to_minutes(value))
 
-        ready_at = local_time(r.get("ready_at"))
+        ready_at = local_time(r.get("ready_at") or (r.get("ready_time") if direction == "from_campus" else None))
         if ready_at is None and direction == "from_campus":
             walk_seconds = min(int(r.get("start_side_m", 0)), config.MAX_WALK_M) / config.WALK_SPEED_MPS
             ready_at = _at(to_minutes(r["class_end"])) + timedelta(seconds=walk_seconds)
         arrive_by = local_time(r.get("arrive_by"))
         if arrive_by is None and direction == "to_campus":
             arrive_by = _at(to_minutes(r["class_start"])) - timedelta(minutes=5)
+        preferred = None
+        if r.get("preferred_pickup") and ready_at is not None:
+            hour, minute = map(int, r["preferred_pickup"][:5].split(":"))
+            preferred = ready_at.replace(hour=hour, minute=minute, second=0, microsecond=0)
         # The engine stores a valid legacy window too, for older callers and tests.
         moment = ready_at or arrive_by
         return Rider(
@@ -97,14 +102,23 @@ def _rider(r):
             direction=direction, corridor=r["corridor"], start_km=float(r["start_km"]),
             start_side_m=int(r.get("start_side_m") or 0), end_km=float(r["end_km"]),
             end_side_m=int(r.get("end_side_m") or 0), ready_at=ready_at, arrive_by=arrive_by,
+            preferred_pickup=preferred, quiet_ride=bool(r.get("quiet_ride")), **_limits(r),
         )
     ready = to_minutes(r["class_end"]) + WALK
     return Rider(
         request_id=str(r["id"]), first_name=r["name"], gender=r["gender"], preference=r["preference"],
         campus_id=DEMO_CAMPUS, meeting_point_id=CORRIDORS[STOPS[r["stop"]]["corridor"]]["gate"],
         stop_id=r["stop"], leave_after=_at(ready), leave_before=_at(ready + MAX_GAP + config.MIN_WINDOW_MIN),
-        quoted_share=r.get("quoted_share"),
+        quoted_share=r.get("quoted_share"), quiet_ride=bool(r.get("quiet_ride")), **_limits(r),
     )
+
+
+def _limits(r):
+    """A rider's own gate-wait and extra-ride limits (older requests get the config defaults)."""
+    return {
+        "max_gate_wait_min": int(r.get("max_gate_wait_min") or config.DEFAULT_MAX_GATE_WAIT_MIN),
+        "max_extra_ride_min": int(r.get("max_extra_ride_min") or config.DEFAULT_MAX_EXTRA_RIDE_MIN),
+    }
 
 
 def trip_time(clock):
@@ -167,6 +181,11 @@ def group_problem(members):
     if max(values) - min(values) > MAX_GAP:
         return f"Everyone's times must be within {MAX_GAP} minutes of each other."
     if evaluate([_rider(m) for m in members], strict=False) is None:
+        if evaluate([_rider({**m, "max_gate_wait_min": MAX_GAP}) for m in members], strict=False) is not None:
+            return "Someone in the group can't wait at the gate long enough for the others' ready times."
+        relaxed = {"max_gate_wait_min": MAX_GAP, "max_extra_ride_min": config.MAX_EXTRA_RIDE_CAP_MIN * 100}
+        if evaluate([_rider({**m, **relaxed}) for m in members], strict=False) is not None:
+            return "Riding together would take someone longer than their maximum extra ride time."
         return "Someone in the group asked for a women-only or men-only car that the others can't join."
     return None
 
@@ -189,6 +208,9 @@ def plan_car(members):
         # Can only happen after someone declines and the rest no longer meet every rule.
         # Keep the car together at the regulated fare rather than silently re-matching it.
         plan = evaluate(riders, strict=False)
+    if plan is None:
+        # A car saved before a rider's limits changed: price it as it is rather than lose it.
+        plan = evaluate([replace(r, max_gate_wait_min=10 ** 6, max_extra_ride_min=10 ** 6) for r in riders], strict=False)
     by_id = {str(m["id"]): m for m in members}
     ordered = [by_id[r.request_id] for r in plan.riders]
     shares = {by_id[rid]["id"]: share for rid, share in plan.shares.items()}

@@ -15,7 +15,9 @@ Shared rides to and from campus for students (proposed Jeeny feature, hackathon 
 - Afternoon, morning, and 28-student samples are available. Simulation compares alone, greedy, and optimizer using 30 paired seeds for each of 8/16/24/32 students, including mean/range and explicitly simulated charts.
 
 ## Run
-- Workflow **Start application** runs `python app.py` on port 5000.
+- **Run** starts managed workflows **artifacts/campus-dashboard: web** (existing Flask app on port 5000) and **artifacts/campus-connect: expo** (Expo Go preview).
+- Flask source, SQLite data and Python dependencies stay at the repository root. The dashboard artifact registers that app without rewriting it; its command changes directory to the root.
+- Node 22 and pnpm 10.26.1; install the Expo workspace with `pnpm install` at the root. Python tests remain `python -m pytest -q`.
 - Python 3.12; dependencies in `requirements.txt` (Flask, OR-Tools, python-dotenv, tzdata).
 - `SESSION_SECRET` (in Secrets) keeps browser sessions valid across restarts.
 
@@ -30,7 +32,9 @@ Shared rides to and from campus for students (proposed Jeeny feature, hackathon 
 - Route maps are inline SVG drawn server-side (no map tiles or external services), labelled "Simulated map".
 - `templates/phone.html` + `static/jeeny.css` – student app, styled as a feature inside Jeeny's ride section (magenta #EC008C, Poppins, map + bottom sheet, phone frame on desktop, full-screen on mobile).
 - `templates/index.html` + `static/style.css` – operator Matching and Trips views, using the same Jeeny palette.
-- `mobile/` – TypeScript Expo (SDK 58, pnpm) student app: join code → book → plan review → confirm/decline against `/api/v1`. Not run by a Replit workflow; teams run Metro locally (see `mobile/README.md`). `document.md` (rules, task split, proposed JSON API) and `agent.md` (team decisions, interview form, acceptance checklist) are the team planning notes.
+- `artifacts/campus-connect/` – the existing TypeScript Expo SDK 58 student app, moved from `mobile/`: join code → book → plan review → confirm/decline against `/api/v1`. Scan Replit's Expo Go QR code; the managed startup sets the backend domain automatically. `EXPO_PUBLIC_API_URL` is an optional explicit override. Browser preview: `/student-app`; native preview: Expo hostname. See its README for configuration and checks. `mobile/README.md` points to the new location.
+- `artifacts/campus-dashboard/` – routing manifest for the existing root Flask dashboard at `/`, including `/static` and `/api/v1`. Keep this separate from the mobile artifact to preserve native routing.
+- `document.md` (rules, task split, proposed JSON API) and `agent.md` (team decisions, interview form, acceptance checklist) are the team planning notes.
 
 ## Rules
 - `pooling/` is the matching and pricing engine, owned by Mohammad. Outside Brief 02's explicit permission, do not change its rules or numbers. Record open questions in `agent.md`.

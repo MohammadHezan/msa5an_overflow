@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "76MuPciVuhZILerfxbmU3"
+uri = "file://docs/yalla-ride-project-guide.html"
+type = "html"
+title = "Yalla Ride — Complete Project Guide"
+description = "Concept, student journey, core matching and fare logic, implemented features, architecture and launch limitations. Download or open in a browser; print to PDF if needed."
+logical_id = "a24a43ad-fde5-42ec-9e01-7aeedf8eb69c"
+content_hash = "sha256:58e2c46a1675e721d6ac5c457523ad99655379604689a6cc618add1fd2530019"
+size = 22254
+mtime_ms = 1795817656411
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:1e212175-823a-4891-8ba4-b1b914b865bc/a24a43ad-fde5-42ec-9e01-7aeedf8eb69c/ffef2257-b5ce-4419-9e1a-fb417a55f94f"
+storage_version_token = "1795817696046108"
+content_type = "text/html"

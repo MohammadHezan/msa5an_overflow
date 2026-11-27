@@ -8,7 +8,7 @@ The demo is a Flask app. SQLite stores each browser's demo batch, and OR-Tools C
 
 ## Run
 
-On Replit, import the project and click **Run**. The included configuration installs dependencies and starts the app. Open **Preview** to use it.
+On Replit, click **Run** to start the existing Flask dashboard and managed Expo student app. Open **Campus Connect Dashboard** to use the dashboard. Select **Campus Connect** and scan the **Expo Go** QR code from the preview URL-bar menu to open the student app on a phone, with no local setup. See the [student app guide](artifacts/campus-connect/README.md). The dashboard and `/api/v1` stay on port 5000.
 
 Locally, use Python 3.11 or 3.12.
 

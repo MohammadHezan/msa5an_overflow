@@ -39,16 +39,31 @@
     });
   });
 
-  // 06: "I can reach the street by" follows the class end time.
+  // 06: "I can reach the street by" follows the class end time until the student edits it;
+  // the three pickup slots (ready, +5, +10) follow the ready time.
   const end = document.querySelector("[data-ready]");
   const out = document.querySelector("[data-ready-out]");
-  if (end && out) end.addEventListener("input", () => {
-    const [h, m] = end.value.split(":").map(Number);
+  const clock = (total) => `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  const ampm = (value) => {
+    const [h, m] = value.split(":").map(Number);
+    return `${(h + 11) % 12 + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+  };
+  const slots = () => {
+    const [h, m] = out.value.split(":").map(Number);
     if (Number.isNaN(h)) return;
-    const total = h * 60 + m + Number(end.dataset.ready);
-    const hh = Math.floor(total / 60) % 24, mm = total % 60;
-    out.textContent = `${(hh + 11) % 12 + 1}:${String(mm).padStart(2, "0")} ${hh < 12 ? "AM" : "PM"}`;
-  });
+    document.querySelectorAll("[data-slot]").forEach((el) => { el.textContent = ampm(clock(h * 60 + m + Number(el.dataset.slot))); });
+  };
+  if (end && out) {
+    const fallback = document.querySelector("[data-ready-default]");
+    end.addEventListener("input", () => {
+      const [h, m] = end.value.split(":").map(Number);
+      if (Number.isNaN(h) || out.dataset.auto !== "yes") return;
+      out.value = clock(h * 60 + m + Number(end.dataset.ready));
+      if (fallback) fallback.value = out.value;
+      slots();
+    });
+    out.addEventListener("input", () => { out.dataset.auto = ""; slots(); });
+  }
 
   // 07: women only / men only follow "I am"; friends options show their field.
   const prefs = document.querySelector("[data-prefs]");

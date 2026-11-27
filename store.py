@@ -18,6 +18,7 @@ import go_now
 from pooling import config
 from pooling.codes import new_code
 from pooling.model import PREFERENCES
+from pooling.pricing import car_fare, split_fare
 from sharing import (
     BASE_FARE, CORRIDORS, MAX_GAP, MIN_SAVING_PCT, PER_KM, SEATS, STOPS, WALK,
     group_problem, group_riders, one_car_km, only_label, plan_car, sample_share, solo_fare, trip_time,
@@ -101,7 +102,15 @@ RIDER_COLUMNS = {  # Columns added after the first release, with their definitio
     "direction": "TEXT NOT NULL DEFAULT 'from_campus'", "class_start": "TEXT", "corridor": "TEXT",
     "start_km": "REAL", "start_side_m": "INTEGER NOT NULL DEFAULT 0",
     "end_km": "REAL", "end_side_m": "INTEGER NOT NULL DEFAULT 0",
+    # Planned ride request (screens 05-08). NULL ready/pickup times mean "class end plus the walk".
+    "ride_date": "TEXT", "ready_time": "TEXT", "preferred_pickup": "TEXT",
+    "quiet_ride": "INTEGER NOT NULL DEFAULT 0",
+    "max_gate_wait_min": f"INTEGER NOT NULL DEFAULT {config.DEFAULT_MAX_GATE_WAIT_MIN}",
+    "max_extra_ride_min": f"INTEGER NOT NULL DEFAULT {config.DEFAULT_MAX_EXTRA_RIDE_MIN}",
+    "payment_method": "TEXT NOT NULL DEFAULT 'cash'",
 }
+RIDE_OPTION_KEYS = ("ride_date", "ready_time", "preferred_pickup", "quiet_ride", "max_gate_wait_min",
+                    "max_extra_ride_min", "payment_method")
 BATCH_COLUMNS = {"created_at": "TEXT", "clock_offset": "INTEGER NOT NULL DEFAULT 0", "clock_start": "TEXT"}
 
 
@@ -134,6 +143,9 @@ def database():
                 released INTEGER NOT NULL DEFAULT 0, direction TEXT NOT NULL DEFAULT 'from_campus',
                 class_start TEXT, corridor TEXT, start_km REAL, start_side_m INTEGER NOT NULL DEFAULT 0,
                 end_km REAL, end_side_m INTEGER NOT NULL DEFAULT 0,
+                ride_date TEXT, ready_time TEXT, preferred_pickup TEXT, quiet_ride INTEGER NOT NULL DEFAULT 0,
+                max_gate_wait_min INTEGER NOT NULL DEFAULT 10, max_extra_ride_min INTEGER NOT NULL DEFAULT 10,
+                payment_method TEXT NOT NULL DEFAULT 'cash',
                 UNIQUE(batch, student_key)
             );
             CREATE TABLE IF NOT EXISTS join_codes (
@@ -166,7 +178,7 @@ def database():
             CREATE TABLE IF NOT EXISTS students (
                 id INTEGER PRIMARY KEY, university INTEGER NOT NULL REFERENCES universities(id),
                 email TEXT NOT NULL COLLATE NOCASE, first_name TEXT NOT NULL, verified_at TEXT,
-                UNIQUE(university, email)
+                gender TEXT NOT NULL DEFAULT 'man', UNIQUE(university, email)
             );
             CREATE TABLE IF NOT EXISTS saved_routes (
                 id INTEGER PRIMARY KEY, student_id INTEGER NOT NULL REFERENCES students(id),
@@ -213,6 +225,9 @@ def _migrate(db):
     if "student_id" not in token_columns:
         with db:
             db.execute("ALTER TABLE api_tokens ADD COLUMN student_id INTEGER REFERENCES students(id)")
+    if "gender" not in {row["name"] for row in db.execute("PRAGMA table_info(students)")}:
+        with db:  # Demo Jeeny profile gender; existing students get the demo default
+            db.execute(f"ALTER TABLE students ADD COLUMN gender TEXT NOT NULL DEFAULT '{config.DEMO_STUDENT_GENDER}'")
     batch_columns = {row["name"] for row in db.execute("PRAGMA table_info(batches)")}
     for column, kind in BATCH_COLUMNS.items():
         if column not in batch_columns:
@@ -272,15 +287,39 @@ def _street_location(name, stop, direction):
 
 
 def add_rider(db, batch, name, class_end, stop, gender, preference, direction="from_campus",
-              class_start=None, friend_group=None):
+              class_start=None, friend_group=None, student_key=None, options=None):
     corridor, start_km, start_side_m, end_km, end_side_m = _street_location(name, stop, direction)
+    options = {**default_ride_options(), **(options or {})}
     return db.execute(
         "INSERT INTO riders (batch, name, student_key, class_end, class_start, stop, gender, preference, "
-        "friend_group, direction, corridor, start_km, start_side_m, end_km, end_side_m) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (batch, name, name.casefold(), class_end, class_start, stop, gender, preference, friend_group,
-         direction, corridor, start_km, start_side_m, end_km, end_side_m),
+        "friend_group, direction, corridor, start_km, start_side_m, end_km, end_side_m, "
+        + ", ".join(RIDE_OPTION_KEYS) + ") VALUES (" + ", ".join("?" * (15 + len(RIDE_OPTION_KEYS))) + ")",
+        (batch, name, student_key or name.casefold(), class_end, class_start, stop, gender, preference, friend_group,
+         direction, corridor, start_km, start_side_m, end_km, end_side_m,
+         *(options[key] for key in RIDE_OPTION_KEYS)),
     ).lastrowid
+
+
+def default_ride_options():
+    """What an older client that sends none of the planned-request fields gets."""
+    return {"ride_date": None, "ready_time": None, "preferred_pickup": None, "quiet_ride": 0,
+            "max_gate_wait_min": config.DEFAULT_MAX_GATE_WAIT_MIN,
+            "max_extra_ride_min": config.DEFAULT_MAX_EXTRA_RIDE_MIN, "payment_method": "cash"}
+
+
+def default_ready_time(name, stop, class_end):
+    """Class end plus the walk to the campus street, rounded up to the minute ("HH:MM")."""
+    _, _, campus_side, _, _ = _street_location(name, stop, "from_campus")
+    walk = math.ceil(min(campus_side, config.MAX_WALK_M) / config.WALK_SPEED_MPS / 60)
+    hour, minute = map(int, class_end.split(":"))
+    total = hour * 60 + minute + walk
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
+def pickup_slots(ready):
+    """The three pickup choices on screen 06: readyAt, +5 and +10 minutes."""
+    hour, minute = map(int, ready.split(":"))
+    return [f"{(hour * 60 + minute + m) // 60:02d}:{(hour * 60 + minute + m) % 60:02d}" for m in config.PICKUP_SLOTS_MIN]
 
 
 def utc_stamp(moment=None):
@@ -420,7 +459,10 @@ def load_riders(db, batch, at=None):
                      if row["start_km"] is not None else STOPS[row["stop"]]["km"]),
          "solo": solo_fare(row["stop"]),
          "quoted_share": int(row["confirmed_plan"].split("|", 1)[0]) if row["confirmed_plan"] else None,
-         "ready_at": (datetime.strptime(row["class_end"], "%H:%M").replace(
+         "ready_at": datetime.combine(date.fromisoformat(batch["trip_date"]),
+                                      datetime.strptime(row["ready_time"], "%H:%M").time(), tzinfo=AMMAN).isoformat()
+         if row["direction"] == "from_campus" and row["ready_time"] else
+         (datetime.strptime(row["class_end"], "%H:%M").replace(
              year=date.fromisoformat(batch["trip_date"]).year,
              month=date.fromisoformat(batch["trip_date"]).month,
              day=date.fromisoformat(batch["trip_date"]).day, tzinfo=AMMAN
@@ -550,6 +592,63 @@ def check_request(name, class_end, stop, gender, preference, direction="from_cam
     return name
 
 
+def _clock_minutes(value):
+    try:
+        if datetime.strptime(value or "", "%H:%M").strftime("%H:%M") != value:
+            return None
+    except (TypeError, ValueError):
+        return None
+    hour, minute = map(int, value.split(":"))
+    return hour * 60 + minute
+
+
+def check_ride_options(name, stop, direction, class_end, trip_date=None, ride_date=None, ready_at=None,
+                       preferred_pickup=None, quiet_ride=False, max_gate_wait_min=None,
+                       max_extra_ride_min=None, payment_method=None):
+    """Validate the planned-request fields of screens 05-08. Returns the values to store (see RIDE_OPTION_KEYS).
+
+    Every field is optional so older clients keep working. Ready time and pickup slot are for rides
+    from campus only; the gate-wait and extra-ride limits must be positive and at most the config caps.
+    """
+    def bad(message):
+        return Problem("invalid_input", message, 400)
+
+    options = default_ride_options()
+    if ride_date is not None:
+        if trip_date and ride_date != trip_date:
+            raise bad(f"`rideDate` must be this batch's trip date ({trip_date}).")
+        options["ride_date"] = ride_date
+    if direction != "from_campus" and (ready_at or preferred_pickup):
+        raise bad("A ready time and pickup slot are only for rides from campus.")
+    if direction == "from_campus":
+        end = _clock_minutes(class_end)
+        if ready_at:
+            ready = _clock_minutes(ready_at)
+            if ready is None or end is None or not end <= ready <= end + config.MAX_READY_AFTER_CLASS_MIN:
+                raise bad(f"`readyAt` must be a time (HH:MM) from class end to "
+                          f"{config.MAX_READY_AFTER_CLASS_MIN} minutes after it.")
+            options["ready_time"] = ready_at
+        if preferred_pickup:
+            slots = pickup_slots(ready_at or default_ready_time(name, stop, class_end))
+            if preferred_pickup not in slots:
+                raise bad("`preferredPickup` must be one of the three pickup slots: " + ", ".join(slots) + ".")
+            options["preferred_pickup"] = preferred_pickup
+    for key, value, cap in (("maxGateWaitMin", max_gate_wait_min, config.MAX_GATE_WAIT_CAP_MIN),
+                            ("maxExtraRideMin", max_extra_ride_min, config.MAX_EXTRA_RIDE_CAP_MIN)):
+        if value is None:
+            continue
+        if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= cap:
+            raise bad(f"`{key}` must be a whole number of minutes from 1 to {cap}.")
+    if max_gate_wait_min is not None:
+        options["max_gate_wait_min"] = max_gate_wait_min
+    if max_extra_ride_min is not None:
+        options["max_extra_ride_min"] = max_extra_ride_min
+    if payment_method is not None and payment_method not in config.PAYMENT_METHODS:
+        raise bad("`paymentMethod` must be \"cash\". No payment is taken at request time.")
+    options["quiet_ride"] = int(bool(quiet_ride))
+    return options
+
+
 def legacy_options(woman, women_only):
     """Map the old woman/women_only flags to (gender, preference)."""
     return ("woman" if woman else "man"), ("women" if women_only else "mixed")
@@ -581,17 +680,23 @@ def group_fit_problem(members, gender, preference):
 
 
 def insert_request(db, batch, name, class_end, stop, gender, preference, friends=None,
-                   direction="from_campus", class_start=None):
+                   direction="from_campus", class_start=None, student_key=None, options=None):
     """Save a checked request. Call inside a locked_batch transaction.
 
     friends: None (just me), {"mode": "start", "open": bool} or {"mode": "join", "code": "GR-48"}.
+    student_key: one request per verified student (e.g. "student:7"); defaults to the casefolded name.
+    options: the checked planned-request fields from check_ride_options (None means the defaults).
     After matching has run, a lone request is placed at once (see place_late_request). A friends group
     started after matching waits in a lobby until its creator says everyone is in, it has 4 students,
     or GROUP_LOBBY runs out; then it gets one car (see place_group).
     """
     if db.execute("SELECT COUNT(*) FROM riders WHERE batch = ?", (batch["id"],)).fetchone()[0] >= MAX_REQUESTS:
         raise Problem("batch_full", "This demo batch is full.")
-    if db.execute("SELECT 1 FROM riders WHERE batch = ? AND student_key = ?", (batch["id"], name.casefold())).fetchone():
+    if student_key and db.execute("SELECT 1 FROM riders WHERE batch = ? AND student_key = ?",
+                                  (batch["id"], student_key)).fetchone():
+        raise Problem("already_booked", "You already have a request in this batch.")
+    if not student_key and db.execute("SELECT 1 FROM riders WHERE batch = ? AND student_key = ?",
+                                      (batch["id"], name.casefold())).fetchone():
         raise Problem("duplicate_name", "That name already has a request in this batch.")
     code = None
     if friends and friends["mode"] == "start":
@@ -617,12 +722,12 @@ def insert_request(db, batch, name, class_end, stop, gender, preference, friends
         newcomer = {"id": 0, "name": name, "class_end": class_end, "class_start": class_start,
                     "stop": stop, "gender": gender, "preference": preference, "direction": direction,
                     "corridor": corridor, "start_km": start_km, "start_side_m": start_side_m,
-                    "end_km": end_km, "end_side_m": end_side_m}
+                    "end_km": end_km, "end_side_m": end_side_m, **(options or {})}
         problem = group_problem(members + [newcomer])
         if problem:
             raise Problem("group_mismatch", problem)
     rider_id = add_rider(db, batch["id"], name, class_end, stop, gender, preference,
-                         direction, class_start, friend_group=code)
+                         direction, class_start, friend_group=code, student_key=student_key, options=options)
     if batch["matched"] and code:
         count = db.execute("SELECT COUNT(*) FROM riders WHERE batch = ? AND friend_group = ? AND declined = 0",
                            (batch["id"], code)).fetchone()[0]
@@ -928,6 +1033,7 @@ def captain_sheets(riders, cars):
                      for place in stops]
         sheets.append({
             "plan": plan, "captain": plan["captain"], "stops": stops,
+            "quiet": [m["name"].split()[0] for m in plan["members"] if m.get("quiet_ride")],
             "steps": steps,
             "codes": [(m["name"], by_id[m["id"]]["ride_code"]) for m in plan["members"]],
             "bonus": EXTRA_STOP_BONUS * (len(plan["members"]) - 1),
@@ -1020,6 +1126,58 @@ def fare_estimates(student_name="Sara"):
             "pickups": pickups,
         }
     return result
+
+
+def ride_estimate(stop, preferred_pickup, ride_date=None):
+    """Screen 08 estimate: share range and drop-off ETA for a homebound ride, priced by the engine's tariff.
+
+    low = each rider's share in a full car, high = the share with two riders (same stop, so an equal
+    per-km split). Drop-off = preferred pickup + the stop's km at SPEED_KMH, in Asia/Amman.
+    """
+    if stop not in STOPS:
+        raise Problem("invalid_input", "`stop` must be one of the listed drop-offs.", 400)
+    if _clock_minutes(preferred_pickup) is None:
+        raise Problem("invalid_input", "`preferredPickup` must be a time (HH:MM).", 400)
+    try:
+        day = date.fromisoformat(ride_date) if ride_date else now().date() + timedelta(days=1)
+    except ValueError:
+        raise Problem("invalid_input", "`rideDate` must be a date (YYYY-MM-DD).", 400) from None
+    pickup = datetime.combine(day, datetime.strptime(preferred_pickup, "%H:%M").time(), tzinfo=AMMAN)
+    km = STOPS[stop]["km"]
+    fare = car_fare(km, pickup)
+    low = max(split_fare(fare, [km] * config.ESTIMATE_FULL_RIDERS))
+    high = max(split_fare(fare, [km] * config.ESTIMATE_PAIR_RIDERS))
+    drop_off = pickup + timedelta(hours=km / config.SPEED_KMH)
+    return {"stop": stop, "corridor": STOPS[stop]["corridor"], "km": km, "pickup": pickup,
+            "low": low, "high": high, "solo": fare, "drop_off": drop_off}
+
+
+def request_checks(batch, rider):
+    """The three checks screen 09 shows while matching: same campus and direction, time window, preferences."""
+    plan = rider.get("plan") or {}
+    ready = rider.get("ready_at")
+    ready_clock = datetime.fromisoformat(ready).strftime("%H:%M") if ready else None
+    if rider["direction"] == "from_campus":
+        ready_clock = rider.get("ready_time") or (default_ready_time(rider["name"], rider["stop"], rider["class_end"])
+                                                  if rider.get("class_end") else ready_clock)
+    around = (plan.get("rider_times") or {}).get(rider["id"]) or rider.get("preferred_pickup") or ready_clock
+    if around is None and rider.get("arrive_by"):  # Campus-bound: leave early enough to arrive by class start - 5
+        around = (datetime.fromisoformat(rider["arrive_by"])
+                  - timedelta(hours=rider["km"] / config.SPEED_KMH)).strftime("%H:%M")
+    def at(clock_value):
+        return datetime.combine(date.fromisoformat(batch["trip_date"]),
+                                datetime.strptime(clock_value, "%H:%M").time(), tzinfo=AMMAN).isoformat() if clock_value else None
+    return {
+        "sameCampusDirection": {"corridor": rider["corridor"], "direction": rider["direction"],
+                                "gate": CORRIDORS[rider["corridor"]]["gate"]},
+        "timeWindow": {"readyAt": at(ready_clock), "readyTime": ready_clock,
+                       "pickupAround": at(around), "pickupAroundTime": around,
+                       "maxGateWaitMin": rider.get("max_gate_wait_min") or config.DEFAULT_MAX_GATE_WAIT_MIN},
+        "preferences": {"preference": rider["preference"], "womenOnly": rider["preference"] == "women",
+                        "quietRide": bool(rider.get("quiet_ride")),
+                        "maxExtraRideMin": rider.get("max_extra_ride_min") or config.DEFAULT_MAX_EXTRA_RIDE_MIN,
+                        "paymentMethod": rider.get("payment_method") or "cash"},
+    }
 
 
 RULES = {"seats": SEATS, "gap": MAX_GAP, "walk": WALK, "base": BASE_FARE, "per_km": PER_KM,

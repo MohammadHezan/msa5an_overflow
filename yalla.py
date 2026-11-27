@@ -11,11 +11,13 @@ from datetime import datetime, timedelta
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 
-from pooling.config import DETOUR_EXTRA_KM, SPEED_KMH
+from pooling import config
+from pooling.config import SPEED_KMH
 from sharing import CORRIDORS, STOPS
 from store import (
-    GROUP_LOBBY, RULES, Problem, advance_clock, check_request, choose, clock, create_batch, database, fare_estimates, get_batch,
-    group_ready, insert_request, load_riders, locked_batch, refresh, respond_to_plan, run_matching,
+    GROUP_LOBBY, RULES, Problem, advance_clock, check_request, check_ride_options, default_ready_time, pickup_slots,
+    request_checks, ride_estimate, choose, clock, create_batch, database, fare_estimates, get_batch, group_ready,
+    insert_request, load_riders, locked_batch, refresh, respond_to_plan, run_matching,
 )
 
 yalla = Blueprint("yalla", __name__, url_prefix="/yalla")
@@ -35,8 +37,10 @@ PREFERENCE_NAMES = {"mixed": "Anyone", "women": "Women only", "men": "Men only"}
 DEFAULT_NAME = {"man": "Omar K", "woman": "Sara A"}  # Demo profiles; the live flow starts as a man (brief 05)
 DEMO_FRIENDS = {"man": ["Ahmad K", "Yousef M", "Ali S", "Faris N"], "woman": ["Lina H", "Noor T", "Dima R", "Tala S"]}
 DEFAULT_DRAFT = {"direction": "from_campus", "stop": "Dabouq", "class_end": "16:00", "class_start": "08:30",
-                 "gender": "man", "preference": "mixed", "quiet": False, "friends": "", "group_code": "",
-                 "group_open": True}
+                 "gender": config.DEMO_STUDENT_GENDER, "preference": "mixed", "quiet": False, "friends": "", "group_code": "",
+                 "group_open": True, "ready_at": "", "slot": 0,
+                 "max_gate_wait": config.DEFAULT_MAX_GATE_WAIT_MIN, "max_extra_ride": config.DEFAULT_MAX_EXTRA_RIDE_MIN}
+LIMIT_CHOICES = (5, 10, 15, 20)  # minutes offered on screen 07 for the gate-wait and extra-ride limits
 
 
 def ampm(value):
@@ -299,18 +303,51 @@ def destination():
                   recent=session.get("yalla_recent", []))
 
 
+def ready_time(d):
+    """When the student can reach the campus street: what they entered, or class end plus the walk."""
+    try:
+        return d["ready_at"] or default_ready_time(student_name(), d["stop"], d["class_end"])
+    except ValueError:
+        return d["class_end"]
+
+
+def planned_options(d):
+    """The draft's screen 06-08 choices as checked request fields (the same check the API uses)."""
+    from_campus = d["direction"] == "from_campus"
+    ready = ready_time(d) if from_campus else None
+    return check_ride_options(
+        student_name(), d["stop"], d["direction"], d["class_end"], ready_at=d["ready_at"] or None if from_campus else None,
+        preferred_pickup=pickup_slots(ready)[config.PICKUP_SLOTS_MIN.index(d["slot"])] if from_campus else None,
+        quiet_ride=d["quiet"], max_gate_wait_min=d["max_gate_wait"], max_extra_ride_min=d["max_extra_ride"],
+        payment_method="cash")
+
+
 @yalla.route("/plan/time", methods=["GET", "POST"])
 def pickup_time():
     if (blocked := need_verified()):
         return blocked
     d = draft()
     if request.method == "POST":
-        field = "class_end" if d["direction"] == "from_campus" else "class_start"
-        value = request.form.get(field, "")
-        save_draft(**{field: value})
+        if d["direction"] == "from_campus":
+            slot = request.form.get("slot", type=int)
+            ready = request.form.get("ready_at", "")
+            # An untouched "ready by" field means the default (class end + walk), which follows the class end
+            if ready == request.form.get("ready_default"):
+                ready = ""
+            class_end = request.form.get("class_end", "")
+            if not re.fullmatch(r"\d\d:\d\d", class_end):
+                class_end = d["class_end"]
+            if not re.fullmatch(r"\d\d:\d\d", ready):
+                ready = ""
+            save_draft(class_end=class_end, ready_at=ready,
+                       slot=slot if slot in config.PICKUP_SLOTS_MIN else 0)
+        else:
+            save_draft(class_start=request.form.get("class_start", ""))
         return redirect(url_for("yalla.preferences"))
     pickup = fare_estimates(student_name())[d["stop"]]["pickups"][d["direction"]]
-    return render("time.html", pickup=pickup, ready=add_minutes(d["class_end"], pickup["walk_minutes"]),
+    ready = ready_time(d)
+    return render("time.html", pickup=pickup, ready=ready, ready_default=add_minutes(d["class_end"], pickup["walk_minutes"]),
+                  slots=list(zip(config.PICKUP_SLOTS_MIN, pickup_slots(ready))),
                   arrive=add_minutes(d["class_start"], -5), batch_date=batch_date())
 
 
@@ -325,11 +362,14 @@ def preferences():
         if (preference == "women" and gender != "woman") or (preference == "men" and gender != "man"):
             preference = "mixed"
         friends = form.get("friends") if form.get("friends") in ("", "start", "join") else ""
+        wait = form.get("max_gate_wait", type=int)
+        extra = form.get("max_extra_ride", type=int)
         save_draft(gender=gender, preference=preference, quiet=form.get("quiet") == "yes", friends=friends,
-                   group_code=form.get("group_code", "")[:10].strip().upper(), group_open=form.get("group_open") == "yes")
+                   group_code=form.get("group_code", "")[:10].strip().upper(), group_open=form.get("group_open") == "yes",
+                   max_gate_wait=wait if wait in LIMIT_CHOICES else config.DEFAULT_MAX_GATE_WAIT_MIN,
+                   max_extra_ride=extra if extra in LIMIT_CHOICES else config.DEFAULT_MAX_EXTRA_RIDE_MIN)
         return redirect(url_for("yalla.review"))
-    return render("preferences.html", batch=get_batch(database(), session.get("batch")),
-                  extra_minutes=round(DETOUR_EXTRA_KM / SPEED_KMH * 60))
+    return render("preferences.html", batch=get_batch(database(), session.get("batch")), limit_choices=LIMIT_CHOICES)
 
 
 @yalla.post("/plan/save")
@@ -349,15 +389,20 @@ def review():
     if (blocked := need_verified()):
         return blocked
     d = draft()
-    estimate = fare_estimates(student_name())[d["stop"]]
-    pickup = estimate["pickups"][d["direction"]]
+    pickup = fare_estimates(student_name())[d["stop"]]["pickups"][d["direction"]]
+    batch = get_batch(database(), session.get("batch"))
+    ride_date = batch["trip_date"] if batch else None
     if d["direction"] == "from_campus":
-        start = add_minutes(d["class_end"], pickup["walk_minutes"])
-        end = add_minutes(start, round(STOPS[d["stop"]]["km"] * 2.4))
+        ready = ready_time(d)
+        start = pickup_slots(ready)[config.PICKUP_SLOTS_MIN.index(d["slot"])]
+        estimate = ride_estimate(d["stop"], start, ride_date)  # The same estimate GET /api/v1/estimate returns
+        end = estimate["drop_off"].strftime("%H:%M")
     else:
+        ready = None
         end = add_minutes(d["class_start"], -5)
-        start = add_minutes(end, -round(STOPS[d["stop"]]["km"] * 2.4))
-    return render("review.html", estimate=estimate, pickup=pickup, start=start, end=end, name=student_name(),
+        start = add_minutes(end, -round(STOPS[d["stop"]]["km"] * 60 / SPEED_KMH))
+        estimate = ride_estimate(d["stop"], start, ride_date)
+    return render("review.html", estimate=estimate, pickup=pickup, start=start, end=end, ready=ready, name=student_name(),
                   preference_name=PREFERENCE_NAMES[d["preference"]])
 
 
@@ -384,13 +429,14 @@ def book():
     try:
         name = check_request(student_name(), d["class_end"], d["stop"], d["gender"], d["preference"],
                              d["direction"], d["class_start"])
+        options = planned_options(d)
         with db:
             batch = locked_batch(db, session.get("batch"))
             if not batch:
                 raise Problem("not_found", "Your request was not saved. Open the demo again and retry.")
             release_unmatched(db, batch)
             rider_id = insert_request(db, batch, name, d["class_end"], d["stop"], d["gender"], d["preference"],
-                                      friends, direction=d["direction"], class_start=d["class_start"])
+                                      friends, direction=d["direction"], class_start=d["class_start"], options=options)
     except Problem as problem:
         flash(problem.message)
         return redirect(url_for("yalla.review"))
@@ -423,11 +469,12 @@ def ride_context(batch, rider):
     arrive_in = minutes_between(now.strftime("%H:%M"), pickup) if pickup and now.date().isoformat() == batch["trip_date"][:10] else None
     return {"plan": plan, "members": members, "me_first": me_first, "saving": saving,
             "street": pickup_street(rider), "walk_min": walk_min,
-            "ready": add_minutes(rider["class_end"] or "16:00", walk_min),
+            "ready": rider.get("ready_time") or add_minutes(rider["class_end"] or "16:00", walk_min),
             "arrive_in": arrive_in if arrive_in and arrive_in > 0 else None,
             "pickup": pickup, "drop": drop, "car": car_details(plan) if plan else None,
             "ride_minutes": minutes_between(pickup, drop) if pickup and drop else None,
-            "now": clock(batch), "batch_date": batch_date(), "quiet": draft()["quiet"]}
+            "now": clock(batch), "batch_date": batch_date(), "quiet": bool(rider.get("quiet_ride")),
+            "checks": request_checks(batch, rider)}
 
 
 @yalla.get("/ride")
@@ -781,6 +828,7 @@ def demo(screen):
         abort(404)
     endpoint, args = DEMO_SCREENS[screen]
     session["student_verified"] = True
+    # The designed screens show Sara, a woman student, whatever the default demo profile is
     session["yalla_name"] = "Sara A"
     session["student_gender"] = "woman"  # The designed screens show Sara
     session["yalla"] = {**DEFAULT_DRAFT, "gender": "woman", "quiet": True}

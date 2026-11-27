@@ -4,9 +4,10 @@
   {{ ui.intro("Request received", "Finding your campus group", "Keep doing your thing. We’ll update your plan.") }}
   {{ ui.map(university.campus, "Campus street" if rider.direction == "from_campus" else rider.stop ~ " street", "Your stop" if rider.direction == "from_campus" else "Campus", 1) }}
   <ul class="yr-checks">
-    <li class="done"><b>{{ ui.icon("tick") }}</b><span><strong>Same campus &amp; direction</strong><small>{{ university.campus }} {{ "→" if rider.direction == "from_campus" else "←" }} {{ rider.stop }} corridor</small></span></li>
-    <li class="done"><b>{{ ui.icon("tick") }}</b><span><strong>Your time window</strong><small>{% if rider.direction == "from_campus" %}Ready at {{ ready | ampm }} · walk {{ walk_min }} min to {{ street }}{% else %}Class starts {{ rider.class_start | ampm }} · pickup on {{ street }}{% endif %}</small></span></li>
-    <li class="wait"><b aria-hidden="true">···</b><span><strong>Compatible riders</strong><small>{{ preference_name }}{% if quiet %} · Quiet ride{% endif %}{% if rider.friend_group %} · Group {{ rider.friend_group }}{% endif %}</small></span></li>
+    {% set tw = checks.timeWindow %}{% set pr = checks.preferences %}
+    <li class="done"><b>{{ ui.icon("tick") }}</b><span><strong>Same campus &amp; direction</strong><small>{{ university.campus }} {{ "→" if rider.direction == "from_campus" else "←" }} {{ checks.sameCampusDirection.corridor }} corridor</small></span></li>
+    <li class="done"><b>{{ ui.icon("tick") }}</b><span><strong>Your time window</strong><small>{% if rider.direction == "from_campus" %}Ready at {{ tw.readyTime | ampm }} · pickup around {{ tw.pickupAroundTime | ampm }} · wait up to {{ tw.maxGateWaitMin }} min{% else %}Class starts {{ rider.class_start | ampm }} · pickup around {{ tw.pickupAroundTime | ampm }} on {{ street }}{% endif %}</small></span></li>
+    <li class="wait"><b aria-hidden="true">···</b><span><strong>Compatible riders</strong><small>{{ preference_name }}{% if pr.quietRide %} · Quiet ride{% endif %} · up to {{ pr.maxExtraRideMin }} min extra{% if rider.friend_group %} · Group {{ rider.friend_group }}{% endif %} · Cash</small></span></li>
   </ul>
   {% if rider.friend_group %}<p class="yr-fine">Friends join with code <b>{{ rider.friend_group }}</b> (up to {{ rules.seats }} in a car).</p>{% endif %}
 {% endblock %}

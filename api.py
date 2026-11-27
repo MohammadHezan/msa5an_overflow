@@ -16,11 +16,12 @@ from pooling import config
 from store import (
     AMMAN, RULES, Problem, batch_for_join_code, bind_token, check_request, create_batch, database, fare_estimates,
     find_token, get_batch, group_ready, insert_request, legacy_options, refresh, issue_token, join_code, load_riders,
-    locked_batch, now, choose, respond_to_plan, run_matching, summarize, verify_ride_code,
+    locked_batch, now, choose, respond_to_plan, run_matching, summarize, verify_ride_code, check_ride_options,
+    request_checks, ride_estimate, RIDE_OPTION_KEYS,
 )
 from yalla import car_details, leg_split, pickup_street
 from student_verification import (
-    confirm_verification, public_student, request_notification, resend_verification,
+    booking_identity, confirm_verification, public_student, request_notification, resend_verification,
     search_universities, start_verification,
 )
 
@@ -44,6 +45,16 @@ CLIENT_REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
 SAMPLE_RIDERS = 3
 
 
+# ---------- Errors and helpers ----------
+
+
+"""Versioned JSON API for the Expo student app and operator tools.
+Each endpoint mirrors an HTML form route in app.py and calls the same functions in store.py.
+Access uses bearer tokens: an operator token from creating a batch, or a student token from a join code.
+"""
+api = Blueprint("api", __name__, url_prefix="/api/v1")
+CLIENT_REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
+SAMPLE_RIDERS = 3
 # ---------- Errors and helpers ----------
 
 @api.errorhandler(Problem)
@@ -221,16 +232,25 @@ def rider_json(batch, rider):
                     "streetKm": rider["km"], "walkMeters": min(rider["start_side_m"], 200),
                     "gender": rider["gender"],
                     "preference": rider["preference"], "friendGroup": rider["friend_group"],
+                    "groupOpen": rider["group_open"] if rider["friend_group"] else None,
+                    "rideDate": rider["ride_date"] or batch["trip_date"], "readyAt": rider["ready_time"],
+                    "preferredPickup": rider["preferred_pickup"], "quietRide": bool(rider["quiet_ride"]),
+                    "maxGateWaitMin": rider["max_gate_wait_min"], "maxExtraRideMin": rider["max_extra_ride_min"],
+                    "paymentMethod": rider["payment_method"],
                     # Older clients read these two flags
                     "woman": rider["gender"] == "woman", "womenOnly": rider["preference"] == "women"},
         "soloFare": money(rider["solo"]), "rideCode": rider["ride_code"], "plan": None,
+        # Screen 09: "matching" until the batch is matched, then the checks stay for reference
+        "requestStatus": "matching" if not batch["matched"] else "matched",
+        **request_checks(batch, rider),
         "holdUntil": rider["hold_until"].isoformat() if rider["hold_until"] else None,
         "waitUntil": rider["wait_until"].isoformat() if rider["wait_until"] else None,
         "group": group_json(rider),
     }
     if plan:
         body["plan"] = {
-            "shared": plan["shared"], "womenOnly": plan.get("women_only", False), "only": plan.get("only"),
+            "shared": plan["shared"], "womenOnly": plan.get("only") == "women", "only": plan.get("only"),
+            "friendGroup": rider["friend_group"],
             "corridor": plan["corridor"], "gate": plan["gate"], "goNow": bool(plan.get("go")),
             "pickupTime": plan["pickup"], "pickupAt": pickup_at(batch["trip_date"], plan["pickup"]),
             "direction": plan.get("direction", rider["direction"]),
@@ -307,6 +327,7 @@ def batch_json(db, batch):
              "classStart": r["class_start"], "stop": r["stop"], "corridor": r["corridor"],
              "streetKm": r["km"], "walkMeters": min(r["start_side_m"], 200),
              "gender": r["gender"], "preference": r["preference"], "friendGroup": r["friend_group"],
+             "quietRide": bool(r["quiet_ride"]),
              "woman": r["gender"] == "woman", "womenOnly": r["preference"] == "women", "status": r["status"],
              "car": r["car"] if r["plan"] else None, "share": money(r["share"]) if r["plan"] else None,
              "soloFare": money(r["solo"]), "rideCode": r["ride_code"]}
@@ -315,7 +336,7 @@ def batch_json(db, batch):
         "cars": [
             {"id": plan["members"][0]["car"], "corridor": plan["corridor"], "gate": plan["gate"],
              "pickupTime": plan["pickup"], "pickupAt": pickup_at(batch["trip_date"], plan["pickup"]),
-             "shared": plan["shared"], "womenOnly": plan.get("women_only", False), "only": plan.get("only"),
+             "shared": plan["shared"], "womenOnly": plan.get("only") == "women", "only": plan.get("only"),
              "carFare": money(plan["car_fare"]),
               "jeenyCover": money(plan.get("jeeny_cover", 0)), "direction": plan.get("direction"),
               "routeKm": plan["route_km"],
@@ -413,6 +434,33 @@ def stops():
     })
 
 
+@api.get("/estimate")
+def estimate():
+    """Screen 08: estimated share range and drop-off ETA for a ride from campus. No payment, no booking."""
+    stop, slot = request.args.get("stop", ""), request.args.get("preferredPickup", "")
+    result = ride_estimate(stop, slot, request.args.get("rideDate") or None)
+    return jsonify({
+        "stop": result["stop"], "corridor": result["corridor"], "km": result["km"], "currency": "JOD",
+        "preferredPickup": slot, "pickupAt": result["pickup"].isoformat(),
+        "estimatedShare": {"low": money(result["low"]), "high": money(result["high"])},
+        "soloFare": money(result["solo"]),
+        "dropOffEta": result["drop_off"].isoformat(), "dropOffTime": result["drop_off"].strftime("%H:%M"),
+        "riders": {"low": config.ESTIMATE_FULL_RIDERS, "high": config.ESTIMATE_PAIR_RIDERS},
+        "paymentMethod": "cash", "paymentTakenNow": False,
+        **sample_estimate(result["stop"], request.args.get("direction", "from_campus")),
+    })
+
+
+def sample_estimate(stop, direction):
+    """Typical shared fare, saving and walk to the pickup street, as the /yalla destination screen shows them."""
+    if direction not in ("from_campus", "to_campus"):
+        raise Problem("invalid_input", "`direction` must be from_campus or to_campus.", 400)
+    e = fare_estimates()[stop]
+    pickup = e["pickups"][direction]
+    return {"direction": direction, "sampleShare": money(e["shared"]), "savingPercent": e["save_percent"],
+            "walkMeters": pickup["walk_meters"], "walkMinutes": pickup["walk_minutes"]}
+
+
 @api.get("/batches/<batch_id>")
 def batch_detail(batch_id):
     db = database()
@@ -433,12 +481,29 @@ def verify_code(batch_id):
     }})
 
 
+def same_friends(db, saved, friends):
+    """Whether a retried booking's friends choice matches the rider it already created."""
+    code = saved["friend_group"]
+    if friends is None:
+        return code is None
+    if code is None:
+        return False
+    if friends["mode"] == "join":
+        return code == friends["code"]
+    # "start": this rider opened the group (its first member) with the same open-seats choice
+    group = db.execute("SELECT open FROM friend_groups WHERE batch = ? AND code = ?", (saved["batch"], code)).fetchone()
+    first = db.execute("SELECT MIN(id) FROM riders WHERE batch = ? AND friend_group = ?", (saved["batch"], code)).fetchone()[0]
+    return group is not None and first == saved["id"] and bool(group["open"]) == friends["open"]
+
+
 @api.post("/batches/<batch_id>/riders")
 def book(batch_id):
     db = database()
     token = bearer(db)
     if token["role"] != "student" or token["batch"] != batch_id:
         raise forbidden()
+    # Identity comes from the verified profile; a client-sent `name` is ignored.
+    name, student_key, profile_gender = booking_identity(db, token)
     body = json_body()
     client_request_id = field(body, "clientRequestId", str)
     if not CLIENT_REQUEST_ID.fullmatch(client_request_id):
@@ -446,10 +511,19 @@ def book(batch_id):
     direction = field(body, "direction", str, "from_campus")
     class_end, class_start, stop = field(body, "classEnd", str, ""), field(body, "classStart", str, ""), field(body, "stop", str)
     if "gender" in body or "preference" in body:
-        gender, preference = field(body, "gender", str), field(body, "preference", str, "mixed")
+        women_only = field(body, "womenOnly", bool, False)
+        # Gender defaults to the demo profile's; the phone sends the profile value
+        gender = field(body, "gender", str, profile_gender)
+        preference = field(body, "preference", str, "women" if women_only else "mixed")
+        if women_only and preference != "women":
+            raise Problem("invalid_input", "`womenOnly` is true but `preference` is not \"women\".", 400)
     else:  # Older clients send woman/womenOnly flags
         gender, preference = legacy_options(field(body, "woman", bool, False), field(body, "womenOnly", bool, False))
-    name = check_request(field(body, "name", str), class_end, stop, gender, preference, direction, class_start)
+    name = check_request(name, class_end, stop, gender, preference, direction, class_start)
+    optional = {key: field(body, key, kind) if body.get(key) is not None else None
+                for key, kind in (("rideDate", str), ("readyAt", str), ("preferredPickup", str),
+                                  ("maxGateWaitMin", int), ("maxExtraRideMin", int), ("paymentMethod", str))}
+    quiet_ride = field(body, "quietRide", bool, False)
     friends = friends_field(body)
 
     with db:
@@ -457,17 +531,27 @@ def book(batch_id):
         token = find_token_row(db, token["token_hash"])
         if not batch or not token:
             raise Problem("unauthorized", "This batch no longer exists.", 401)
+        options = check_ride_options(
+            name, stop, direction, class_end, trip_date=batch["trip_date"], ride_date=optional["rideDate"],
+            ready_at=optional["readyAt"], preferred_pickup=optional["preferredPickup"], quiet_ride=quiet_ride,
+            max_gate_wait_min=optional["maxGateWaitMin"], max_extra_ride_min=optional["maxExtraRideMin"],
+            payment_method=optional["paymentMethod"])
         if token["rider"] is not None:
             if token["client_request_id"] != client_request_id:
                 raise Problem("already_booked", "This student session already booked a ride.")
             saved = db.execute("SELECT * FROM riders WHERE id = ?", (token["rider"],)).fetchone()
             if (saved["name"], saved["class_end"], saved["class_start"], saved["stop"], saved["gender"],
-                saved["preference"], saved["direction"]) != (name, class_end, class_start, stop, gender, preference, direction):
+                saved["preference"], saved["direction"], *(saved[key] for key in RIDE_OPTION_KEYS)) \
+                    != (name, class_end, class_start, stop, gender, preference, direction,
+                        *(options[key] for key in RIDE_OPTION_KEYS)):
                 raise Problem("request_conflict", "This clientRequestId was already used with different details.")
+            if not same_friends(db, saved, friends):
+                raise Problem("request_conflict", "This clientRequestId was already used with a different friends choice.")
             rider_id, status = saved["id"], 200
         else:
             rider_id, status = insert_request(db, batch, name, class_end, stop, gender, preference, friends,
-                                              direction=direction, class_start=class_start), 201
+                                              direction=direction, class_start=class_start,
+                                              student_key=student_key, options=options), 201
             bind_token(db, token["token_hash"], rider_id, client_request_id)
     return jsonify(rider_json(*load_rider(db, batch_id, rider_id))), status
 
@@ -533,21 +617,6 @@ def decline(rider_id):
         if problem.code != "rider_declined":  # A retried decline returns the declined rider
             raise
     return jsonify(rider_json(*load_rider(db, batch_id, rider_id)))
-
-
-@api.get("/estimate")
-def estimate():
-    """Screen 08: solo fare and sample shared fare for a drop-off, before the student books."""
-    db = database()
-    student_session(db)
-    stop, direction = request.args.get("stop", ""), request.args.get("direction", "from_campus")
-    estimates = fare_estimates()
-    if stop not in estimates or direction not in ("from_campus", "to_campus"):
-        raise Problem("invalid_input", "Send a known `stop` and a `direction` of from_campus or to_campus.", 400)
-    e, pickup = estimates[stop], estimates[stop]["pickups"][direction]
-    return jsonify({"stop": stop, "direction": direction, "soloFare": money(e["solo"]),
-                    "sampleShare": money(e["shared"]), "savingPercent": e["save_percent"],
-                    "walkMeters": pickup["walk_meters"], "walkMinutes": pickup["walk_minutes"]})
 
 
 @api.post("/riders/<int:rider_id>/choice")

@@ -37,7 +37,20 @@ def public_student(db, student_id):
     return {
         "id": row["id"], "firstName": row["first_name"], "verified": row["verified_at"] is not None,
         "verifiedAt": row["verified_at"], "university": university_json(university(db, row["university"])),
+        # Demo Jeeny profile gender: decides whether "Men only" or "Women only" is offered
+        "gender": row["gender"],
     }
+
+
+def booking_identity(db, token):
+    """(name, student_key, gender) for a booking by this student token, from its verified profile.
+
+    Raises 403 verification_required for a token without a verified student.
+    """
+    student = public_student(db, token["student_id"])
+    if not student or not student["verified"]:
+        raise Problem("verification_required", "Verify your university email before booking a ride.", 403)
+    return student["firstName"], f"student:{student['id']}", student["gender"]
 
 
 def search_universities(db, search):
@@ -127,8 +140,8 @@ def start_verification(db, token, university_id, email, first_name=None):
     _resend_ready(old, now())
     if student is None:
         student_id = db.execute(
-            "INSERT INTO students (university, email, first_name) VALUES (?, ?, ?)",
-            (school["id"], email, first_name),
+            "INSERT INTO students (university, email, first_name, gender) VALUES (?, ?, ?, ?)",
+            (school["id"], email, first_name, config.DEMO_STUDENT_GENDER),
         ).lastrowid
     else:
         student_id = student["id"]

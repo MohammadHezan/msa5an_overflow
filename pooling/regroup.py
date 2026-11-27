@@ -44,7 +44,8 @@ def _allowed(key: frozenset[str], together: Sequence[frozenset[str]], closed: se
     for group in together:
         if key & group and not group <= key:
             return False  # a friends group rides all together or not at all
-        if group in closed and key & group and key != group:
+    for group in closed:  # checked on its own so a closed group of one (no friend joined yet) is kept too
+        if key & group and key != group:
             return False  # a closed group takes no strangers
     return True
 
