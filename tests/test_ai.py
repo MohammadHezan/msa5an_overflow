@@ -56,6 +56,7 @@ def test_endpoints_return_simulated_data(client):
     r = client.get("/api/v1/ai/match-chance?stop=Dabouq&direction=from_campus&time=16:10&gender=man&preference=men")
     assert r.status_code == 200 and r.get_json()["simulated"] is True
     assert time.time() - start < 3
+    assert r.headers["Access-Control-Allow-Origin"] == "*"
     for path in ("/api/v1/ai/forecast?corridor=West", "/api/v1/ai/captain-plan", "/api/v1/ai/model-card"):
         body = client.get(path).get_json()
         assert body["simulated"] is True, path

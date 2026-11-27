@@ -34,6 +34,16 @@ app.teardown_appcontext(close_database)
 app.register_blueprint(api)
 app.register_blueprint(yalla)
 
+
+@app.after_request
+def allow_api_from_web_app(response):
+    """The Expo web build calls /api/v1 from another origin. The API uses bearer tokens, never cookies."""
+    if request.path.startswith("/api/v1"):
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+    return response
+
 VIEWS = {"book": "Student app", "match": "Matching", "trips": "Trips", "captains": "Captains", "simulation": "Simulation"}
 
 
