@@ -1,0 +1,9 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block body %}
+  {{ ui.intro("No match this time", "You still have options.", "No group fit your route, timing and preferences.") }}
+  <div class="yr-state">{{ ui.icon("users") }}<p>Nothing has been charged.</p></div>
+  <a class="yr-card yr-option" href="{{ url_for('yalla.pickup_time') }}">{{ ui.icon("clock") }}<span><strong>Adjust my pickup time</strong><small>Try another departure window.<br>Keep your rider and comfort preferences.</small><em>Review pickup options</em></span></a>
+  <a class="yr-card yr-option" href="{{ url_for('yalla.leave_now') }}">{{ ui.icon("nav") }}<span><strong>Leave now &amp; share</strong><small>Approve the solo fare as your maximum.<br>Save if students join along your route.</small><em>Review fare before requesting</em></span></a>
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Back to Yalla Ride", url_for('yalla.home')) }}</div>{% endblock %}

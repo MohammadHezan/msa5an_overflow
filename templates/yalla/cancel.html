@@ -1,0 +1,20 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ url_for('yalla.ride') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Cancel request", "Plans changed?", "Review the details before cancelling.") }}
+  {% if rider.direction == "from_campus" %}
+    {{ ui.timeline(street, "Pickup · " ~ (pickup | ampm if pickup else "after matching"), rider.stop, "Your drop-off" ~ (" · about " ~ (drop | ampm) if drop else "")) }}
+  {% else %}
+    {{ ui.timeline(rider.stop ~ " · " ~ street, "Pickup · " ~ (pickup | ampm if pickup else "after matching"), university.campus, "Arrive by " ~ ((plan.campus_arrival or rider.class_start) | ampm)) }}
+  {% endif %}
+  <dl class="yr-facts">
+    <div><dt>Booking status</dt><dd>{{ "Captain " ~ plan.captain.name ~ " assigned" if plan.captain else "Captain not assigned" }}</dd></div>
+    <div><dt>Cancellation fee</dt><dd class="green">JOD 0.00</dd></div>
+  </dl>
+  {{ ui.info("help", "Your seat will be released", "Other riders may receive an updated plan. You’ll get a cancellation confirmation.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">
+  {{ ui.cta("Keep my ride", url_for('yalla.ride'), cls="ghost") }}
+  <form method="post" action="{{ url_for('yalla.respond', action='decline') }}">{{ ui.token() }}{{ ui.cta("Cancel this request") }}</form>
+</div>{% endblock %}

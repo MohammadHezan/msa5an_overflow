@@ -1,0 +1,33 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block bodyclass %} with-nav{% endblock %}
+{% block body %}
+  {% if tab == "past" %}
+    {{ ui.intro("My campus trips", "Small shares. Real savings.", "A receipt for every completed campus ride.") }}
+  {% else %}
+    {{ ui.intro("My campus trips", "Your next ride, sorted.", "Pickup details and boarding codes in one place.") }}
+  {% endif %}
+  <nav class="yr-tabs" aria-label="Trips">
+    <a href="{{ url_for('yalla.trips') }}" class="{{ 'on' if tab != 'past' }}"{% if tab != 'past' %} aria-current="page"{% endif %}>Upcoming</a>
+    <a href="{{ url_for('yalla.trips', tab='past') }}" class="{{ 'on' if tab == 'past' }}"{% if tab == 'past' %} aria-current="page"{% endif %}>Past rides</a>
+  </nav>
+  {% if tab == "past" %}
+    {% for trip in history %}
+      <div class="yr-card yr-trip"><p class="yr-eyebrow">{{ trip.when }}</p><strong>{{ trip.route }}</strong><small>{{ trip.kind }}</small><span><b>{{ trip.paid | jod }}</b><em>Completed</em></span></div>
+    {% else %}
+      <p class="yr-muted">No completed campus rides yet. Receipts appear here after each ride.</p>
+    {% endfor %}
+    {{ ui.info("money", "Know what you saved", "Receipts compare your fare with the solo quote you saw for that trip.") }}
+  {% else %}
+    {% if upcoming %}
+      <a class="yr-card yr-trip" href="{{ url_for('yalla.ride') }}"><p class="yr-eyebrow">{{ upcoming.when }}</p><strong>{{ upcoming.route }}</strong><small>{{ upcoming.kind }}</small><span><b>{{ upcoming.paid | jod if upcoming.paid else "—" }}</b><em class="{{ upcoming.tone }}">{{ upcoming.label }}</em></span></a>
+    {% else %}
+      <p class="yr-muted">No upcoming campus rides. Plan one and it will show here.</p>
+    {% endif %}
+    {{ ui.info("shield", "Your code stays with your trip", "Open your booking when you reach the pickup street. Show the code to your assigned captain.") }}
+  {% endif %}
+{% endblock %}
+{% block foot %}
+  {% if tab != "past" %}<div class="yr-foot">{{ ui.cta("Plan another campus ride", url_for('yalla.destination'), cls="ghost") }}</div>{% endif %}
+  {% set active = "trips" %}{% include "yalla/_nav.html" %}
+{% endblock %}

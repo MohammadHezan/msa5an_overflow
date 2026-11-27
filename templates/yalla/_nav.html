@@ -1,0 +1,6 @@
+{% import "yalla/_ui.html" as ui with context %}
+<nav class="yr-nav" aria-label="Yalla Ride">
+  <a class="{{ 'on' if active == 'campus' }}" href="{{ url_for('yalla.home') }}"{% if active == 'campus' %} aria-current="page"{% endif %}>{{ ui.icon("cap") }}<span>Campus</span></a>
+  <a class="{{ 'on' if active == 'trips' }}" href="{{ url_for('yalla.trips') }}"{% if active == 'trips' %} aria-current="page"{% endif %}>{{ ui.icon("history") }}<span>Trips</span></a>
+  <a class="{{ 'on' if active == 'saved' }}" href="{{ url_for('yalla.saved') }}"{% if active == 'saved' %} aria-current="page"{% endif %}>{{ ui.icon("bookmark") }}<span>Saved</span></a>
+</nav>

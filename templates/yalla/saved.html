@@ -1,0 +1,20 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block bodyclass %} with-nav{% endblock %}
+{% block body %}
+  {{ ui.intro("Saved routes", "Same route. Fewer taps.", "Save the details you use after class.") }}
+  {% for route in routes %}
+    <div class="yr-card yr-saved">{{ ui.icon("bookmark" if loop.first else "route") }}<div>
+      <strong>{{ route.title }}</strong>
+      <small>{{ route.line }}</small><small>{{ route.detail }}</small>
+      <form method="post" action="{{ url_for('yalla.use_saved') }}">{{ ui.token() }}<input type="hidden" name="index" value="{{ loop.index0 }}"><button class="yr-textlink" type="submit">{{ route.action }}</button></form>
+    </div></div>
+  {% else %}
+    <p class="yr-muted">No saved routes yet. Save one from a receipt or when choosing your stop.</p>
+  {% endfor %}
+  {{ ui.info("shield", "A shortcut, not a standing charge", "A saved route never books or charges you automatically. Review it each time.") }}
+{% endblock %}
+{% block foot %}
+  <div class="yr-foot">{{ ui.cta("Add a campus route", url_for('yalla.destination'), cls="ghost") }}</div>
+  {% set active = "saved" %}{% include "yalla/_nav.html" %}
+{% endblock %}

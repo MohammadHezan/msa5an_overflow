@@ -1,0 +1,15 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block body %}
+  {% set count = ["", "one-person", "two-person", "three-person", "four-person"][members | length] %}
+  {{ ui.intro("Offer updated", "Your group has changed.", "A student left before you confirmed the offer." if not rider.confirmed_plan else "A student left after you confirmed. Your old code is paused.") }}
+  {{ ui.price("Updated " ~ count ~ " share", rider.share | jod, "Your previous approved share · " ~ (previous | jod) if previous else "Solo quote · " ~ (rider.solo | jod), "Save " ~ saving ~ "%") }}
+  <ul class="yr-people">
+    {% for m in members %}<li>{{ ui.initial(m.name) }}<span><strong>{{ "You" if m.id == rider.id else m.name }}</strong><small>{{ m.stop }}</small></span><em>{{ ["1st", "2nd", "3rd", "4th"][loop.index0] }} stop</em>{{ ui.icon("check") }}</li>{% endfor %}
+  </ul>
+  {{ ui.info("shield", "A new price needs a new yes", "You have not confirmed this fare. Accept it, or look for another group without a charge.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">
+  <form method="post" action="{{ url_for('yalla.respond', action='decline') }}">{{ ui.token() }}{{ ui.cta("Find a different group", cls="ghost") }}</form>
+  <form method="post" action="{{ url_for('yalla.respond', action='confirm') }}">{{ ui.token() }}<input type="hidden" name="plan" value="{{ rider.signature }}"><input type="hidden" name="updated" value="1">{{ ui.cta("Accept updated fare · " ~ (rider.share | jod)) }}</form>
+</div>{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block body %}
+  {% set count = ["", "one-person", "two-person", "three-person", "four-person"][members | length] %}
+  {{ ui.intro("Updated offer accepted", "Your new plan is confirmed.", "You approved this " ~ count ~ " ride.") }}
+  {% if rider.direction == "from_campus" %}
+    {{ ui.timeline(street, "Pickup · " ~ (pickup | ampm), rider.stop, "Your drop-off · about " ~ (drop | ampm)) }}
+  {% else %}
+    {{ ui.timeline(rider.stop ~ " · " ~ street, "Pickup · " ~ (pickup | ampm), university.campus, "Arrive by " ~ (plan.campus_arrival | ampm)) }}
+  {% endif %}
+  <div class="yr-stats">
+    <div><b>{{ pickup | ampm }}</b><small>Pickup time</small></div>
+    <div><b>{{ rider.share | jod }}</b><small>Approved share</small></div>
+    <div><b>{{ members | length }} riders</b><small>In your car</small></div>
+  </div>
+  {{ ui.info("shield", "You stayed in control", "The previous offer was replaced only after you accepted the new fare.") }}
+  <ul class="yr-people">
+    {% for m in members %}<li>{{ ui.initial(m.name) }}<span><strong>{{ "You" if m.id == rider.id else m.name }}</strong><small>{{ m.stop }}</small></span><em>{{ ["1st", "2nd", "3rd", "4th"][loop.index0] }} stop</em>{{ ui.icon("check") }}</li>{% endfor %}
+  </ul>
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Done", url_for('yalla.ride', seen=1)) }}</div>{% endblock %}

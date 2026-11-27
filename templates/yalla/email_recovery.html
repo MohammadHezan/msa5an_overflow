@@ -1,0 +1,13 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ url_for('yalla.verify') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Email verification", "Let’s check that email.", "We couldn’t verify this university address.") }}
+  {{ ui.row("mail", "University email", email, url_for('yalla.verify', next=next)) }}
+  {{ ui.info("alert", "Use your university-issued email", "Check the spelling and university selection. A personal email cannot verify student status.") }}
+  <a class="yr-textlink" href="{{ url_for('yalla.help_page') }}">Need help verifying your student status?</a>
+{% endblock %}
+{% block foot %}<div class="yr-foot">
+  {{ ui.cta("Choose my university", url_for('yalla.choose_university', next=url_for('yalla.verify')), cls="ghost") }}
+  {{ ui.cta("Edit university email", url_for('yalla.verify', next=next)) }}
+</div>{% endblock %}
