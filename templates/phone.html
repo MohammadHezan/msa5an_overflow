@@ -78,6 +78,16 @@
                 </g>
               {% endfor %}
             </svg>
+          {% elif screen == "book" and not batch.matched %}
+            <svg class="book-route" viewBox="0 0 390 330" aria-hidden="true">
+              <path d="M206 168 L212 214 L196 262 L120 266 L114 330" class="drive"/>
+              <circle cx="206" cy="168" r="8" class="here"/>
+            </svg>
+            <div class="callout" aria-hidden="true">
+              <small>Pickup</small>
+              <span>Main gate, Amman campus</span>
+              <b>›</b>
+            </div>
           {% else %}
             <div class="you-pin" aria-hidden="true"><span></span></div>
             <span class="car c1" aria-hidden="true"></span><span class="car c2" aria-hidden="true"></span><span class="car c3" aria-hidden="true"></span>
@@ -87,14 +97,16 @@
         {# ---------- Top bar ---------- #}
         <div class="topbar">
           {% if selected or screen == "book" %}
-            <a class="round" href="{{ url_for('index') }}" aria-label="Back">←</a>
+            <a class="round{% if not selected %} square{% endif %}" href="{{ url_for('index') }}" aria-label="Back">‹</a>
           {% else %}
             <span class="round" aria-hidden="true">◡</span>
           {% endif %}
+          {% if selected or screen != "book" or batch.matched %}
           <div class="pill">
             <span class="dot"></span>
             <span><strong>{{ plan.gate if plan else "Main gate" }}</strong><small>Amman campus</small></span>
           </div>
+          {% endif %}
         </div>
 
         {% for message in get_flashed_messages() %}<p class="toast" role="status">{{ message }}</p>{% endfor %}
@@ -122,61 +134,58 @@
           </section>
 
         {% elif not selected %}
+          {% if batch.matched %}
           <section class="sheet tall">
             <span class="grab" aria-hidden="true"></span>
-            {% if batch.matched %}
               <h2>Booking is closed</h2>
               <p class="sub">Today's cars are already matched. Pick a student on the left, or start a new batch.</p>
-            {% else %}
-              <div class="sheet-head">
-                <h2>Campus Connect</h2>
-                <span class="badge">Shared</span>
-              </div>
-              <p class="sub">One pickup at the gate. One car. Pay only for your part of the trip.</p>
-              <form action="{{ url_for('submit_request') }}" method="post" id="trip-form" class="book">
-                {{ token() }}
-                <div class="trip-input">
-                  <span class="line" aria-hidden="true"><i class="a"></i><i class="b"></i></span>
-                  <div class="fields-col">
-                    <div class="from"><small>Pickup</small>Campus gate · we'll tell you which one</div>
-                    <label class="to"><small>Drop-off</small>
-                      <select name="stop" required>
-                        {% for direction, corridor in corridors.items() %}
-                          <optgroup label="{{ direction }} · {{ corridor.gate }}">
-                            {% for stop in corridor.stops %}<option value="{{ stop }}"{% if stop == "Dabouq" %} selected{% endif %}>{{ stop }}</option>{% endfor %}
-                          </optgroup>
-                        {% endfor %}
-                      </select>
-                    </label>
-                  </div>
-                </div>
+          </section>
+          {% else %}
+          <form action="{{ url_for('submit_request') }}" method="post" id="trip-form" class="sheet rides">
+            {{ token() }}
+            <p class="rides-note">Prices shown are estimates and may vary</p>
+            <div class="ride-list">
+              <label class="ride">
+                <input type="radio" name="ride" value="campus" id="ride-campus" checked>
+                <img src="{{ url_for('static', filename='rides/campus.webp') }}" alt="">
+                <span class="ride-name">Campus Connect <em>New</em><small>Share with students going your way</small></span>
+                <span class="ride-price"><b id="shared">—</b><small>after class</small></span>
+              </label>
+              <div class="campus-details">
+                <label class="box wide"><small>Drop-off</small>
+                  <select name="stop" required>
+                    {% for direction, corridor in corridors.items() %}
+                      <optgroup label="{{ direction }} · {{ corridor.gate }}">
+                        {% for stop in corridor.stops %}<option value="{{ stop }}"{% if stop == "Dabouq" %} selected{% endif %}>{{ stop }}</option>{% endfor %}
+                      </optgroup>
+                    {% endfor %}
+                  </select>
+                </label>
                 <div class="row2">
                   <label class="box"><small>Your name</small><input name="name" maxlength="40" placeholder="Sara" required></label>
                   <label class="box"><small>Class ends</small><input type="time" name="class_end" value="16:00" min="08:00" max="21:00" required></label>
                 </div>
-                <p class="estimate-note">Prices shown are estimates and may vary</p>
-                <ul class="options">
-                  <li class="opt on">
-                    <span class="opt-ico" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="17" cy="18" r="6"/><circle cx="31" cy="18" r="6"/><path d="M6 38c1-7 6-11 11-11s10 4 11 11M20 38c1-7 6-11 11-11s10 4 11 11"/></svg></span>
-                    <span class="opt-name">Campus Connect<small>Shared with 2 students going your way</small></span>
-                    <span class="opt-price">~<span id="shared">—</span><small>one pickup</small></span>
-                  </li>
-                  <li class="opt">
-                    <span class="opt-ico" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M8 30l4-10c1-2 2-3 4-3h16c2 0 3 1 4 3l4 10v7H8z"/><circle cx="15" cy="35" r="3.5" class="f"/><circle cx="33" cy="35" r="3.5" class="f"/></svg></span>
-                    <span class="opt-name">Economy<small>Riding alone</small></span>
-                    <span class="opt-price muted">~<span id="solo">—</span><small>for comparison</small></span>
-                  </li>
-                </ul>
-                <script type="application/json" id="estimates">{{ estimates | tojson }}</script>
-                <div class="toggles">
-                  <label class="toggle"><span>I'm a woman student</span><input type="checkbox" name="woman" value="yes" id="woman"><i></i></label>
-                  <label class="toggle"><span>Ride with women students only</span><input type="checkbox" name="women_only" value="yes" id="women-only" disabled><i></i></label>
-                </div>
-                <div class="payrow"><span>💵 Cash ›</span><span class="sep"></span><span>🏷 Add promo</span></div>
-                <button class="cta" type="submit">Find students going my way</button>
-              </form>
-            {% endif %}
-          </section>
+                <label class="toggle"><span>I'm a woman student</span><input type="checkbox" name="woman" value="yes" id="woman"><i></i></label>
+                <label class="toggle"><span>Ride with women students only</span><input type="checkbox" name="women_only" value="yes" id="women-only" disabled><i></i></label>
+                <p class="details-note">One pickup at the gate. You'll see your exact share before you confirm.</p>
+              </div>
+              {% for key, label, eta in [("economy", "Economy", "2 min"), ("taxi", "Taxi", "1 min"), ("comfort", "Jeeny Comfort", "7 min"), ("box", "Box", "4 min")] %}
+                <label class="ride">
+                  <input type="radio" name="ride" value="{{ key }}">
+                  <img src="{{ url_for('static', filename='rides/' ~ key ~ '.webp') }}" alt="">
+                  <span class="ride-name">{{ label }}</span>
+                  <span class="ride-price"><b data-price="{{ key }}">—</b><small>{{ eta }}</small></span>
+                </label>
+              {% endfor %}
+            </div>
+            <script type="application/json" id="estimates">{{ estimates | tojson }}</script>
+            <div class="rides-foot">
+              <div class="payrow"><span><i class="cash" aria-hidden="true"></i>Cash <b>›</b></span><span class="sep"></span><span><i class="promo-tag" aria-hidden="true"></i>Add promo <b>›</b></span></div>
+              <p class="demo-note" id="demo-note" role="status"></p>
+              <button class="cta" type="submit" id="confirm">Confirm Campus Connect</button>
+            </div>
+          </form>
+          {% endif %}
 
         {% elif not batch.matched %}
           <section class="sheet">
