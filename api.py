@@ -212,10 +212,10 @@ def health():
 @api.post("/batches")
 def create():
     mode = field(json_body(), "mode", str)
-    if mode not in {"seeded", "empty"}:
-        raise Problem("invalid_input", "`mode` must be `seeded` or `empty`.", 400)
+    if mode not in {"seeded", "morning", "empty"}:
+        raise Problem("invalid_input", "`mode` must be `seeded`, `morning` or `empty`.", 400)
     db = database()
-    batch_id = create_batch(db, seeded=mode == "seeded")
+    batch_id = create_batch(db, seeded=mode if mode == "morning" else mode == "seeded")
     token = issue_token(db, batch_id, "operator")
     code, expires = join_code(db, batch_id)
     return jsonify({
@@ -243,6 +243,10 @@ def stops():
     estimates = fare_estimates()
     return jsonify({
         "currency": "JOD",
+        "directions": [
+            {"id": "from_campus", "label": "From campus", "timeField": "classEnd"},
+            {"id": "to_campus", "label": "To campus", "timeField": "classStart"},
+        ],
         "corridors": [
             {"name": name, "gate": corridor["gate"], "stops": [
                 {"name": stop, "km": km, "soloFare": money(estimates[stop]["solo"]),
@@ -252,8 +256,10 @@ def stops():
             for name, corridor in CORRIDORS.items()
         ],
         "rules": {
-            "seatsPerCar": RULES["seats"], "maxClassEndGapMinutes": RULES["gap"], "walkToGateMinutes": RULES["walk"],
-            "classEndEarliest": "08:00", "classEndLatest": "21:00", "sampleShareRiders": SAMPLE_RIDERS,
+            "seatsPerCar": RULES["seats"], "maxTimeGapMinutes": RULES["gap"],
+            "maxClassEndGapMinutes": RULES["gap"], "maxWalkMeters": 200, "walkSpeedMetersPerSecond": 1.4,
+            "classEndEarliest": "08:00", "classEndLatest": "21:00",
+            "classStartEarliest": "07:00", "classStartLatest": "23:00", "sampleShareRiders": SAMPLE_RIDERS,
             "baseFare": money(RULES["base"]), "perKm": money(RULES["per_km"]),
             "minSavingPercent": RULES["min_saving"],
         },

@@ -23,7 +23,8 @@ MERGE_KM = 0.4          # stops closer than this count as one stop
 ROAD_FACTOR = 1.35      # road km ~= straight-line km * factor
 SPEED_KMH = 25          # city average, for time estimates only
 MAX_WALK_M = 200        # street pickup/drop-off limit before the captain turns in
-WALK_SPEED_MPS = 1.4    # average walking speed used for walk-time estimates
+WALK_SPEED = 1.4        # metres per second
+WALK_SPEED_MPS = WALK_SPEED
 LOCK_LEAD_MIN = 15
 SOLVER_SECONDS = 2.0
 SOLVER_WORKERS = 4

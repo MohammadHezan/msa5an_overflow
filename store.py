@@ -286,18 +286,52 @@ def _go_plan(members, car_row, at):
     """Plan for an option-C car that left with one student and picks others up on the way."""
     departed = _at(car_row["departed_at"])  # On the demo clock, for the car's position
     corridor = members[0]["corridor"]
-    lead = min(members, key=lambda m: (m["board_km"] or 0.0, m["id"]))
-    pickup = plan_car([lead])["pickup"]  # The trip-day time the car left the gate; fares use the same tariff as the solo fare
-    riders = [(m["id"], m["board_km"] or 0.0, float(m["km"])) for m in members]
-    shares, fare, route_km = go_now.split(riders, trip_time(pickup))
-    position = go_now.position_km(departed, at, route_km)
-    ordered = sorted(members, key=lambda m: (m["km"], m["id"]))
-    boards = {m["id"]: go_now.pickup_point(corridor, m["board_km"] or 0.0)[0] for m in members}
+    direction = members[0]["direction"]
+    route_origin = max((m["start_km"] or 0.0) for m in members) if direction == "to_campus" else 0.0
+    riders = [
+        (m["id"], float(m["board_km"] if m["board_km"] is not None else
+                         (m["start_km"] if direction == "to_campus" else 0.0)),
+         float(0.0 if direction == "to_campus" else m["km"]))
+        for m in members
+    ]
+    extras = {}
+    caps = {}
+    for m in members:
+        pickup_km = float(m["board_km"] if m["board_km"] is not None else
+                          (m["start_km"] if direction == "to_campus" else 0.0))
+        extras[m["id"]] = []
+        if direction == "from_campus":
+            if m["board_km"] is None:
+                if m["start_side_m"] > 200:
+                    extras[m["id"]].append((0.0, 2 * (m["start_side_m"] - 200) / 1000, "pickup"))
+            if m["end_side_m"] > 200:
+                extras[m["id"]].append((m["km"], 2 * (m["end_side_m"] - 200) / 1000, "dropoff"))
+        else:
+            if m["start_side_m"] > 200:
+                extras[m["id"]].append((pickup_km, 2 * (m["start_side_m"] - 200) / 1000, "pickup"))
+            if m["end_side_m"] > 200:
+                extras[m["id"]].append((0.0, 2 * (m["end_side_m"] - 200) / 1000, "dropoff"))
+        caps[m["id"]] = m["solo"]
+    # Retain the time of the original booking and price this entire route at the regulated rate.
+    pickup = car_row["departed_at"][11:16]
+    shares, fare, route_km = go_now.split(
+        riders, trip_time(pickup), direction=direction, extras=extras, caps=caps,
+    )
+    position = go_now.position_km(departed, at, route_km, direction, route_origin)
+    last_drop_km = max((m["km"] for m in members), default=0.0)
+    ordered = sorted(members, key=lambda m: ((m["km"] if direction == "from_campus" else -m["start_km"]), m["id"]))
+    boards = {
+        m["id"]: (m["stop"] + " street" if direction == "to_campus"
+                  else go_now.pickup_point(corridor, m["board_km"] or 0.0)[0])
+        for m in members
+    }
     return {
         "gate": CORRIDORS[corridor]["gate"], "corridor": corridor, "pickup": pickup,
         "members": ordered, "car_fare": fare, "route_km": route_km, "shares": shares,
         "shared": len(members) > 1, "only": None, "women_only": False,
-        "go": True, "position_km": round(position, 1), "arrived": position >= route_km, "boards": boards,
+        "go": True, "position_km": round(position, 1),
+        "arrived": position <= 0 if direction == "to_campus" else position >= last_drop_km,
+        "boards": boards, "direction": direction, "street": True,
     }
 
 
@@ -593,8 +627,9 @@ def choose(db, batch, rider_id, choice):
         db.execute("UPDATE riders SET choice = 'wait', wait_until = ? WHERE id = ?",
                    ((clock(batch) + WAIT_FOR_MATCH).isoformat(), rider_id))
     elif choice == "go" and alone and rider["status"] in ("no_match", "changed", "waiting_match"):
-        db.execute("UPDATE riders SET choice = 'go', wait_until = NULL, board_km = 0, confirmed_plan = NULL WHERE id = ?",
-                   (rider_id,))
+        board = rider["start_km"] if rider["direction"] == "to_campus" else 0.0
+        db.execute("UPDATE riders SET choice = 'go', wait_until = NULL, board_km = ?, confirmed_plan = NULL WHERE id = ?",
+                   (board, rider_id))
         db.execute("INSERT INTO cars (batch, car, mode, departed_at) VALUES (?, ?, 'go', ?) "
                    "ON CONFLICT(batch, car) DO UPDATE SET mode = 'go', departed_at = excluded.departed_at",
                    (batch["id"], rider["car"], clock(batch).isoformat()))

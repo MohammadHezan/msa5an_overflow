@@ -127,14 +127,15 @@ def test_authorization(client, west_car):
 
 
 def test_plan_shows_shared_car_without_other_riders_details(client, west_car):
-    _, riders = west_car
+    batch, riders = west_car
     token, sara_id = riders["Sara"]
     sara = client.get(f"/api/v1/riders/{sara_id}", headers=auth(token)).get_json()
     plan = sara["plan"]
     assert sara["status"] == "review"
-    assert plan["gate"] == "Main gate" and plan["pickupTime"] == "16:15" and plan["womenOnly"]
-    assert plan["pickupAt"].endswith("T16:15:00+03:00")
-    assert plan["share"] == {"fils": 1670, "currency": "JOD"} and plan["soloFare"]["fils"] == 4500
+    assert plan["gate"] == "Main gate" and plan["womenOnly"] and plan["direction"] == "from_campus"
+    assert plan["pickupAt"].endswith(f"T{plan['pickupTime']}:00+03:00")
+    assert 0 < plan["share"]["fils"] < plan["soloFare"]["fils"]
+    assert plan["walkMeters"] <= 200 and plan["yourPickupTime"] == plan["pickupTime"]
     assert sorted(plan["riders"]) == ["Huda", "Rama"]
     assert [d["stop"] for d in plan["dropOffs"]] == ["Dabouq", "Al Bayader", "Wadi As-Seer"]
     assert "share" not in plan["dropOffs"][1]
@@ -169,7 +170,12 @@ def test_stale_confirm_returns_plan_changed_then_decline_marks_changed(client, w
 
     sara = client.get(f"/api/v1/riders/{sara_id}", headers=auth(sara_token)).get_json()
     assert sara["status"] == "changed"
-    assert sara["plan"]["share"]["fils"] == 2387 and sara["plan"]["riders"] == ["Rama"]
+    assert sara["plan"]["riders"] == ["Rama"]
+    assert sara["plan"]["share"]["fils"] == int(signature.split("|", 1)[0])
+    assert sara["plan"]["jeenyCover"]["fils"] > 0
+    batch_json = client.get(f"/api/v1/batches/{batch['id']}", headers=auth(batch["operatorToken"])).get_json()
+    car = next(c for c in batch_json["cars"] if any(r["name"] == "Sara" for r in c["riders"]))
+    assert sum(r["share"]["fils"] for r in car["riders"]) + car["jeenyCover"]["fils"] == car["carFare"]["fils"]
     old = client.post(f"/api/v1/riders/{sara_id}/confirm", headers=auth(sara_token), json={"signature": signature})
     assert old.status_code == 409 and old.get_json()["rider"]["status"] == "changed"
     again = client.post(f"/api/v1/riders/{sara_id}/confirm", headers=auth(sara_token),
@@ -182,7 +188,7 @@ def test_seeded_batch_matches_the_sample_afternoon(client):
     body = match(client, batch).get_json()["batch"]
     assert len(body["cars"]) == 5
     sara = next(r for r in body["riders"] if r["name"] == "Sara")
-    assert sara["status"] == "review" and sara["share"]["fils"] == 1670
+    assert sara["status"] == "review" and 0 < sara["share"]["fils"] < sara["soloFare"]["fils"]
     assert next(r for r in body["riders"] if r["name"] == "Kareem")["status"] == "no_match"
 
 

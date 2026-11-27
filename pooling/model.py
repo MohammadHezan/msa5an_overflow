@@ -276,8 +276,24 @@ def _evaluate_street(riders: tuple[Rider, ...], strict: bool, window) -> GroupPl
     shares = _street_shares(fare, rider_ids, segments, solo_fares)
     if not shares:
         return None
-    in_car = {r.request_id: (abs(drop[r.request_id] - board[r.request_id]) +
-                             _turn_km(r.start_side_m) + _turn_km(r.end_side_m)) for r in riders}
+    if from_campus:
+        campus_detour = sum(_turn_km(r.start_side_m) for r in riders)
+        in_car = {
+            r.request_id: drop[r.request_id] + campus_detour + sum(
+                _turn_km(other.end_side_m) for other in riders
+                if drop[other.request_id] <= drop[r.request_id]
+            )
+            for r in riders
+        }
+    else:
+        campus_detour = sum(_turn_km(r.end_side_m) for r in riders)
+        in_car = {
+            r.request_id: board[r.request_id] + campus_detour + _turn_km(r.start_side_m) + sum(
+                _turn_km(other.start_side_m) for other in riders
+                if board[other.request_id] < board[r.request_id]
+            )
+            for r in riders
+        }
     if strict:
         if any(in_car[r.request_id] > min(solo[r.request_id] * config.DETOUR_RATIO,
                                          solo[r.request_id] + config.DETOUR_EXTRA_KM) + 1e-9 for r in riders):

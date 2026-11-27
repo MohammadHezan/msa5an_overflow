@@ -222,7 +222,7 @@
             <span class="grab" aria-hidden="true"></span>
             <div class="searching" aria-hidden="true"><span></span><span></span><span></span></div>
             <h2>Finding students going your way</h2>
-            <p class="sub">{{ selected.name }}, your class ends at {{ selected.class_end }}. We're grouping students heading toward {{ selected.stop }}. You'll see your pickup and price before you pay anything.</p>
+            <p class="sub">{{ selected.name }}{% if selected.direction == "to_campus" %}, your class starts at {{ selected.class_start }}. We're grouping students travelling from {{ selected.stop }} toward campus.{% else %}, your class ends at {{ selected.class_end }}. We're grouping students heading toward {{ selected.stop }}.{% endif %} You'll see your street pickup, walk time and price before you confirm.</p>
             <div class="summary">
               <div><small>Drop-off</small><strong>{{ selected.stop }}</strong></div>
               <div><small>Riding alone</small><strong>{{ selected.solo | jod }}</strong></div>
@@ -354,7 +354,7 @@
             {% if selected.status == "solo_confirmed" %}
               <div class="booked">✓ Booked</div>
               <h2>Economy ride at {{ plan.pickup }}</h2>
-              <p class="sub">Your driver will meet you at the {{ plan.gate | lower }}.</p>
+            <p class="sub">{% if selected.direction == "to_campus" %}Pickup on the {{ selected.stop }} street at {{ plan.rider_times[selected.id] }}; arrive at campus by {{ selected.class_start }}.{% else %}Pickup on the campus street at {{ plan.pickup }}.{% endif %}</p>
             {% if selected.ride_code %}
               <div class="ride-code-card">
                 <small>Show this to your driver</small>
@@ -365,16 +365,16 @@
             {% elif selected.status == "waiting_match" %}
               <div class="searching" aria-hidden="true"><span></span><span></span><span></span></div>
               <h2>Waiting for a match</h2>
-              <p class="sub">We'll put you in a car with the next student going toward {{ selected.stop }}. We'll keep looking for {{ ((selected.wait_until - now).total_seconds() / 60) | round(0, "ceil") | int }} more min.</p>
+              <p class="sub">We'll put you in a car with the next student travelling {% if selected.direction == "to_campus" %}from {{ selected.stop }} to campus{% else %}toward {{ selected.stop }}{% endif %}. We'll keep looking for {{ ((selected.wait_until - now).total_seconds() / 60) | round(0, "ceil") | int }} more min.</p>
             {% else %}
               <h2>No one's going your way yet</h2>
-              <p class="sub">{% if selected.wait_expired %}No one going your way booked in {{ rules.wait_minutes }} minutes.{% else %}No student heading toward {{ selected.stop }} finishes within {{ rules.gap }} minutes of {{ selected.class_end }}{% if selected.preference in only_names %} with {{ only_names[selected.preference] | lower }} matching{% endif %}.{% endif %} Pick how you want to go.</p>
+              <p class="sub">{% if selected.wait_expired %}No one going your way booked in {{ rules.wait_minutes }} minutes.{% elif selected.direction == "to_campus" %}No student from {{ selected.stop }} can reach campus within {{ rules.gap }} minutes of your arrival time, {{ selected.class_start }}.{% else %}No student heading toward {{ selected.stop }} is ready within {{ rules.gap }} minutes of your class ending at {{ selected.class_end }}.{% endif %}{% if selected.preference in only_names %} The {{ only_names[selected.preference] | lower }} option may take longer.{% endif %} Pick how you want to go.</p>
             {% endif %}
             {% if selected.status in ("no_match", "changed", "waiting_match") %}
               <div class="lone-choices">
                 <form action="{{ url_for('respond', rider_id=selected.id, action='confirm') }}" method="post" class="lone">{{ token() }}
                   <input type="hidden" name="plan" value="{{ selected.signature }}">
-                  <button type="submit"><b>A</b><span><strong>Ride alone now</strong><small>Economy from the {{ plan.gate | lower }} at {{ plan.pickup }}</small></span><em>{{ selected.solo | jod }}</em></button>
+                  <button type="submit"><b>A</b><span><strong>Ride alone now</strong><small>{% if selected.direction == "to_campus" %}Pickup near {{ selected.stop }} at {{ plan.pickup }}{% else %}Pickup on the campus street at {{ plan.pickup }}{% endif %}</small></span><em>{{ selected.solo | jod }}</em></button>
                 </form>
                 {% if selected.status != "waiting_match" %}
                 <form action="{{ url_for('respond', rider_id=selected.id, action='wait') }}" method="post" class="lone">{{ token() }}

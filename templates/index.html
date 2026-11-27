@@ -170,8 +170,8 @@
           <ul class="trip-list">
             {% for rider in riders %}
               <li class="queue-item">
-                <span><strong>{{ rider.name }}</strong> {{ tags(rider) }}<small>{{ rider.class_end }} · {{ rider.corridor }} · {{ rider.stop }}</small></span>
-                <span class="direction">{{ rider.corridor }}</span>
+                <span><strong>{{ rider.name }}</strong> {{ tags(rider) }}<small>{{ "Class starts " ~ rider.class_start if rider.direction == "to_campus" else "Class ends " ~ rider.class_end }} · {{ rider.corridor }} · {{ rider.stop }} · {{ rider.km | round(1) }} km street point</small></span>
+                <span class="direction">{{ "To campus" if rider.direction == "to_campus" else "From campus" }}</span>
               </li>
             {% endfor %}
           </ul>
@@ -194,7 +194,7 @@
             </div>
             {% if car.only == "women" and sheet.captain and sheet.captain.gender != "woman" %}<p class="hint">No woman captain was free, so the nearest free captain took this car.</p>{% endif %}
             <dl class="sheet-facts">
-              <div><dt>Pickup</dt><dd>{{ car.gate }} · {{ car.pickup }}{% if car.go %} (left, on the way){% endif %}</dd></div>
+                  <div><dt>Route starts</dt><dd>{{ car.pickup }} · {{ car.direction | replace("_", " ") | title }}</dd></div>
               <div><dt>Car fare</dt><dd>{{ car.car_fare | jod }}</dd></div>
               <div><dt>Extra-stop bonus</dt><dd>{{ sheet.bonus | jod }} <small>paid by Jeeny · not charged to students</small></dd></div>
             </dl>
@@ -253,7 +253,7 @@
         {% for car in cars %}
           <section class="panel car{% if not car.shared %} solo{% endif %}">
             <div class="car-head">
-              <div><p class="eyebrow">{{ car.corridor }} · {{ car.gate }}{% if car.captain %} · Captain {{ car.captain.name }}{% endif %}</p><h2>Pickup {{ car.pickup }}</h2></div>
+              <div><p class="eyebrow">{{ car.corridor }} · {{ car.direction | replace("_", " ") | title }}{% if car.captain %} · Captain {{ car.captain.name }}{% endif %}</p><h2>{% if car.direction == "to_campus" %}Route starts {{ car.pickup }}{% else %}Pickup {{ car.pickup }}{% endif %}</h2></div>
               {% if car.go %}<span class="tag">On the way · open to share</span>{% elif car.only == "women" %}<span class="tag women">Women only</span>{% elif car.only == "men" %}<span class="tag men">Men only</span>{% elif not car.shared %}<span class="tag">No match</span>{% endif %}
             </div>
             {% if car.jeeny_cover %}<p class="notice">Jeeny covers {{ car.jeeny_cover | jod }} so confirmed shares never increase.</p>{% endif %}
