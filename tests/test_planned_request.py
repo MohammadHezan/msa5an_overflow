@@ -12,7 +12,7 @@ from pooling.regroup import regroup
 from sharing import group_problem, group_riders
 from store import database, default_ready_time, get_batch, load_riders
 from tests.helpers import at
-from tests.test_api import auth, match, new_batch, verified_join
+from tests.test_api import auth, match, new_batch, profile_gender, verified_join
 from tests.test_street_directions import street
 
 
@@ -81,6 +81,7 @@ def test_quiet_ride_never_changes_grouping():
 # ---------- API ----------
 
 def book(client, batch, token, name="Sara", **extra):
+    profile_gender(token, "woman" if extra.get("gender", "woman") == "woman" else "man")
     body = {"name": name, "classEnd": "16:00", "stop": "Dabouq", "gender": "woman",
             "clientRequestId": f"req-{name.lower()}-0001", **extra}
     return client.post(f"/api/v1/batches/{batch['id']}/riders", headers=auth(token), json=body)

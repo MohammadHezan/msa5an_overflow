@@ -174,6 +174,11 @@ The API lives in `api.py`; the HTML routes in `app.py` and the API both call the
 - **Profile gender.** The demo student profile (`/me`, join) has `gender`, `"man"` by default (`DEMO_STUDENT_GENDER` in `pooling/config.py`). The phone offers "Anyone" plus only that gender's option ("Men only" or "Women only") and sends `gender`, `preference` and `friends`. Gender defaults to the profile when not sent; older clients sending `woman`/`womenOnly` still work. Plans expose `only` (`"men"`, `"women"` or `null`); `womenOnly` equals `only == "women"`.
 - **Web demo.** The `/yalla` and dashboard phone student is a man (Omar K) by default. The designed-screen recreations (`/yalla/demo/<screen>`) still set Sara, a woman student.
 
+### As built (gender locked to the verified profile, 28 Nov 2026)
+
+- `POST /api/v1/batches/{id}/riders` always uses the verified profile's `gender`; a client-sent `gender` or `woman` is ignored, so a man's profile can never ask for women-only (and the reverse). `preference` / `womenOnly` still come from the phone.
+- The profile's gender is set once when the student record is created (`POST /api/v1/verification/start` takes an optional `gender`, standing in for the Jeeny account; default `DEMO_STUDENT_GENDER`). Verifying again from another phone does not change it.
+
 ### As built (phone API for the Campus Connect screens, 28 Nov 2026)
 
 These JSON endpoints give the Expo app what the `/yalla` web screens already show. All use student bearer tokens unless noted; money is `{"fils", "currency": "JOD"}`.
