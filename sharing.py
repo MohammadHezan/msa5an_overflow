@@ -93,6 +93,7 @@ def _rider(r):
             campus_id=DEMO_CAMPUS, meeting_point_id=CORRIDORS[r["corridor"]]["gate"],
             stop_id=r["stop"], leave_after=moment,
             leave_before=moment + timedelta(minutes=MAX_GAP + config.MIN_WINDOW_MIN),
+            quoted_share=r.get("quoted_share"),
             direction=direction, corridor=r["corridor"], start_km=float(r["start_km"]),
             start_side_m=int(r.get("start_side_m") or 0), end_km=float(r["end_km"]),
             end_side_m=int(r.get("end_side_m") or 0), ready_at=ready_at, arrive_by=arrive_by,
@@ -102,6 +103,7 @@ def _rider(r):
         request_id=str(r["id"]), first_name=r["name"], gender=r["gender"], preference=r["preference"],
         campus_id=DEMO_CAMPUS, meeting_point_id=CORRIDORS[STOPS[r["stop"]]["corridor"]]["gate"],
         stop_id=r["stop"], leave_after=_at(ready), leave_before=_at(ready + MAX_GAP + config.MIN_WINDOW_MIN),
+        quoted_share=r.get("quoted_share"),
     )
 
 
@@ -183,6 +185,16 @@ def plan_car(members):
         plan = evaluate(riders, strict=False)
     by_id = {str(m["id"]): m for m in members}
     ordered = [by_id[r.request_id] for r in plan.riders]
+    shares = {by_id[rid]["id"]: share for rid, share in plan.shares.items()}
+    jeeny_cover = 0
+    for member in members:
+        confirmed = member.get("confirmed_plan")
+        if confirmed:
+            quoted = int(str(confirmed).split("|", 1)[0])
+            current = shares[member["id"]]
+            if current > quoted:
+                jeeny_cover += current - quoted
+                shares[member["id"]] = quoted
     ready = to_minutes(plan.pickup_time.astimezone(config.TZ).strftime("%H:%M"))
     shared = len(ordered) > 1
     corridor = STOPS[ordered[0]["stop"]]["corridor"]
@@ -191,7 +203,10 @@ def plan_car(members):
     drop_times = {}
     walk_m = {}
     segment_breakdown = {}
+    campus_arrival = None
     if street:
+        if plan.riders[0].direction == "to_campus":
+            campus_arrival = min(r.arrive_by for r in plan.riders).astimezone(config.TZ).strftime("%H:%M")
         for engine_rider in plan.riders:
             rider_id = engine_rider.request_id
             grouped = {}
@@ -219,7 +234,7 @@ def plan_car(members):
         "gate": CORRIDORS[corridor]["gate"], "corridor": corridor,
         "pickup": to_clock(ready) if street else to_clock(-(-ready // 5) * 5), "members": ordered,
         "car_fare": plan.car_fare, "route_km": plan.route_km,
-        "shares": {by_id[rid]["id"]: share for rid, share in plan.shares.items()},
+        "shares": shares, "jeeny_cover": jeeny_cover,
         "shared": shared,
         "only": only_label(ordered),
         "women_only": only_label(ordered) == "women",
@@ -227,4 +242,5 @@ def plan_car(members):
         "direction": plan.riders[0].direction if street else "from_campus",
         "rider_times": rider_times, "drop_times": drop_times, "walk_m": walk_m,
         "segment_breakdown": segment_breakdown,
+        "campus_arrival": campus_arrival,
     }

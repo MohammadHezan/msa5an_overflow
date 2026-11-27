@@ -199,7 +199,7 @@
               <div><dt>Extra-stop bonus</dt><dd>{{ sheet.bonus | jod }} <small>paid by Jeeny · not charged to students</small></dd></div>
             </dl>
             <ol class="route compact">
-              {% for stop in sheet.stops %}<li><span><strong>{{ loop.index }}. {{ stop }}</strong></span></li>{% endfor %}
+              {% for step in sheet.steps %}<li><span><strong>{{ loop.index }}. {{ step.kind|title }} · {{ step.place }}</strong><small>{{ step.time }}{% if step.rider %} · {{ step.rider }}{% endif %}</small></span></li>{% endfor %}
             </ol>
             <p class="eyebrow">Ride codes to check</p>
             <ul class="code-list">
@@ -256,6 +256,7 @@
               <div><p class="eyebrow">{{ car.corridor }} · {{ car.gate }}{% if car.captain %} · Captain {{ car.captain.name }}{% endif %}</p><h2>Pickup {{ car.pickup }}</h2></div>
               {% if car.go %}<span class="tag">On the way · open to share</span>{% elif car.only == "women" %}<span class="tag women">Women only</span>{% elif car.only == "men" %}<span class="tag men">Men only</span>{% elif not car.shared %}<span class="tag">No match</span>{% endif %}
             </div>
+            {% if car.jeeny_cover %}<p class="notice">Jeeny covers {{ car.jeeny_cover | jod }} so confirmed shares never increase.</p>{% endif %}
             {{ ride_map(car) }}
             <ol class="route compact">
               {% for member in car.members %}
@@ -277,6 +278,7 @@
         {{ token() }}
         <button class="secondary" name="mode" value="empty" type="submit">Start empty batch</button>
         <button class="secondary" name="mode" value="seeded" type="submit">Load sample afternoon</button>
+        <button class="secondary" name="mode" value="morning" type="submit">Load morning sample</button>
         <button class="secondary" name="mode" value="busy" type="submit">Load 28 students</button>
       </form>
     </footer>

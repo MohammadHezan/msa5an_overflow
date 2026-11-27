@@ -116,7 +116,9 @@ def rider_json(batch, rider):
         "id": rider["id"], "name": rider["name"], "status": rider["status"],
         "batchId": batch["id"], "tripDate": batch["trip_date"], "timezone": "Asia/Amman", "matched": bool(batch["matched"]),
         "request": {"direction": rider["direction"], "classEnd": rider["class_end"],
-                    "classStart": rider["class_start"], "stop": rider["stop"], "gender": rider["gender"],
+                    "classStart": rider["class_start"], "stop": rider["stop"], "corridor": rider["corridor"],
+                    "streetKm": rider["km"], "walkMeters": min(rider["start_side_m"], 200),
+                    "gender": rider["gender"],
                     "preference": rider["preference"], "friendGroup": rider["friend_group"],
                     # Older clients read these two flags
                     "woman": rider["gender"] == "woman", "womenOnly": rider["preference"] == "women"},
@@ -135,9 +137,12 @@ def rider_json(batch, rider):
             "yourPickupTime": plan.get("rider_times", {}).get(rider["id"], plan["pickup"]),
             "yourDropOffTime": plan.get("drop_times", {}).get(rider["id"]),
             "arriveBy": rider["class_start"] if rider["direction"] == "to_campus" else None,
+            "carFare": money(plan["car_fare"]), "jeenyCover": money(plan.get("jeeny_cover", 0)),
+            "segmentBreakdown": plan.get("segment_breakdown", {}).get(rider["id"], []),
             "riders": [first_name(m["name"]) for m in plan["members"] if m["id"] != rider["id"]],
             "dropOffs": [
-                {"order": i, "stop": m["stop"], "rider": first_name(m["name"]), "you": m["id"] == rider["id"]}
+                {"order": i, "stop": m["stop"], "rider": first_name(m["name"]), "you": m["id"] == rider["id"],
+                 "pickupTime": plan.get("rider_times", {}).get(m["id"])}
                 for i, m in enumerate(plan["members"], 1)
             ],
             "share": money(rider["share"]), "soloFare": money(rider["solo"]),
@@ -155,7 +160,9 @@ def batch_json(db, batch):
         "id": batch["id"], "tripDate": batch["trip_date"], "timezone": "Asia/Amman", "matched": bool(batch["matched"]),
         "joinCode": code, "joinCodeExpiresAt": expires.isoformat(),
         "riders": [
-            {"id": r["id"], "name": r["name"], "classEnd": r["class_end"], "stop": r["stop"], "corridor": r["corridor"],
+            {"id": r["id"], "name": r["name"], "direction": r["direction"], "classEnd": r["class_end"],
+             "classStart": r["class_start"], "stop": r["stop"], "corridor": r["corridor"],
+             "streetKm": r["km"], "walkMeters": min(r["start_side_m"], 200),
              "gender": r["gender"], "preference": r["preference"], "friendGroup": r["friend_group"],
              "woman": r["gender"] == "woman", "womenOnly": r["preference"] == "women", "status": r["status"],
              "car": r["car"] if r["plan"] else None, "share": money(r["share"]) if r["plan"] else None,
@@ -167,6 +174,8 @@ def batch_json(db, batch):
              "pickupTime": plan["pickup"], "pickupAt": pickup_at(batch["trip_date"], plan["pickup"]),
              "shared": plan["shared"], "womenOnly": plan.get("women_only", False), "only": plan.get("only"),
              "carFare": money(plan["car_fare"]),
+              "jeenyCover": money(plan.get("jeeny_cover", 0)), "direction": plan.get("direction"),
+              "routeKm": plan["route_km"],
              "captain": plan["captain"]["name"] if plan.get("captain") else None,
              "riders": [
                  {"id": m["id"], "name": m["name"], "stop": m["stop"], "status": by_id[m["id"]]["status"],

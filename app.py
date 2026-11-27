@@ -259,11 +259,12 @@ def return_to_own_batch():
 @app.post("/reset")
 def reset():
     action = request.form.get("mode")
-    if action not in {"seeded", "empty", "busy"}:
+    if action not in {"seeded", "empty", "busy", "morning"}:
         abort(400)
-    new_batch(database(), seeded={"seeded": True, "empty": False, "busy": "busy"}[action])
+    new_batch(database(), seeded={"seeded": True, "empty": False, "busy": "busy", "morning": "morning"}[action])
     flash({"seeded": "Sample afternoon loaded: ten students leaving campus.",
            "busy": "Busy afternoon loaded: 28 students leaving campus around 16:00.",
+           "morning": "Sample morning loaded: students share rides toward campus.",
            "empty": "A new empty batch is ready."}[action])
     return redirect(url_for("index", view="book" if action == "empty" else "match"))
 

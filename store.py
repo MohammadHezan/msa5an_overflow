@@ -66,6 +66,17 @@ def _busy_wave():
 
 
 BUSY_WAVE = _busy_wave()
+MORNING_WAVE = (
+    ("Hadi", "", "Dabouq", "man", "mixed", "to_campus", "08:00"),
+    ("Samir", "", "Khalda", "man", "mixed", "to_campus", "08:05"),
+    ("Salma", "", "Abu Nseir", "woman", "women", "to_campus", "08:00"),
+    ("Hala", "", "Shafa Badran", "woman", "mixed", "to_campus", "08:05"),
+    ("Tala", "", "Al Jubeiha", "woman", "mixed", "to_campus", "08:10"),
+    ("Majd", "", "Marka", "man", "mixed", "to_campus", "08:00"),
+    ("Laith", "", "Tabarbour", "man", "mixed", "to_campus", "08:05"),
+    ("Rami", "", "Um Al Summaq", "man", "mixed", "to_campus", "08:00"),
+    ("Bana", "", "Abdoun", "woman", "mixed", "to_campus", "08:05"),
+)
 
 # Simulated captains (drivers): name, gender, available
 CAPTAINS = (
@@ -229,7 +240,7 @@ def delete_old_batches(db):
     ).rowcount
 
 
-SAMPLES = {"seeded": FIXTURE, "busy": BUSY_WAVE, "empty": ()}
+SAMPLES = {"seeded": FIXTURE, "busy": BUSY_WAVE, "morning": MORNING_WAVE, "empty": ()}
 
 
 def create_batch(db, seeded, replaces=None):
@@ -298,6 +309,7 @@ def load_riders(db, batch, at=None):
          "km": float((row["end_km"] if row["direction"] == "from_campus" else row["start_km"])
                      if row["start_km"] is not None else STOPS[row["stop"]]["km"]),
          "solo": solo_fare(row["stop"]),
+         "quoted_share": int(row["confirmed_plan"].split("|", 1)[0]) if row["confirmed_plan"] else None,
          "ready_at": (datetime.strptime(row["class_end"], "%H:%M").replace(
              year=date.fromisoformat(batch["trip_date"]).year,
              month=date.fromisoformat(batch["trip_date"]).month,
@@ -638,8 +650,33 @@ def captain_sheets(riders, cars):
     sheets = []
     for plan in cars:
         stops = list(dict.fromkeys(m["stop"] for m in plan["members"]))
+        if plan.get("street"):
+            if plan["direction"] == "to_campus":
+                steps = [
+                    {"kind": "pickup", "place": m["stop"] + " street",
+                     "time": plan["rider_times"][m["id"]], "rider": m["name"].split()[0]}
+                    for m in plan["members"]
+                ]
+                steps.append({"kind": "drop-off", "place": plan["gate"], "time": plan["campus_arrival"],
+                              "rider": "All riders"})
+            else:
+                pickups = sorted(plan["members"], key=lambda m: (m.get("start_side_m", 0), m["id"]))
+                steps = [
+                    {"kind": "pickup", "place": "Campus street",
+                     "time": plan["rider_times"][m["id"]], "rider": m["name"].split()[0]}
+                    for m in pickups
+                ]
+                steps.extend(
+                    {"kind": "drop-off", "place": m["stop"],
+                     "time": plan["drop_times"][m["id"]], "rider": m["name"].split()[0]}
+                    for m in plan["members"]
+                )
+        else:
+            steps = [{"kind": "stop", "place": place, "time": plan["pickup"], "rider": ""}
+                     for place in stops]
         sheets.append({
             "plan": plan, "captain": plan["captain"], "stops": stops,
+            "steps": steps,
             "codes": [(m["name"], by_id[m["id"]]["ride_code"]) for m in plan["members"]],
             "bonus": EXTRA_STOP_BONUS * (len(stops) - 1),
         })
