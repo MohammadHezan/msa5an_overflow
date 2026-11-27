@@ -84,3 +84,7 @@ args = "pnpm --dir artifacts/campus-connect test:api"
 
 [workflows.workflow.metadata]
 isValidation = true
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 180000
