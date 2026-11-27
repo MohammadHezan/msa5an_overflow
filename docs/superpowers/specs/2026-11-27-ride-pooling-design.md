@@ -86,7 +86,7 @@ A new request can join an open group only if **all** of these hold. Every limit 
 
 **Travel time:** km ÷ 25 km/h city average, as a setting. It is used only for the pickup and arrival estimates.
 
-## Section 3: JSON contract (proposed, awaiting approval)
+## Section 3: JSON contract (approved)
 
 General rules:
 
@@ -211,6 +211,44 @@ Every error uses one shape, so the UI needs one error handler:
 | 404 | `not_found` | Unknown request, group, campus or stop |
 | 409 | `duplicate_request` | Student already has an active request in an overlapping window |
 | 409 | `group_locked` | Confirm or decline after lock |
+
+## Section 4: demo scenario and testing (proposed, awaiting approval)
+
+### Demo seed: "4 p.m. at the main gate"
+
+`POST /api/v1/rides/demo/seed` loads 10 students at one campus, all wanting to leave between 16:00 and 16:30. The requests arrive in a fixed order, through the same insertion code a live request uses.
+
+| Riders | Who | Expected outcome |
+|---|---|---|
+| 3 | Sara and two other women, women-only, stops along one corridor | One women-only group of 3, which is Sara's story |
+| 4 | Mixed riders along a second corridor | One full group of 4 |
+| 2 | Riders along a third corridor | One group of 2 |
+| 1 | Omar, far off every corridor (for example Zarqa) | Unmatched: "no match, solo fare X" |
+
+**Order trap:** the arrival order is chosen so that greedy insertion builds at least one worse group. The lock regroup must then fix it. This is the judge moment: "live answer, then the optimizer improves it."
+
+**Expected checks (exact JOD figures are recorded once the matcher runs):**
+
+- 4 cars instead of 10. Of the 10 requests, 9 are matched.
+- Every matched rider saves at least 20%. Sara pays well under her solo fare.
+- Car-km after regroup < car-km after greedy insertion alone.
+- Every group's shares add up exactly to its car fare.
+
+Stops and coordinates are placeholders until they are checked on a map. The numbers come from the code, never from a slide.
+
+### Tests (pytest, no network)
+
+| Area | What the tests prove |
+|---|---|
+| `pricing` | 12 km by day = 4500 fils. The night tariff applies inside the night window. Shares add up to the car fare after largest-remainder rounding. A rider who gets out earlier never pays more. |
+| `matcher` | Women-only works in both directions. Windows that don't overlap never match. A 5th rider is refused. A detour or savings violation for an **existing** rider blocks the insertion. Stops within 400 m merge. |
+| `regroup` | Each rider ends up in exactly one group. The result is never worse than greedy. The seed shows a strict improvement. A time limit always returns an answer. |
+| API (Flask test client) | Response shapes match section 3. All four error codes. Locking twice returns the same codes and groups. A duplicate request is refused. |
+| Seed | `/demo/seed` then `/lock` reproduces the expected checks above. |
+
+### Existing app
+
+The current credit-allocation demo (`allocation.py`, the existing routes and templates) stays as it is. The new `/api/v1/rides/` routes and the `pooling/` package sit beside it. Retiring the old demo is a separate decision for later.
 
 ## Still to decide
 - The demo seed scenario and the numbers it must reproduce
