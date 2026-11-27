@@ -148,11 +148,11 @@ For additional scenarios, generate requests from a recorded random seed. Vary th
 | --- | --- | --- |
 | Backend root `.env` | `PORT` | Flask port. The Replit config currently maps port 5000. |
 | Backend root `.env` or Replit Secrets | `SESSION_SECRET` | Signs Flask browser sessions. Set a unique value for your deployment. The actual local file is ignored by Git. |
-| Future `mobile/.env` | `EXPO_PUBLIC_API_URL` | Public HTTPS origin used by the Expo app, with no API path. Copy `mobile/.env.example` when the Expo project is scaffolded. |
+| `mobile/.env` | `EXPO_PUBLIC_API_URL` | Public HTTPS origin used by the Expo app, with no API path. Copy `mobile/.env.example`. |
 
 **Current backend.** Copy [the backend template](.env.example) to `.env` on a new checkout. Run `python -m pip install -r requirements.txt` and then `python app.py`, or click **Run** in Replit. The app loads `.env` at startup and existing process variables take precedence. Configure backend secrets via Replit Secrets. [Replit Secrets](https://docs.replit.com/core-concepts/project-editor/app-setup/secrets)
 
-**Expo after M1.** Scaffold a TypeScript Expo app under `mobile/` with an SDK compatible with the test device. Start Metro from that directory with `npx expo start`. Use Expo Go if the chosen modules are supported on the test device, or use a development build. Set the backend origin separately and verify the phone can reach `/api/v1/health` over HTTPS before testing the flow. A phone's `localhost` points to the phone. [Expo setup](https://docs.expo.dev/get-started/create-a-project/) · [Expo development workflows](https://docs.expo.dev/develop/development-builds/development-workflows/) · [React Native networking](https://reactnative.dev/docs/network.html)
+**Expo app (M1).** `mobile/` is a TypeScript Expo SDK 58 project (pnpm). Run `pnpm install` there, copy `mobile/.env.example` to `mobile/.env` with the backend's HTTPS origin, and start Metro with `pnpm start`; open it in Expo Go on the phone. The join screen calls `/api/v1/health` first and shows whether the origin is reachable. A phone's `localhost` points to the phone. See [mobile/README.md](mobile/README.md) for the screens, retry rules and error handling. [Expo setup](https://docs.expo.dev/get-started/create-a-project/) · [React Native networking](https://reactnative.dev/docs/network.html)
 
 **Client settings are visible.** Expo embeds `EXPO_PUBLIC_*` values in the bundle. Keep server secrets out of them. [Expo environment variables](https://docs.expo.dev/guides/environment-variables/)
 

@@ -1,0 +1,1 @@
+- [Expo app is standalone](mobile-app-setup.md) — mobile/ is deliberately not a Replit artifact; don't convert it unless asked.
