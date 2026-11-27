@@ -25,6 +25,18 @@ args = "Start application"
 task = "workflow.run"
 args = "test"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "mobile-typecheck"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "mobile-unit"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "mobile-api"
+
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
@@ -44,6 +56,39 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python -m pytest -q"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "mobile-typecheck"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --dir mobile typecheck"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "mobile-unit"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --dir mobile test"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "mobile-api"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --dir mobile test:api"
 
 [workflows.workflow.metadata]
 isValidation = true

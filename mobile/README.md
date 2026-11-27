@@ -11,9 +11,37 @@ cp .env.example .env        # set EXPO_PUBLIC_API_URL to the backend's HTTPS ori
 pnpm start                  # scan the QR code with Expo Go (SDK 58)
 pnpm typecheck
 pnpm test                   # booking retry rules (no backend needed)
+pnpm test:api               # real phone client against a disposable Flask backend
 ```
 
 `EXPO_PUBLIC_API_URL` is embedded in the bundle at start-up; restart Metro after changing it. On Replit, use the project's dev or deployment URL. The phone must reach it over HTTPS.
+
+## Repeatable regression checks
+
+From the repository root, install the Python dependencies in `requirements.txt`
+and run `pnpm --dir mobile install --frozen-lockfile` once. Then run:
+
+```sh
+pnpm --dir mobile typecheck
+pnpm --dir mobile test
+pnpm --dir mobile test:api
+```
+
+The registered validation steps are `mobile-typecheck`, `mobile-unit`, and
+`mobile-api`, alongside the backend `test` step. No phone, Expo server, preview,
+join code, or `EXPO_PUBLIC_API_URL` setting is needed for these checks.
+
+`test:api` runs `scripts/check_mobile_api.py`, which starts Flask on a free
+loopback port with a temporary SQLite database and runs
+`tests/integration/api-flow.test.ts` through the real `src/api.ts` client.
+Only batch creation and operator matching use direct HTTP setup calls.
+The check covers join, health, stops, booking retry with the same
+`clientRequestId` (no duplicate rider), `request_conflict`, matching, a stale
+confirm returning `409 plan_changed` with the current plan, confirm, another
+rider declining, the remaining rider's `changed` state, repeat decline,
+reconfirmation, an invalid join code, and a real offline connection failure.
+Failures exit nonzero; the runner shuts down its server and removes its
+database even on a failed check. It never uses the running demo's database.
 
 ## Screens
 

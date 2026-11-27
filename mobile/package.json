@@ -29,7 +29,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "test:api": "python ../scripts/check_mobile_api.py"
   },
   "private": true,
   "packageManager": "pnpm@10.26.1"
