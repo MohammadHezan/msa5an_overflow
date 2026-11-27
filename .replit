@@ -1,6 +1,10 @@
 entrypoint = "app.py"
 run = "python -m pip install -r requirements.txt && python app.py"
+modules = ["python-3.12", "web", "nodejs-20"]
 
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[nix]
+channel = "stable-25_05"
