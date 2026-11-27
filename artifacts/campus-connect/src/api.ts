@@ -189,6 +189,16 @@ export const api = {
     request<Rider>(apiUrl, `/riders/${riderId}/decline`, { method: 'POST', token, body: {} }).then((r) => r.data),
 };
 
+/**
+ * True when this phone's session can no longer reach its rider: the token is unknown or expired
+ * (`unauthorized`, which is also what a deleted batch returns), belongs to someone else
+ * (`forbidden`), or points at something that is gone (`not_found`). The phone then offers
+ * "Join with a new code" instead of retrying.
+ */
+export function isSessionLost(error: unknown): boolean {
+  return error instanceof ApiError && (error.code === 'unauthorized' || error.code === 'forbidden' || error.code === 'not_found');
+}
+
 /** The current plan the server sent with a 409 plan_changed, if any. */
 export function riderFromPlanChanged(error: unknown): Rider | null {
   if (error instanceof ApiError && error.code === 'plan_changed') {

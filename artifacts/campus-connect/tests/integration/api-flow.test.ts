@@ -3,7 +3,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { api, ApiError, riderFromPlanChanged, type BookingPayload } from '../../src/api';
+import { api, ApiError, isSessionLost, riderFromPlanChanged, type BookingPayload, type Rider } from '../../src/api';
+import { isDefiniteRejection } from '../../src/booking';
 
 const [apiUrl, offlineUrl] = process.argv.slice(2);
 assert.ok(apiUrl && offlineUrl, 'Run pnpm test:api to start the isolated Flask backend');
@@ -21,6 +22,24 @@ async function operator<T>(path: string, body?: unknown, token?: string): Promis
   });
   assert.ok(response.ok, `Operator ${path} returned ${response.status}`);
   return response.json() as Promise<T>;
+}
+
+/** Test-only hook served by scripts/check_mobile_api.py: deletes a batch as expiry cleanup would. */
+async function deleteBatch(batchId: string): Promise<void> {
+  const response = await fetch(`${origin}/__harness__/batches/${encodeURIComponent(batchId)}/delete`, {
+    method: 'POST', signal: AbortSignal.timeout(15000),
+  });
+  assert.equal(response.status, 204, `Harness could not delete batch ${batchId}`);
+}
+
+/** The rejection a phone must treat as "this session is over, offer Join with a new code". */
+function sessionLostWith(code: string, status: number) {
+  return (error: unknown): boolean => {
+    errorWith(code, status)(error);
+    assert.equal(isSessionLost(error), true, `${code} must offer rejoin on the plan screen`);
+    assert.equal(isDefiniteRejection(error as ApiError), true, `${code} proves a booking was not saved`);
+    return true;
+  };
 }
 
 function errorWith(code: string, status: number) {
@@ -111,4 +130,96 @@ test('phone booking, matching, stale confirmation, decline and connection errors
   await assert.rejects(api.join(origin, 'NOPE99'), errorWith('join_code_invalid', 404));
   await assert.rejects(api.health(offlineUrl), errorWith('offline', 0));
   t.diagnostic('Invalid join code and real connection refusal passed');
+});
+
+test('a phone cannot use a bad token or act for another rider', { timeout: 60000 }, async (t) => {
+  const batch = await operator<{ id: string; joinCode: string; operatorToken: string }>(
+    '/batches', { mode: 'empty' },
+  );
+  const base: BookingPayload = { name: 'Sara', classEnd: '16:00', stop: 'Dabouq', woman: true, womenOnly: true };
+  const saraSession = await api.join(origin, batch.joinCode);
+  const ramaSession = await api.join(origin, batch.joinCode);
+  const sara = await api.book(origin, saraSession.token, batch.id, base, 'auth-sara-0001');
+  const rama = await api.book(origin, ramaSession.token, batch.id, {
+    ...base, name: 'Rama', stop: 'Al Bayader', classEnd: '15:55',
+  }, 'auth-rama-0001');
+  await api.book(origin, (await api.join(origin, batch.joinCode)).token, batch.id, {
+    ...base, name: 'Huda', stop: 'Wadi As-Seer',
+  }, 'auth-huda-0001');
+  assert.equal((await operator<{ ranNow: boolean }>(`/batches/${batch.id}/matching`, {}, batch.operatorToken)).ranNow, true);
+  const ramaBefore = await api.rider(origin, ramaSession.token, rama.id);
+  assert.equal(ramaBefore.status, 'review');
+  assert.ok(ramaBefore.plan);
+  const riders = async () => (await operator<{ riders: { id: number; status: string }[] }>(
+    `/batches/${batch.id}`, undefined, batch.operatorToken,
+  )).riders.map(({ id, status }) => ({ id, status }));
+  const before = await riders();
+
+  // An unknown, empty or operator-only token is rejected without touching anyone.
+  for (const token of ['not-a-token', '', batch.operatorToken.slice(0, -2) + 'xx']) {
+    await assert.rejects(api.rider(origin, token, sara.id), sessionLostWith('unauthorized', 401));
+    await assert.rejects(api.confirm(origin, token, sara.id, ramaBefore.plan.signature), sessionLostWith('unauthorized', 401));
+    await assert.rejects(api.decline(origin, token, sara.id), sessionLostWith('unauthorized', 401));
+    await assert.rejects(
+      api.book(origin, token, batch.id, { ...base, name: 'Intruder' }, 'auth-intruder-0001'),
+      sessionLostWith('unauthorized', 401),
+    );
+  }
+  t.diagnostic('Invalid, empty and tampered tokens return unauthorized 401 and offer rejoin');
+
+  // Sara's valid session must not read, confirm or decline Rama, even with Rama's real signature.
+  await assert.rejects(api.rider(origin, saraSession.token, rama.id), sessionLostWith('forbidden', 403));
+  await assert.rejects(
+    api.confirm(origin, saraSession.token, rama.id, ramaBefore.plan.signature),
+    (error: unknown) => {
+      sessionLostWith('forbidden', 403)(error);
+      assert.equal(riderFromPlanChanged(error), null, 'A forbidden answer must not leak the other rider');
+      assert.equal(JSON.stringify((error as ApiError).body).includes('Al Bayader'), false);
+      return true;
+    },
+  );
+  await assert.rejects(api.decline(origin, saraSession.token, rama.id), sessionLostWith('forbidden', 403));
+  // Nor can it book into a batch it did not join.
+  await assert.rejects(
+    api.book(origin, saraSession.token, 'another-batch', base, 'auth-sara-0001'),
+    sessionLostWith('forbidden', 403),
+  );
+  assert.deepEqual(await riders(), before, 'Rejected requests must not create or change any rider');
+  assert.deepEqual(await api.rider(origin, ramaSession.token, rama.id), ramaBefore, "Rama's plan is untouched");
+  const saraNow: Rider = await api.rider(origin, saraSession.token, sara.id);
+  assert.equal(saraNow.status, 'review', "Sara's own rider is untouched too");
+  t.diagnostic('Another student cannot read, confirm or decline a rider; nothing changed');
+
+  // Each phone can still act for its own rider afterwards.
+  assert.equal((await api.confirm(origin, ramaSession.token, rama.id, ramaBefore.plan.signature)).status, 'confirmed');
+});
+
+test('a session whose batch was deleted is told to rejoin', { timeout: 60000 }, async (t) => {
+  const batch = await operator<{ id: string; joinCode: string; operatorToken: string }>(
+    '/batches', { mode: 'empty' },
+  );
+  const booked = await api.join(origin, batch.joinCode);
+  const unbooked = await api.join(origin, batch.joinCode);
+  const payload: BookingPayload = { name: 'Lina', classEnd: '16:00', stop: 'Dabouq', woman: true, womenOnly: false };
+  const lina = await api.book(origin, booked.token, batch.id, payload, 'gone-lina-0001');
+  assert.equal((await api.rider(origin, booked.token, lina.id)).status, 'waiting');
+
+  await deleteBatch(batch.id);
+
+  await assert.rejects(api.rider(origin, booked.token, lina.id), sessionLostWith('unauthorized', 401));
+  await assert.rejects(api.confirm(origin, booked.token, lina.id, 'any-signature'), sessionLostWith('unauthorized', 401));
+  await assert.rejects(api.decline(origin, booked.token, lina.id), sessionLostWith('unauthorized', 401));
+  // A retry of the original booking and a first booking both fail definitely, so the phone rejoins.
+  await assert.rejects(api.book(origin, booked.token, batch.id, payload, 'gone-lina-0001'), sessionLostWith('unauthorized', 401));
+  await assert.rejects(
+    api.book(origin, unbooked.token, batch.id, { ...payload, name: 'Noor' }, 'gone-noor-0001'),
+    sessionLostWith('unauthorized', 401),
+  );
+  await assert.rejects(api.join(origin, batch.joinCode), errorWith('join_code_invalid', 404));
+  t.diagnostic('Deleted batch: read, confirm, decline and book return unauthorized 401 and offer rejoin');
+
+  // Other batches keep working after the deletion.
+  const fresh = await operator<{ id: string; joinCode: string }>('/batches', { mode: 'empty' });
+  const again = await api.join(origin, fresh.joinCode);
+  assert.equal((await api.book(origin, again.token, fresh.id, payload, 'gone-lina-0002')).status, 'waiting');
 });

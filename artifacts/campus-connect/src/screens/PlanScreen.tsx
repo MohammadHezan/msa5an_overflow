@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { api, ApiError, formatJod, Plan, Rider, riderFromPlanChanged, RiderStatus } from '../api';
+import { api, ApiError, formatJod, isSessionLost, Plan, Rider, riderFromPlanChanged, RiderStatus } from '../api';
 import { Session } from '../session';
 import { colors, fonts, radius } from '../theme';
 import { Banner, BannerTone, Button, Card, Header, Row, text } from '../ui';
@@ -135,7 +135,7 @@ export function PlanScreen({ session, onLeave }: { session: Session; onLeave: ()
     }
   };
 
-  const sessionLost = loadError && (loadError.code === 'unauthorized' || loadError.code === 'forbidden' || loadError.code === 'not_found');
+  const sessionLost = isSessionLost(loadError);
 
   return (
     <View style={{ flex: 1 }}>
