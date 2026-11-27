@@ -3,20 +3,22 @@
 Each endpoint mirrors an HTML form route in app.py and calls the same functions in store.py.
 Access uses bearer tokens: an operator token from creating a batch, or a student token from a join code.
 """
+import hashlib
 import re
+import secrets
 from datetime import date, datetime, time
 
 from flask import Blueprint, current_app, jsonify, request
 from werkzeug.exceptions import HTTPException
 
-from sharing import CORRIDORS
+from sharing import CORRIDORS, STOPS
 from pooling import config
 from store import (
     AMMAN, RULES, Problem, batch_for_join_code, bind_token, check_request, create_batch, database, fare_estimates,
     find_token, get_batch, group_ready, insert_request, legacy_options, refresh, issue_token, join_code, load_riders,
     locked_batch, now, choose, respond_to_plan, run_matching, summarize, verify_ride_code,
 )
-from yalla import car_details, leg_split
+from yalla import car_details, leg_split, pickup_street
 from student_verification import (
     confirm_verification, public_student, request_notification, resend_verification,
     search_universities, start_verification,
@@ -569,3 +571,207 @@ def keep_route(rider_id):
         db.executemany("UPDATE riders SET declined = 1, ride_code = NULL, confirmed_plan = NULL WHERE id = ? AND batch = ?",
                        [(i, batch_id) for i in ids])
     return jsonify(rider_json(*load_rider(db, batch_id, rider_id)))
+
+
+# ---------- Screens 26-28, 16 and the share sheet (drafted by ChatGPT, reviewed and tested here) ----------
+
+def trip_pickup(rider):
+    plan = rider["plan"] or {}
+    return ((plan.get("rider_times") or {}).get(rider["id"]) or plan.get("pickup")
+            or rider["class_end"] or None)
+
+
+@api.get("/me/trips")
+def my_trips():
+    db = database()
+    token = student_session(db)
+    tab = request.args.get("tab", "upcoming")
+    if tab not in ("upcoming", "past"):
+        raise Problem("invalid_input", "Choose upcoming or past.", 400)
+    if token["student_id"] is None:
+        return jsonify(trips=[])
+    student = public_student(db, token["student_id"])
+    campus = student["university"]["campus"]
+    owned = {}
+    for row in db.execute(
+        "SELECT DISTINCT r.batch, r.id FROM api_tokens t "
+        "JOIN riders r ON r.id = t.rider AND r.batch = t.batch "
+        "JOIN batches b ON b.id = r.batch WHERE t.role = 'student' AND t.student_id = ?",
+        (token["student_id"],),
+    ):
+        owned.setdefault(row["batch"], set()).add(row["id"])
+    trips = []
+    for batch_id, ids in owned.items():
+        batch = refresh(db, batch_id)
+        if not batch:
+            continue
+        riders, _ = load_riders(db, batch)
+        for rider in riders:
+            status = rider["status"]
+            if rider["id"] not in ids or status == "declined" or (status == "arrived") != (tab == "past"):
+                continue
+            plan = rider["plan"] or {}
+            if rider["direction"] == "from_campus":
+                origin = (plan.get("boards") or {}).get(rider["id"])
+                if not origin:
+                    origin = pickup_street(rider) if plan.get("street") else plan.get("gate") or pickup_street(rider)
+                destination = rider["stop"]
+            else:
+                origin, destination = rider["stop"], campus
+            item = {
+                "riderId": rider["id"], "batchId": batch_id, "tripDate": batch["trip_date"],
+                "pickupTime": trip_pickup(rider), "from": origin, "to": destination,
+                "journey": "leave_now" if plan.get("go") else "planned",
+                "riders": len(plan.get("members") or [rider]), "only": plan.get("only"),
+                "share": money(rider["share"]) if rider["share"] is not None else None,
+                "soloFare": money(rider["solo"]), "status": status,
+            }
+            if tab == "upcoming":
+                item["rideCode"] = rider["ride_code"]
+            trips.append(item)
+    trips.sort(key=lambda trip: (trip["tripDate"], trip["pickupTime"] or "", trip["riderId"]),
+               reverse=tab == "past")
+    return jsonify(trips=trips)
+
+
+def routes_student(db):
+    token = student_session(db)
+    if token["student_id"] is None:
+        raise forbidden()
+    return token["student_id"]
+
+
+def saved_route_json(row):
+    return {"id": row["id"], "name": row["name"], "stop": row["stop"],
+            "direction": row["direction"], "readyAt": row["ready_at"],
+            "quiet": bool(row["quiet"]), "mode": row["mode"]}
+
+
+@api.get("/me/routes")
+def my_routes():
+    db = database()
+    owner = routes_student(db)
+    return jsonify(routes=[saved_route_json(row) for row in db.execute(
+        "SELECT * FROM saved_routes WHERE student_id = ? ORDER BY id", (owner,))])
+
+
+@api.post("/me/routes")
+def save_route():
+    """Screen 28: a saved route only prefills a request; it never books or charges."""
+    db = database()
+    owner = routes_student(db)
+    body = json_body()
+    name = field(body, "name", str).strip()
+    stop = field(body, "stop", str)
+    direction = field(body, "direction", str, "from_campus")
+    mode = field(body, "mode", str, "planned")
+    quiet = field(body, "quiet", bool, False)
+    ready = body.get("readyAt", body.get("ready_at"))
+    if "readyAt" in body and "ready_at" in body and body["readyAt"] != body["ready_at"]:
+        raise Problem("invalid_input", "Conflicting ready times.", 400)
+    if not 1 <= len(name) <= 40 or stop not in STOPS or direction not in ("from_campus", "to_campus") \
+            or mode not in ("planned", "leave_now"):
+        raise Problem("invalid_input", "Enter a valid name, stop, direction and mode.", 400)
+    if ready is not None and (not isinstance(ready, str) or not re.fullmatch(r"[0-9]{2}:[0-5][0-9]", ready)
+                              or not "07:00" <= ready <= "23:00"):
+        raise Problem("invalid_input", "Ready time must be HH:MM between 07:00 and 23:00.", 400)
+    with db:
+        db.execute("BEGIN IMMEDIATE")
+        if db.execute("SELECT COUNT(*) FROM saved_routes WHERE student_id = ?", (owner,)).fetchone()[0] >= 10:
+            raise Problem("too_many_routes", "Save at most 10 routes.", 409)
+        route_id = db.execute(
+            "INSERT INTO saved_routes (student_id, name, stop, direction, ready_at, quiet, mode) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)", (owner, name, stop, direction, ready, int(quiet), mode),
+        ).lastrowid
+        row = db.execute("SELECT * FROM saved_routes WHERE id = ?", (route_id,)).fetchone()
+    return jsonify(saved_route_json(row)), 201
+
+
+@api.delete("/me/routes/<int:route_id>")
+def delete_route(route_id):
+    db = database()
+    owner = routes_student(db)
+    with db:
+        deleted = db.execute("DELETE FROM saved_routes WHERE id = ? AND student_id = ?", (route_id, owner))
+        if not deleted.rowcount:
+            raise Problem("not_found", "No such saved route.", 404)
+    return "", 204
+
+
+def locked_student_rider(db, rider_id):
+    student_session(db)  # rider_access alone also permits operators.
+    batch_id = rider_access(db, rider_id)
+    batch = locked_batch(db, batch_id)
+    if not batch:
+        raise Problem("not_found", "No such rider.", 404)
+    riders, _ = load_riders(db, batch)
+    rider = next((r for r in riders if r["id"] == rider_id), None)
+    if rider is None:
+        raise Problem("not_found", "No such rider.", 404)
+    return rider
+
+
+def share_hash(token):
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+@api.post("/riders/<int:rider_id>/share-link")
+def create_share_link(rider_id):
+    """Share sheet: a link someone trusted can open without signing in; only this trip's captain and car."""
+    db = database()
+    with db:
+        rider = locked_student_rider(db, rider_id)
+        if rider["status"] in ("arrived", "declined"):
+            raise Problem("trip_finished", "This trip has ended.", 410)
+        token = secrets.token_urlsafe(24)
+        db.execute("INSERT INTO trip_shares (token_hash, rider, created_at) VALUES (?, ?, ?)",
+                   (share_hash(token), rider_id, now().isoformat()))
+    response = jsonify(url=f"/api/v1/shared/{token}")
+    response.headers["Cache-Control"] = "no-store"
+    return response, 201
+
+
+@api.get("/shared/<token>")
+def shared_trip(token):
+    db = database()
+    row = db.execute(
+        "SELECT r.id, r.batch FROM trip_shares s JOIN riders r ON r.id = s.rider WHERE s.token_hash = ?",
+        (share_hash(token),),
+    ).fetchone()
+    batch = refresh(db, row["batch"]) if row else None
+    if not batch:
+        raise Problem("not_found", "No such trip link.", 404)
+    riders, _ = load_riders(db, batch)
+    rider = next((r for r in riders if r["id"] == row["id"]), None)
+    if rider is None:
+        raise Problem("not_found", "No such trip link.", 404)
+    if rider["status"] in ("arrived", "declined"):
+        raise Problem("trip_finished", "This trip has ended.", 410)
+    plan = rider["plan"] or {}
+    captain = plan.get("captain")
+    car = car_details(plan) if plan else {}
+    response = jsonify(stop=rider["stop"], pickupTime=trip_pickup(rider), status=rider["status"],
+                       captain=first_name(captain["name"]) if captain else None,
+                       car=car.get("car"), plate=car.get("plate"))
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@api.post("/riders/<int:rider_id>/rating")
+def rate_ride(rider_id):
+    """Screen 16: one 1-5 star rating per finished ride."""
+    db = database()
+    with db:
+        rider = locked_student_rider(db, rider_id)
+        body = json_body()
+        stars = field(body, "stars", int)
+        comment = field(body, "comment", str) if "comment" in body else None
+        if not 1 <= stars <= 5 or (comment is not None and len(comment) > 300):
+            raise Problem("invalid_input", "Choose 1–5 stars and a comment of at most 300 characters.", 400)
+        if rider["status"] != "arrived":
+            raise Problem("not_finished", "Rate the trip after arrival.", 409)
+        if db.execute("SELECT 1 FROM ride_ratings WHERE rider = ?", (rider_id,)).fetchone():
+            raise Problem("already_rated", "This trip has already been rated.", 409)
+        db.execute("INSERT INTO ride_ratings (rider, stars, comment, created_at) VALUES (?, ?, ?, ?)",
+                   (rider_id, stars, comment, now().isoformat()))
+    return jsonify(riderId=rider_id, stars=stars, comment=comment), 201

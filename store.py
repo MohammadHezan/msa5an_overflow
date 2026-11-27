@@ -168,6 +168,20 @@ def database():
                 email TEXT NOT NULL COLLATE NOCASE, first_name TEXT NOT NULL, verified_at TEXT,
                 UNIQUE(university, email)
             );
+            CREATE TABLE IF NOT EXISTS saved_routes (
+                id INTEGER PRIMARY KEY, student_id INTEGER NOT NULL REFERENCES students(id),
+                name TEXT NOT NULL, stop TEXT NOT NULL, direction TEXT NOT NULL DEFAULT 'from_campus',
+                ready_at TEXT, quiet INTEGER NOT NULL DEFAULT 0,
+                mode TEXT NOT NULL DEFAULT 'planned' CHECK (mode IN ('planned', 'leave_now'))
+            );
+            CREATE TABLE IF NOT EXISTS trip_shares (
+                token_hash TEXT PRIMARY KEY, rider INTEGER NOT NULL REFERENCES riders(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS ride_ratings (
+                rider INTEGER PRIMARY KEY REFERENCES riders(id) ON DELETE CASCADE,
+                stars INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5), comment TEXT, created_at TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS verification_challenges (
                 token_hash TEXT PRIMARY KEY REFERENCES api_tokens(token_hash) ON DELETE CASCADE,
                 student_id INTEGER NOT NULL REFERENCES students(id), code_digest TEXT NOT NULL,

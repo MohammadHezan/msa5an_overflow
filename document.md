@@ -150,6 +150,21 @@ The API lives in `api.py`; the HTML routes in `app.py` and the API both call the
 - **Money and time.** Money is `{"fils": 1500, "currency": "JOD"}`. Plans include `pickupTime` (`16:15`) and `pickupAt` with the Amman offset.
 - **Errors.** `{"error": {"code", "message"}}` with codes `invalid_input` (400), `unauthorized` (401), `forbidden` (403), `not_found` / `join_code_invalid` (404), and `batch_matched`, `batch_full`, `batch_empty`, `duplicate_name`, `already_booked`, `request_conflict`, `not_matched`, `rider_declined`, `plan_changed` (409). `plan_changed` also returns the current plan under `rider`.
 
+### As built (phone API for the Campus Connect screens, 28 Nov 2026)
+
+These JSON endpoints give the Expo app what the `/yalla` web screens already show. All use student bearer tokens unless noted; money is `{"fils", "currency": "JOD"}`.
+
+| Endpoint | Screens | What it does |
+| --- | --- | --- |
+| `GET /api/v1/estimate?stop=&direction=` | 08 | Solo fare, sample share, saving % and walk to the pickup street |
+| `GET /api/v1/riders/{id}` (plan) | 10, 13-14, 17-25 | Adds `savingPercent`, `captain` (first name, rating, car, plate) and, for leave-now cars, `fareCap` and `legs` |
+| `POST /api/v1/riders/{id}/choice` `{"choice": "wait" \| "go"}` | 17-19, 29 | A student riding alone waits for a match or leaves now open to share |
+| `POST /api/v1/riders/{id}/keep-route` `{"riderIds": [...]}` | 20-21 | The car's rider turns down students who joined on the way; route and fare cap stay |
+| `GET /api/v1/me/trips?tab=upcoming\|past` | 26-27 | The student's rides across batches, with ride code on upcoming ones |
+| `GET/POST /api/v1/me/routes`, `DELETE /api/v1/me/routes/{id}` | 28 | Up to 10 saved routes; a saved route never books or charges |
+| `POST /api/v1/riders/{id}/share-link`, `GET /api/v1/shared/{token}` (no auth) | Share sheet | Trip link showing only stop, pickup time, status, captain first name, car and plate; 410 after the ride ends |
+| `POST /api/v1/riders/{id}/rating` `{"stars", "comment"?}` | 16 | One 1-5 star rating after arrival |
+
 ## Repeatable scenarios
 
 The sample afternoon is the fixed regression check: ten students, five cars, Sara's share JOD 1.67 versus JOD 4.50 alone, and Kareem offered a solo ride because the West car is women-only.
