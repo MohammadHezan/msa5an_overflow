@@ -550,3 +550,135 @@ def test_unavailable_campus_notify_request_is_saved_and_returns_toast_message(cl
         assert db.execute(
             "SELECT COUNT(*) FROM university_notifications WHERE university_id = ?", (school["id"],)
         ).fetchone()[0] == 1
+
+
+# ---------- Friends groups and the profile's men-only / women-only option ----------
+
+def book_with(client, batch, token, request_id, stop="Dabouq", class_end="16:00", **extra):
+    """A current-client booking: gender comes from the profile unless sent, plus preference and friends."""
+    return client.post(f"/api/v1/batches/{batch['id']}/riders", headers=auth(token), json={
+        "classEnd": class_end, "stop": stop, "clientRequestId": request_id, "preference": "mixed", **extra})
+
+
+def test_student_profile_gender_defaults_to_man(client):
+    batch = new_batch(client)
+    token = verified_join(client, batch["joinCode"], "Omar")
+    assert client.get("/api/v1/me", headers=auth(token)).get_json()["student"]["gender"] == "man"
+    rejoined = client.post("/api/v1/demo-sessions/join", json={"joinCode": batch["joinCode"]}, headers=auth(token))
+    assert rejoined.get_json()["student"]["gender"] == "man"
+    rider = book_with(client, batch, token, "omar-profile-01").get_json()
+    assert rider["request"]["gender"] == "man" and rider["request"]["preference"] == "mixed"
+
+
+def test_start_group_returns_code_and_retry_returns_same_rider(client):
+    batch = new_batch(client)
+    token = verified_join(client, batch["joinCode"], "Omar")
+    first = book_with(client, batch, token, "omar-group-0001", friends={"mode": "start", "open": False})
+    assert first.status_code == 201, first.get_json()
+    request = first.get_json()["request"]
+    assert re.fullmatch(r"GR-\d\d", request["friendGroup"]) and request["groupOpen"] is False
+    retry = book_with(client, batch, token, "omar-group-0001", friends={"mode": "start", "open": False})
+    assert retry.status_code == 200 and retry.get_json()["id"] == first.get_json()["id"]
+    for changed in ({"mode": "start", "open": True}, None, {"mode": "join", "code": "GR-99"}):
+        conflict = book_with(client, batch, token, "omar-group-0001", friends=changed)
+        assert conflict.status_code == 409 and conflict.get_json()["error"]["code"] == "request_conflict"
+
+
+def test_friends_who_join_a_group_ride_in_one_car(client):
+    batch = new_batch(client)
+    omar = verified_join(client, batch["joinCode"], "Omar")
+    started = book_with(client, batch, omar, "omar-friends-01", gender="man", preference="men",
+                        friends={"mode": "start", "open": True}).get_json()
+    code = started["request"]["friendGroup"]
+    zaid = verified_join(client, batch["joinCode"], "Zaid")
+    joined = book_with(client, batch, zaid, "zaid-friends-01", stop="Wadi As-Seer", class_end="16:05",
+                       friends={"mode": "join", "code": code.lower()})
+    assert joined.status_code == 201, joined.get_json()
+    assert joined.get_json()["request"]["friendGroup"] == code
+    retry = book_with(client, batch, zaid, "zaid-friends-01", stop="Wadi As-Seer", class_end="16:05",
+                      friends={"mode": "join", "code": code})
+    assert retry.status_code == 200
+    # Two other students nearby who would otherwise be a better fit for one of the friends
+    student(client, batch, "Sami", stop="Khalda", class_end="16:00", woman=False)
+    student(client, batch, "Lina", stop="Al Bayader", class_end="16:10")
+    assert match(client, batch).status_code == 200
+    detail = client.get(f"/api/v1/batches/{batch['id']}", headers=auth(batch["operatorToken"])).get_json()
+    cars = {r["name"]: r["car"] for r in detail["riders"]}
+    assert cars["Omar"] is not None and cars["Omar"] == cars["Zaid"]
+    plan = client.get(f"/api/v1/riders/{started['id']}", headers=auth(omar)).get_json()["plan"]
+    assert plan["friendGroup"] == code and "Zaid" in plan["riders"]
+
+
+def test_men_only_for_a_man_and_women_only_rejected(client):
+    batch = new_batch(client)
+    omar = verified_join(client, batch["joinCode"], "Omar")
+    men = book_with(client, batch, omar, "omar-men-only-1", preference="men")
+    assert men.status_code == 201 and men.get_json()["request"]["preference"] == "men"
+    zaid = verified_join(client, batch["joinCode"], "Zaid")
+    women = book_with(client, batch, zaid, "zaid-women-only", preference="women")
+    assert women.status_code == 400 and women.get_json()["error"]["code"] == "invalid_input"
+    assert book_with(client, batch, zaid, "zaid-men-only-1", stop="Al Bayader", preference="men").status_code == 201
+    assert match(client, batch).status_code == 200
+    plan = client.get(f"/api/v1/riders/{men.get_json()['id']}", headers=auth(omar)).get_json()["plan"]
+    assert plan["shared"] and plan["only"] == "men" and plan["womenOnly"] is False
+
+
+def test_group_errors(client):
+    batch = new_batch(client)
+    lead = verified_join(client, batch["joinCode"], "Omar")
+    code = book_with(client, batch, lead, "lead-group-0001", friends={"mode": "start", "open": True}).get_json()["request"]["friendGroup"]
+
+    def try_join(name, join_code=None, **kwargs):
+        token = verified_join(client, batch["joinCode"], name)
+        return book_with(client, batch, token, f"{name.lower()}-join-001", friends={"mode": "join", "code": join_code or code}, **kwargs)
+
+    def code_of(response):
+        return response.status_code, response.get_json()["error"]["code"]
+
+    assert code_of(try_join("Ali", "GR-00")) == (404, "group_not_found")
+    assert code_of(try_join("Badr", stop="Marka")) == (409, "group_mismatch")
+    assert code_of(try_join("Fadi", class_end="16:30")) == (409, "group_mismatch")
+    assert code_of(try_join("Hadi", direction="to_campus", classStart="08:30")) == (409, "group_mismatch")
+    bad = verified_join(client, batch["joinCode"], "Jad")
+    assert code_of(book_with(client, batch, bad, "jad-join-00001", friends={"mode": "join"})) == (400, "invalid_input")
+    assert code_of(book_with(client, batch, bad, "jad-join-00002", friends={"mode": "invite"})) == (400, "invalid_input")
+    for name in ("Karim", "Majd", "Nabil"):
+        assert try_join(name).status_code == 201
+    assert code_of(try_join("Rami")) == (409, "group_full")
+    assert match(client, batch).status_code == 200
+    late = verified_join(client, batch["joinCode"], "Tariq")
+    assert code_of(book_with(client, batch, late, "tariq-start-001", friends={"mode": "start", "open": True})) \
+        == (409, "batch_matched")
+
+
+def test_web_demo_student_is_a_man_by_default(client):
+    with campus.app.test_request_context():
+        assert campus.student_profile()["gender"] == "man"
+    page = client.get("/yalla/plan/preferences").get_data(as_text=True)
+    assert re.search(r'<label hidden><input type="radio" name="preference" value="women"', page)
+    assert re.search(r'<label><input type="radio" name="preference" value="men"', page)
+
+
+@pytest.mark.parametrize("open_seats, friend_joins, shares_with_stranger", [
+    (False, False, False),  # closed group of one: no friend joined yet, still no strangers
+    (True, False, True),    # open group of one: strangers may fill the seats
+    (False, True, False),   # closed group of two: the friends ride without strangers
+])
+def test_closed_group_takes_no_strangers_even_before_a_friend_joins(client, open_seats, friend_joins, shares_with_stranger):
+    batch = new_batch(client)
+    omar = verified_join(client, batch["joinCode"], "Omar")
+    lead = book_with(client, batch, omar, "closed-lead-001", friends={"mode": "start", "open": open_seats}).get_json()
+    if friend_joins:
+        zaid = verified_join(client, batch["joinCode"], "Zaid")
+        joined = book_with(client, batch, zaid, "closed-zaid-001", stop="Al Bayader",
+                           friends={"mode": "join", "code": lead["request"]["friendGroup"]})
+        assert joined.status_code == 201, joined.get_json()
+    student(client, batch, "Sami", stop="Al Bayader", class_end="16:00", woman=False)
+    student(client, batch, "Fadi", stop="Wadi As-Seer", class_end="16:00", woman=False)
+    assert match(client, batch).status_code == 200
+    cars = {r["name"]: r["car"] for r in client.get(
+        f"/api/v1/batches/{batch['id']}", headers=auth(batch["operatorToken"])).get_json()["riders"]}
+    strangers = {cars["Sami"], cars["Fadi"]}
+    assert (cars["Omar"] in strangers) is shares_with_stranger
+    if friend_joins:
+        assert cars["Zaid"] == cars["Omar"]

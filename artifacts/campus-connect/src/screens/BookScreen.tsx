@@ -4,11 +4,26 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { api, ApiError, BookingPayload, formatJod, Stop, StopsResponse } from '../api';
+import {
+  api,
+  ApiError,
+  BookingPayload,
+  formatJod,
+  FriendsChoice,
+  Gender,
+  onlyLabel,
+  onlyPreference,
+  Preference,
+  rideOptions,
+  Stop,
+  StopsResponse,
+} from '../api';
 import { submitBooking } from '../booking';
 import { Session, useSession } from '../session';
 import { colors, fonts, radius } from '../theme';
-import { Banner, Button, Card, Header, text, Toggle } from '../ui';
+import { Banner, Button, Card, Header, Segmented, text, Toggle } from '../ui';
+
+type FriendsMode = 'none' | 'start' | 'join';
 
 const STEP_MINUTES = 5;
 
@@ -43,6 +58,12 @@ function bookingErrorTitle(error: ApiError): string {
       return 'This phone already booked';
     case 'invalid_input':
       return 'Check your details';
+    case 'group_not_found':
+      return 'No group with that code';
+    case 'group_full':
+      return 'That group is full';
+    case 'group_mismatch':
+      return "You can't ride with that group";
     default:
       return "Couldn't book";
   }
@@ -58,8 +79,16 @@ export function BookScreen({ session, onLeave }: { session: Session; onLeave: ()
   const [name, setName] = useState<string>(pending?.name ?? '');
   const [classEnd, setClassEnd] = useState<string>(pending?.classEnd ?? '16:00');
   const [stop, setStop] = useState<string>(pending?.stop ?? 'Dabouq');
-  const [woman, setWoman] = useState<boolean>(pending?.woman ?? false);
-  const [womenOnly, setWomenOnly] = useState<boolean>(pending?.womenOnly ?? false);
+  // Gender comes from the student's profile; the only "only" option offered matches it.
+  const gender: Gender = session.student?.gender ?? (pending ? rideOptions(pending).gender : 'man');
+  const only = onlyPreference(gender);
+  const [preference, setPreference] = useState<Preference>(() => {
+    const saved = pending ? rideOptions(pending).preference : 'mixed';
+    return saved === only ? only : 'mixed';
+  });
+  const [friendsMode, setFriendsMode] = useState<FriendsMode>(pending?.friends?.mode ?? 'none');
+  const [groupOpen, setGroupOpen] = useState<boolean>(pending?.friends?.mode === 'start' ? pending.friends.open : true);
+  const [groupCode, setGroupCode] = useState<string>(pending?.friends?.mode === 'join' ? pending.friends.code : '');
   const [busy, setBusy] = useState<boolean>(false);
   // While a booking is unresolved, only those exact details may be sent (see booking.ts).
   const locked = pending !== null || busy;
@@ -75,6 +104,12 @@ export function BookScreen({ session, onLeave }: { session: Session; onLeave: ()
   };
 
   useEffect(() => {
+    // Sessions saved before profiles carried a gender: fetch it once.
+    if (session.student && !session.student.gender) {
+      api.me(session.apiUrl, session.token)
+        .then((me) => (me.student ? update({ student: me.student }) : undefined))
+        .catch(() => undefined);
+    }
     loadStops();
     // Load fares once when the screen opens; the retry button reloads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -92,9 +127,14 @@ export function BookScreen({ session, onLeave }: { session: Session; onLeave: ()
     return null;
   }, [stops, stop]);
 
-  const payload: BookingPayload = { name: name.trim().replace(/\s+/g, ' '), classEnd, stop, woman, womenOnly: woman && womenOnly };
+  const code = groupCode.trim().toUpperCase();
+  const friends: FriendsChoice | null =
+    friendsMode === 'start' ? { mode: 'start', open: groupOpen } : friendsMode === 'join' ? { mode: 'join', code } : null;
+  const payload: BookingPayload = { name: name.trim().replace(/\s+/g, ' '), classEnd, stop, gender, preference, friends };
   // An unresolved booking can always be resent with its stored details, even if drop-offs failed to load.
-  const canSubmit = pending !== null || (payload.name.length >= 1 && payload.name.length <= 40 && !!selected);
+  const canSubmit =
+    pending !== null ||
+    (payload.name.length >= 1 && payload.name.length <= 40 && !!selected && (friendsMode !== 'join' || code.length > 0));
 
   const send = async () => {
     setBusy(true);
@@ -123,6 +163,15 @@ export function BookScreen({ session, onLeave }: { session: Session; onLeave: ()
   const errorAction = (): { label: string; run: () => void } | undefined => {
     if (!error) return undefined;
     if (pending) return { label: 'Retry booking', run: send };
+    if (error.code === 'batch_matched' && friendsMode !== 'none') {
+      return {
+        label: 'Book just me',
+        run: () => {
+          setFriendsMode('none');
+          setError(null);
+        },
+      };
+    }
     if (error.code === 'batch_matched' || error.code === 'already_booked' || error.code === 'request_conflict') {
       return { label: 'Join a different batch', run: onLeave };
     }
@@ -224,23 +273,66 @@ export function BookScreen({ session, onLeave }: { session: Session; onLeave: ()
         </Card>
 
         <Card>
-          <Toggle
-            label="I'm a woman student"
-            value={woman}
-            onChange={(value) => {
-              setWoman(value);
-              if (!value) setWomenOnly(false);
-            }}
-            testID="toggle-woman"
+          <Text style={text.label}>Ride with</Text>
+          <Segmented
+            label="Ride with"
+            options={[
+              { value: 'mixed' as Preference, label: 'Anyone' },
+              { value: only, label: onlyLabel(only) },
+            ]}
+            value={preference}
+            onChange={setPreference}
+            testID="ride-with"
           />
-          <Toggle
-            label="Women-only car"
-            hint={woman ? 'Only match me with other women students.' : 'Available to women students.'}
-            value={woman && womenOnly}
-            onChange={setWomenOnly}
-            disabled={!woman}
-            testID="toggle-women-only"
+          <Text style={text.muted}>
+            {preference === 'mixed' ? 'The captain may be any gender.' : `Only ${gender === 'woman' ? 'women' : 'men'} students share your car. Matching may take longer.`}
+          </Text>
+        </Card>
+
+        <Card>
+          <Text style={text.label}>Book with friends</Text>
+          <Segmented
+            label="Book with friends"
+            options={[
+              { value: 'none' as FriendsMode, label: 'Just me' },
+              { value: 'start' as FriendsMode, label: 'Start a group' },
+              { value: 'join' as FriendsMode, label: 'Join a group' },
+            ]}
+            value={friendsMode}
+            onChange={setFriendsMode}
+            testID="friends"
           />
+          {friendsMode === 'start' ? (
+            <>
+              <Toggle
+                label="Let others fill empty seats"
+                hint={groupOpen ? 'Other students may join your car.' : 'Only your group rides in the car.'}
+                value={groupOpen}
+                onChange={setGroupOpen}
+                testID="toggle-group-open"
+              />
+              <Text style={text.muted}>You get a group code after booking. Share it so friends can join.</Text>
+            </>
+          ) : friendsMode === 'join' ? (
+            <>
+              <TextInput
+                value={groupCode}
+                onChangeText={(value) => setGroupCode(value.toUpperCase())}
+                placeholder="GR-48"
+                placeholderTextColor="#B9B9C2"
+                maxLength={10}
+                editable={!locked}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                style={styles.input}
+                accessibilityLabel="Group code"
+                testID="group-code"
+              />
+              <Text style={text.muted}>Ask a friend for their code. Friends in a group always ride in one car.</Text>
+            </>
+          ) : (
+            <Text style={text.muted}>Friends in a group always ride in one car.</Text>
+          )}
         </Card>
         </View>
 

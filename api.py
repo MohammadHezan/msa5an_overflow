@@ -215,6 +215,7 @@ def rider_json(batch, rider):
                     "streetKm": rider["km"], "walkMeters": min(rider["start_side_m"], 200),
                     "gender": rider["gender"],
                     "preference": rider["preference"], "friendGroup": rider["friend_group"],
+                    "groupOpen": rider["group_open"] if rider["friend_group"] else None,
                     "rideDate": rider["ride_date"] or batch["trip_date"], "readyAt": rider["ready_time"],
                     "preferredPickup": rider["preferred_pickup"], "quietRide": bool(rider["quiet_ride"]),
                     "maxGateWaitMin": rider["max_gate_wait_min"], "maxExtraRideMin": rider["max_extra_ride_min"],
@@ -230,7 +231,8 @@ def rider_json(batch, rider):
     }
     if plan:
         body["plan"] = {
-            "shared": plan["shared"], "womenOnly": plan.get("women_only", False), "only": plan.get("only"),
+            "shared": plan["shared"], "womenOnly": plan.get("only") == "women", "only": plan.get("only"),
+            "friendGroup": rider["friend_group"],
             "corridor": plan["corridor"], "gate": plan["gate"], "goNow": bool(plan.get("go")),
             "pickupTime": plan["pickup"], "pickupAt": pickup_at(batch["trip_date"], plan["pickup"]),
             "direction": plan.get("direction", rider["direction"]),
@@ -275,7 +277,7 @@ def batch_json(db, batch):
         "cars": [
             {"id": plan["members"][0]["car"], "corridor": plan["corridor"], "gate": plan["gate"],
              "pickupTime": plan["pickup"], "pickupAt": pickup_at(batch["trip_date"], plan["pickup"]),
-             "shared": plan["shared"], "womenOnly": plan.get("women_only", False), "only": plan.get("only"),
+             "shared": plan["shared"], "womenOnly": plan.get("only") == "women", "only": plan.get("only"),
              "carFare": money(plan["car_fare"]),
               "jeenyCover": money(plan.get("jeeny_cover", 0)), "direction": plan.get("direction"),
               "routeKm": plan["route_km"],
@@ -409,6 +411,37 @@ def verify_code(batch_id):
     }})
 
 
+def friends_choice(body):
+    """The optional `friends` field: null (just me), {"mode": "start", "open": bool} or {"mode": "join", "code": "GR-48"}."""
+    friends = body.get("friends")
+    if friends is None:
+        return None
+    if not isinstance(friends, dict) or friends.get("mode") not in ("start", "join"):
+        raise Problem("invalid_input", "`friends` must be null, {\"mode\": \"start\", \"open\": true} "
+                                       "or {\"mode\": \"join\", \"code\": \"GR-48\"}.", 400)
+    if friends["mode"] == "start":
+        return {"mode": "start", "open": field(friends, "open", bool, True)}
+    code = field(friends, "code", str).strip().upper()
+    if not 1 <= len(code) <= 10:
+        raise Problem("invalid_input", "Enter the group code your friend shared, like GR-48.", 400)
+    return {"mode": "join", "code": code}
+
+
+def same_friends(db, saved, friends):
+    """Whether a retried booking's friends choice matches the rider it already created."""
+    code = saved["friend_group"]
+    if friends is None:
+        return code is None
+    if code is None:
+        return False
+    if friends["mode"] == "join":
+        return code == friends["code"]
+    # "start": this rider opened the group (its first member) with the same open-seats choice
+    group = db.execute("SELECT open FROM friend_groups WHERE batch = ? AND code = ?", (saved["batch"], code)).fetchone()
+    first = db.execute("SELECT MIN(id) FROM riders WHERE batch = ? AND friend_group = ?", (saved["batch"], code)).fetchone()[0]
+    return group is not None and first == saved["id"] and bool(group["open"]) == friends["open"]
+
+
 @api.post("/batches/<batch_id>/riders")
 def book(batch_id):
     db = database()
@@ -416,7 +449,7 @@ def book(batch_id):
     if token["role"] != "student" or token["batch"] != batch_id:
         raise forbidden()
     # Identity comes from the verified profile; a client-sent `name` is ignored.
-    name, student_key = booking_identity(db, token)
+    name, student_key, profile_gender = booking_identity(db, token)
     body = json_body()
     client_request_id = field(body, "clientRequestId", str)
     if not CLIENT_REQUEST_ID.fullmatch(client_request_id):
@@ -425,7 +458,9 @@ def book(batch_id):
     class_end, class_start, stop = field(body, "classEnd", str, ""), field(body, "classStart", str, ""), field(body, "stop", str)
     if "gender" in body or "preference" in body:
         women_only = field(body, "womenOnly", bool, False)
-        gender, preference = field(body, "gender", str), field(body, "preference", str, "women" if women_only else "mixed")
+        # Gender defaults to the demo profile's; the phone sends the profile value
+        gender = field(body, "gender", str, profile_gender)
+        preference = field(body, "preference", str, "women" if women_only else "mixed")
         if women_only and preference != "women":
             raise Problem("invalid_input", "`womenOnly` is true but `preference` is not \"women\".", 400)
     else:  # Older clients send woman/womenOnly flags
@@ -435,6 +470,7 @@ def book(batch_id):
                 for key, kind in (("rideDate", str), ("readyAt", str), ("preferredPickup", str),
                                   ("maxGateWaitMin", int), ("maxExtraRideMin", int), ("paymentMethod", str))}
     quiet_ride = field(body, "quietRide", bool, False)
+    friends = friends_choice(body)
 
     with db:
         batch = locked_batch(db, batch_id)
@@ -455,9 +491,11 @@ def book(batch_id):
                     != (name, class_end, class_start, stop, gender, preference, direction,
                         *(options[key] for key in RIDE_OPTION_KEYS)):
                 raise Problem("request_conflict", "This clientRequestId was already used with different details.")
+            if not same_friends(db, saved, friends):
+                raise Problem("request_conflict", "This clientRequestId was already used with a different friends choice.")
             rider_id, status = saved["id"], 200
         else:
-            rider_id, status = insert_request(db, batch, name, class_end, stop, gender, preference,
+            rider_id, status = insert_request(db, batch, name, class_end, stop, gender, preference, friends,
                                               direction=direction, class_start=class_start,
                                               student_key=student_key, options=options), 201
             bind_token(db, token["token_hash"], rider_id, client_request_id)

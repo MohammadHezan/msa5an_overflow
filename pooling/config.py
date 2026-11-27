@@ -49,3 +49,6 @@ VERIFY_CODE_DIGITS = 6
 STUDENT_EMAIL_MAX = 254
 STUDENT_FIRST_NAME_MAX = 40
 UNIVERSITY_SEARCH_MAX = 100
+# Demo Jeeny profile for the student (no real profile integration yet): the gender drives "Men only"/"Women only"
+DEMO_STUDENT_NAME = "Omar K"
+DEMO_STUDENT_GENDER = "man"

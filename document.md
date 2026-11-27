@@ -168,6 +168,12 @@ The API lives in `api.py`; the HTML routes in `app.py` and the API both call the
 - **Estimate.** `GET /api/v1/estimate?stop=&preferredPickup=HH:MM[&rideDate=YYYY-MM-DD]` returns `estimatedShare {low, high}` (low = each rider's share in a full car of 4, high = the share with 2 riders; same tariff and per-km split as matching), `soloFare`, and `dropOffEta` (Asia/Amman ISO; pickup plus the stop's km at 25 km/h). Without `rideDate` it uses tomorrow, like new batches.
 - **Web flow.** `/yalla` screens 06–08 collect the ready time, slot, gate-wait and extra-time limits, quiet ride and cash, and send them through the same check and `insert_request` as the API. The review screen shows the backend estimate range and drop-off time; the matching screen shows the three checks. Name, gender and direction still come from the profile. New limits and defaults are in `pooling/config.py`. Tests: `tests/test_planned_request.py`.
 
+### As built (friends groups and the profile's men-only / women-only option)
+
+- **Friends.** `POST /api/v1/batches/{id}/riders` accepts an optional `friends`: `null` (just me), `{"mode": "start", "open": true|false}` (start a group; `open` lets other students fill empty seats) or `{"mode": "join", "code": "GR-48"}`. It goes through the same `insert_request` as `/yalla`. The rider JSON returns `request.friendGroup` (the code to share), `request.groupOpen`, and `plan.friendGroup`. The friends choice is part of the idempotent-retry check. Errors use the standard shape: `404 group_not_found`, `409 group_full`, `409 group_mismatch` (different direction, corridor, times or limits), and `409 batch_matched` when friends try to book after matching.
+- **Profile gender.** The demo student profile (`/me`, join) has `gender`, `"man"` by default (`DEMO_STUDENT_GENDER` in `pooling/config.py`). The phone offers "Anyone" plus only that gender's option ("Men only" or "Women only") and sends `gender`, `preference` and `friends`. Gender defaults to the profile when not sent; older clients sending `woman`/`womenOnly` still work. Plans expose `only` (`"men"`, `"women"` or `null`); `womenOnly` equals `only == "women"`.
+- **Web demo.** The `/yalla` and dashboard phone student is a man (Omar K) by default. The designed-screen recreations (`/yalla/demo/<screen>`) still set Sara, a woman student.
+
 ## Repeatable scenarios
 
 The sample afternoon is the fixed regression check: ten students, five cars, Sara's share JOD 1.67 versus JOD 4.50 alone, and Kareem offered a solo ride because the West car is women-only.

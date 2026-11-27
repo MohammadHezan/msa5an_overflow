@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { api, ApiError, formatJod, isSessionLost, Plan, Rider, riderFromPlanChanged, RiderStatus } from '../api';
+import { api, ApiError, formatJod, isSessionLost, onlyLabel, Plan, Rider, riderFromPlanChanged, rideOptions, RiderStatus } from '../api';
 import { Session } from '../session';
 import { colors, fonts, radius } from '../theme';
 import { Banner, BannerTone, Button, Card, Header, Row, text } from '../ui';
@@ -171,6 +171,7 @@ export function PlanScreen({ session, onLeave }: { session: Session; onLeave: ()
           <>
             <StatusCard rider={rider} />
             {notice ? <Banner tone={notice.tone} title={notice.title} message={notice.message} testID="plan-notice" /> : null}
+            {rider.request.friendGroup && rider.status !== 'declined' ? <FriendsGroup rider={rider} /> : null}
             {rider.plan && rider.status !== 'declined' ? <PlanDetails rider={rider} plan={rider.plan} /> : <RequestDetails rider={rider} />}
             <Actions
               rider={rider}
@@ -207,25 +208,54 @@ function StatusCard({ rider }: { rider: Rider }) {
   );
 }
 
+/** The friends group code, so the student can share it before matching. */
+function FriendsGroup({ rider }: { rider: Rider }) {
+  const open = rider.request.groupOpen;
+  return (
+    <Card style={styles.group}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Ionicons name="people" size={24} color={colors.pink} />
+        <View style={{ flex: 1 }}>
+          <Text style={text.label}>Friends group</Text>
+          <Text style={styles.groupCode} testID="group-code-shown" selectable>
+            {rider.request.friendGroup}
+          </Text>
+        </View>
+      </View>
+      <Text style={text.muted}>
+        {rider.matched
+          ? 'Your group rides in one car.'
+          : 'Share this code with your friends. They choose Join a group when they book, and you all ride in one car.'}
+        {open === false ? ' Only your group rides in the car.' : ''}
+      </Text>
+    </Card>
+  );
+}
+
 function RequestDetails({ rider }: { rider: Rider }) {
+  const { preference } = rideOptions(rider.request);
   return (
     <Card>
       <Text style={text.label}>Your request</Text>
       <Row icon="time-outline" label="Class ends" value={rider.request.classEnd} />
       <Row icon="location-outline" label="Drop-off" value={rider.request.stop} />
-      {rider.request.womenOnly ? <Row icon="female-outline" label="Matching" value="Women-only" /> : null}
+      {preference !== 'mixed' ? (
+        <Row icon={preference === 'women' ? 'female-outline' : 'male-outline'} label="Ride with" value={onlyLabel(preference)} />
+      ) : null}
       <Row icon="wallet-outline" label="Solo fare" value={formatJod(rider.soloFare)} />
     </Card>
   );
 }
 
 function PlanDetails({ rider, plan }: { rider: Rider; plan: Plan }) {
+  // Older servers sent only womenOnly
+  const only = plan.only ?? (plan.womenOnly ? 'women' : null);
   return (
     <>
       <Card>
         <View style={styles.badges}>
           <Badge label={plan.shared ? `Shared · ${plan.dropOffs.length} riders` : 'Solo ride'} />
-          {plan.womenOnly ? <Badge label="Women-only" /> : null}
+          {only ? <Badge label={onlyLabel(only)} /> : null}
           <Badge label={`${plan.corridor} corridor`} muted />
         </View>
         <Row icon="flag-outline" label="Meet at" value={plan.gate} strong />
@@ -378,6 +408,8 @@ const styles = StyleSheet.create({
   body: { padding: 16, gap: 14 },
   statusIcon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  group: { backgroundColor: colors.pinkSoft, borderColor: colors.pinkSoft },
+  groupCode: { fontFamily: fonts.bold, fontSize: 24, color: colors.plum, letterSpacing: 1.5 },
   badge: { backgroundColor: colors.pinkSoft, paddingVertical: 4, paddingHorizontal: 10, borderRadius: radius.pill },
   badgeText: { fontFamily: fonts.medium, fontSize: 12, color: colors.pink },
   priceCard: { backgroundColor: colors.plum, borderColor: colors.plum },

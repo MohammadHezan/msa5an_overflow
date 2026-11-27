@@ -24,9 +24,17 @@ export type RiderStatus =
 
 export type DropOff = { order: number; stop: string; rider: string; you: boolean };
 
+export type Gender = 'woman' | 'man';
+/** Who the student agrees to share with: anyone, or only students of their own profile gender. */
+export type Preference = 'mixed' | 'women' | 'men';
+
 export type Plan = {
   shared: boolean;
   womenOnly: boolean;
+  /** "women" or "men" when the whole car is one gender because a rider asked for it. */
+  only?: 'women' | 'men' | null;
+  /** The friends group this rider booked with, if any. */
+  friendGroup?: string | null;
   corridor: string;
   gate: string;
   pickupTime: string;
@@ -47,7 +55,16 @@ export type Rider = {
   tripDate: string;
   timezone: string;
   matched: boolean;
-  request: { classEnd: string; stop: string; woman: boolean; womenOnly: boolean };
+  request: {
+    classEnd: string;
+    stop: string;
+    woman: boolean;
+    womenOnly: boolean;
+    gender?: Gender;
+    preference?: Preference;
+    friendGroup?: string | null;
+    groupOpen?: boolean | null;
+  };
   soloFare: Money;
   plan: Plan | null;
 };
@@ -80,7 +97,15 @@ export type JoinResponse = {
 
 export type University = { id: number; name: string; city: string; campus: string; gate: string; available: boolean };
 
-export type Student = { id: number; firstName: string; verified: boolean; verifiedAt: string | null; university: University };
+export type Student = {
+  id: number;
+  firstName: string;
+  verified: boolean;
+  verifiedAt: string | null;
+  university: University;
+  /** Demo Jeeny profile gender. Sessions saved by older app versions may lack it. */
+  gender?: Gender;
+};
 
 /** A code was issued. The code itself is only written to the backend's console log (demo). */
 export type VerificationChallenge = {
@@ -97,13 +122,45 @@ export type VerificationConfirmResponse = { token: string; tokenType: 'Bearer'; 
 
 export type NotifyResponse = { university: University; notificationRequested: true; message: string };
 
+/** Book with friends: start a group (and say whether strangers may fill empty seats) or join one by code. */
+export type FriendsChoice = { mode: 'start'; open: boolean } | { mode: 'join'; code: string };
+
 export type BookingPayload = {
   name: string;
   classEnd: string;
   stop: string;
-  woman: boolean;
-  womenOnly: boolean;
+  /** From the student's profile, never chosen on the form. */
+  gender?: Gender;
+  preference?: Preference;
+  friends?: FriendsChoice | null;
+  /** Older app versions sent (and may have stored) these flags instead of gender and preference. */
+  woman?: boolean;
+  womenOnly?: boolean;
 };
+
+/** The profile gender's "only" option: a man sees Men only, a woman sees Women only. */
+export function onlyPreference(gender: Gender): 'women' | 'men' {
+  return gender === 'woman' ? 'women' : 'men';
+}
+
+export function onlyLabel(only: 'women' | 'men'): string {
+  return only === 'women' ? 'Women only' : 'Men only';
+}
+
+/** Gender and preference of a payload, reading the older woman/womenOnly flags when needed. */
+export function rideOptions(payload: Pick<BookingPayload, 'gender' | 'preference' | 'woman' | 'womenOnly'>): { gender: Gender; preference: Preference } {
+  return {
+    gender: payload.gender ?? (payload.woman ? 'woman' : 'man'),
+    preference: payload.preference ?? (payload.womenOnly ? 'women' : 'mixed'),
+  };
+}
+
+function sameFriends(a: FriendsChoice | null | undefined, b: FriendsChoice | null | undefined): boolean {
+  if (!a || !b) return !a && !b;
+  if (a.mode === 'start' && b.mode === 'start') return a.open === b.open;
+  if (a.mode === 'join' && b.mode === 'join') return a.code.trim().toUpperCase() === b.code.trim().toUpperCase();
+  return false;
+}
 
 export class ApiError extends Error {
   code: string;
@@ -273,7 +330,8 @@ export function samePayload(a: BookingPayload, b: BookingPayload): boolean {
     a.name.trim().replace(/\s+/g, ' ') === b.name.trim().replace(/\s+/g, ' ') &&
     a.classEnd === b.classEnd &&
     a.stop === b.stop &&
-    a.woman === b.woman &&
-    a.womenOnly === b.womenOnly
+    rideOptions(a).gender === rideOptions(b).gender &&
+    rideOptions(a).preference === rideOptions(b).preference &&
+    sameFriends(a.friends, b.friends)
   );
 }

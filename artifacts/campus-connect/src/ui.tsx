@@ -145,6 +145,43 @@ export function Toggle({
   );
 }
 
+/** A row of mutually exclusive choices (radio buttons styled as a segmented control). */
+export function Segmented<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+  testID,
+}: {
+  label: string;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+  testID?: string;
+}) {
+  return (
+    <View style={styles.segment} accessibilityRole="radiogroup" accessibilityLabel={label} testID={testID}>
+      {options.map((option) => {
+        const on = option.value === value;
+        return (
+          <Pressable
+            key={option.value}
+            onPress={() => onChange(option.value)}
+            style={[styles.segmentItem, on && styles.segmentItemOn]}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: on }}
+            testID={testID ? `${testID}-${option.value}` : undefined}
+          >
+            <Text style={[styles.segmentText, on && styles.segmentTextOn]} numberOfLines={1}>
+              {option.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 export function Row({ icon, label, value, strong }: { icon: IconName; label: string; value: string; strong?: boolean }) {
   return (
     <View style={styles.row}>
@@ -164,6 +201,11 @@ export const text = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
+  segment: { flexDirection: 'row', backgroundColor: colors.background, borderRadius: radius.button, padding: 4, gap: 4 },
+  segmentItem: { flex: 1, paddingVertical: 10, paddingHorizontal: 6, borderRadius: 10, alignItems: 'center' },
+  segmentItemOn: { backgroundColor: colors.surface, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  segmentText: { fontFamily: fonts.medium, fontSize: 13, color: colors.muted },
+  segmentTextOn: { color: colors.pink, fontFamily: fonts.semibold },
   header: { backgroundColor: colors.pink, paddingHorizontal: 20, paddingBottom: 22, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   logo: { width: 84, height: 22, tintColor: colors.white },

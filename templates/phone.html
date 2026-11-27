@@ -126,7 +126,7 @@
         {% if not selected and screen == "menu" %}
           <section class="sheet app-menu">
             <span class="grab" aria-hidden="true"></span>
-            <div class="menu-profile"><span class="profile-mark">{{ (student_name|default("Sara"))[0] }}</span><span><strong>{{ student_name|default("Sara") }}</strong><small>{{ "Verified student · Cedar Campus" if student_verified|default(true) else "Student profile" }}</small></span></div>
+            <div class="menu-profile"><span class="profile-mark">{{ profile.name[0] }}</span><span><strong>{{ profile.name }}</strong><small>{{ "Verified student · Cedar Campus" if student_verified|default(true) else "Student profile" }}</small></span></div>
             <nav class="menu-links" aria-label="App menu">
               <a href="{{ url_for('index', screen='book') }}">My Rides <span>›</span></a><a href="{{ url_for('index', screen='book') }}">Notifications <span>›</span></a><a href="{{ url_for('index', screen='book') }}">Promotions <span>›</span></a><a href="{{ url_for('index', screen='book') }}">Wallet <span>›</span></a><a href="{{ url_for('index', screen='book') }}">Help Center <span>›</span></a>
             </nav>

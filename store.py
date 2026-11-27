@@ -177,7 +177,7 @@ def database():
             CREATE TABLE IF NOT EXISTS students (
                 id INTEGER PRIMARY KEY, university INTEGER NOT NULL REFERENCES universities(id),
                 email TEXT NOT NULL COLLATE NOCASE, first_name TEXT NOT NULL, verified_at TEXT,
-                UNIQUE(university, email)
+                gender TEXT NOT NULL DEFAULT 'man', UNIQUE(university, email)
             );
             CREATE TABLE IF NOT EXISTS verification_challenges (
                 token_hash TEXT PRIMARY KEY REFERENCES api_tokens(token_hash) ON DELETE CASCADE,
@@ -210,6 +210,9 @@ def _migrate(db):
     if "student_id" not in token_columns:
         with db:
             db.execute("ALTER TABLE api_tokens ADD COLUMN student_id INTEGER REFERENCES students(id)")
+    if "gender" not in {row["name"] for row in db.execute("PRAGMA table_info(students)")}:
+        with db:  # Demo Jeeny profile gender; existing students get the demo default
+            db.execute(f"ALTER TABLE students ADD COLUMN gender TEXT NOT NULL DEFAULT '{config.DEMO_STUDENT_GENDER}'")
     batch_columns = {row["name"] for row in db.execute("PRAGMA table_info(batches)")}
     for column, kind in BATCH_COLUMNS.items():
         if column not in batch_columns:

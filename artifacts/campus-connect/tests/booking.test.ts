@@ -6,11 +6,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { ApiError, BookingPayload, Rider, samePayload } from '../src/api';
-import { BookingStore, submitBooking } from '../src/booking';
+import { ApiError, BookingPayload, onlyLabel, onlyPreference, Rider, rideOptions, samePayload } from '../src/api';
+import { BookingStore, isDefiniteRejection, submitBooking } from '../src/booking';
 
-const A: BookingPayload = { name: 'Sara K', classEnd: '16:00', stop: 'Dabouq', woman: true, womenOnly: true };
-const B: BookingPayload = { name: 'Sara K', classEnd: '16:10', stop: 'Khalda', woman: true, womenOnly: false };
+const A: BookingPayload = { name: 'Omar K', classEnd: '16:00', stop: 'Dabouq', gender: 'man', preference: 'men', friends: { mode: 'start', open: true } };
+const B: BookingPayload = { name: 'Omar K', classEnd: '16:10', stop: 'Khalda', gender: 'man', preference: 'mixed', friends: null };
 
 /** One student token on the server: books once, returns the same rider for the same details. */
 function fakeServer() {
@@ -23,7 +23,14 @@ function fakeServer() {
     tripDate: '2026-11-28',
     timezone: 'Asia/Amman',
     matched: false,
-    request: { classEnd: payload.classEnd, stop: payload.stop, woman: payload.woman, womenOnly: payload.womenOnly },
+    request: {
+      classEnd: payload.classEnd,
+      stop: payload.stop,
+      woman: rideOptions(payload).gender === 'woman',
+      womenOnly: rideOptions(payload).preference === 'women',
+      ...rideOptions(payload),
+      friendGroup: payload.friends?.mode === 'join' ? payload.friends.code : payload.friends ? 'GR-48' : null,
+    },
     soloFare: { fils: 4500, currency: 'JOD' },
     plan: null,
   });
@@ -152,8 +159,55 @@ test('a relaunch with no drop-off data can still resend the stored booking', asy
   const server = fakeServer();
   const phone = device();
   phone.disk.sentPayload = A;
-  const empty: BookingPayload = { name: '', classEnd: '16:00', stop: '', woman: false, womenOnly: false };
+  const empty: BookingPayload = { name: '', classEnd: '16:00', stop: '', gender: 'man', preference: 'mixed', friends: null };
   const result = await submitBooking(phone.launch(), empty, transport(server, () => 'up').book);
   assert.equal(result.ok, true);
   assert.deepEqual(server.state.saved, A);
+});
+
+test('the only-gender option follows the profile: men see Men only, women see Women only', () => {
+  assert.equal(onlyPreference('man'), 'men');
+  assert.equal(onlyLabel(onlyPreference('man')), 'Men only');
+  assert.equal(onlyPreference('woman'), 'women');
+  assert.equal(onlyLabel(onlyPreference('woman')), 'Women only');
+});
+
+test('details stored by an older app version (woman/womenOnly) still compare and resend as they were', async () => {
+  const legacy: BookingPayload = { name: 'Sara K', classEnd: '16:00', stop: 'Dabouq', woman: true, womenOnly: true };
+  assert.deepEqual(rideOptions(legacy), { gender: 'woman', preference: 'women' });
+  assert.equal(samePayload(legacy, { ...legacy, woman: undefined, womenOnly: undefined, gender: 'woman', preference: 'women' }), true);
+  assert.equal(samePayload(legacy, { ...legacy, womenOnly: false }), false);
+
+  const server = fakeServer();
+  const phone = device();
+  phone.disk.sentPayload = legacy;
+  const result = await submitBooking(phone.launch(), B, transport(server, () => 'up').book);
+  assert.equal(result.ok, true);
+  assert.deepEqual(server.state.saved, legacy, 'the unresolved legacy details are resent, not the new form');
+});
+
+test('the friends choice is part of the booking: a changed choice is a different request', () => {
+  const start: BookingPayload = { ...B, friends: { mode: 'start', open: true } };
+  assert.equal(samePayload(start, { ...B, friends: { mode: 'start', open: true } }), true);
+  assert.equal(samePayload(start, { ...B, friends: { mode: 'start', open: false } }), false);
+  assert.equal(samePayload(start, B), false);
+  const join: BookingPayload = { ...B, friends: { mode: 'join', code: 'GR-48' } };
+  assert.equal(samePayload(join, { ...B, friends: { mode: 'join', code: ' gr-48 ' } }), true);
+  assert.equal(samePayload(join, { ...B, friends: { mode: 'join', code: 'GR-49' } }), false);
+  assert.equal(samePayload(join, start), false);
+  assert.equal(samePayload({ ...B, friends: undefined }, B), true, 'missing friends means just me');
+});
+
+test('group errors are definite answers: nothing was saved, so the student may fix the code and resend', async () => {
+  for (const [code, status] of [['group_not_found', 404], ['group_full', 409], ['group_mismatch', 409], ['batch_matched', 409]] as const) {
+    const error = new ApiError(code, code, status);
+    assert.equal(isDefiniteRejection(error), true, code);
+    const phone = device();
+    const result = await submitBooking(phone.launch(), { ...B, friends: { mode: 'join', code: 'GR-12' } }, async () => {
+      throw error;
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.unresolved, false);
+    assert.equal(phone.disk.sentPayload, null, `${code} clears the stored details`);
+  }
 });

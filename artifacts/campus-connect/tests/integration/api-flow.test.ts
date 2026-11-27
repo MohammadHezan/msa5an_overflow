@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { api, ApiError, isSessionLost, riderFromPlanChanged, type BookingPayload, type Rider } from '../../src/api';
+import { api, ApiError, isSessionLost, onlyPreference, riderFromPlanChanged, type BookingPayload, type Rider } from '../../src/api';
 import { isDefiniteRejection } from '../../src/booking';
 
 const [apiUrl, offlineUrl] = process.argv.slice(2);
@@ -71,6 +71,7 @@ test('phone booking, matching, stale confirmation, decline and connection errors
   const batch = await operator<{ id: string; joinCode: string; operatorToken: string }>(
     '/batches', { mode: 'empty' },
   );
+  // Sent with the older woman/womenOnly flags: older app versions keep working.
   const payload: BookingPayload = {
     name: 'Sara', classEnd: '16:00', stop: 'Dabouq', woman: true, womenOnly: true,
   };
@@ -299,4 +300,66 @@ test('a phone searches campuses, verifies a university email and asks about unav
   const again = await api.startVerification(origin, confirmed.token, balqa.id, 'sara.a@bau.edu.jo');
   assert.ok('alreadyVerified' in again && again.alreadyVerified);
   t.diagnostic('Masked email, cooldown, wrong code, confirm and already-verified passed');
+});
+
+test('friends start and join a group, ride in one car, and men-only follows the profile', { timeout: 60000 }, async (t) => {
+  const batch = await operator<{ id: string; joinCode: string; operatorToken: string }>('/batches', { mode: 'empty' });
+  const omarSession = await verifiedJoin(batch.joinCode, 'Omar');
+  const profile = (await api.me(origin, omarSession.token)).student;
+  assert.equal(profile?.gender, 'man', 'The demo profile is a man');
+  const only = onlyPreference(profile.gender);
+  assert.equal(only, 'men');
+
+  // A man may not ask for a women-only car.
+  const base: BookingPayload = { name: 'Omar', classEnd: '16:00', stop: 'Dabouq', gender: profile.gender, preference: only };
+  await assert.rejects(
+    api.book(origin, omarSession.token, batch.id, { ...base, preference: 'women' }, 'friends-omar-0000'),
+    (error: unknown) => errorWith('invalid_input', 400)(error) && isDefiniteRejection(error as ApiError),
+  );
+
+  const start: BookingPayload = { ...base, friends: { mode: 'start', open: true } };
+  const omar = await api.book(origin, omarSession.token, batch.id, start, 'friends-omar-0001');
+  const code = omar.request.friendGroup;
+  assert.ok(code && /^GR-\d\d$/.test(code), `group code, got ${code}`);
+  assert.equal(omar.request.preference, 'men');
+  assert.equal(omar.request.groupOpen, true);
+  assert.deepEqual(await api.book(origin, omarSession.token, batch.id, start, 'friends-omar-0001'), omar, 'retry returns the same rider');
+  await assert.rejects(
+    api.book(origin, omarSession.token, batch.id, { ...start, friends: { mode: 'start', open: false } }, 'friends-omar-0001'),
+    errorWith('request_conflict', 409),
+  );
+
+  const join = (name: string, extra: Partial<BookingPayload> = {}, groupCode = code) =>
+    verifiedJoin(batch.joinCode, name).then((s) =>
+      api.book(origin, s.token, batch.id, { ...base, name, preference: 'mixed', friends: { mode: 'join', code: groupCode }, ...extra }, `friends-${name.toLowerCase()}-0001`),
+    );
+  await assert.rejects(join('Ali', {}, 'GR-00'), (error: unknown) => {
+    errorWith('group_not_found', 404)(error);
+    assert.equal(isSessionLost(error), false, 'An unknown group code is not a lost session');
+    return isDefiniteRejection(error as ApiError);
+  });
+  await assert.rejects(join('Badr', { stop: 'Marka' }), (error: unknown) => errorWith('group_mismatch', 409)(error) && isDefiniteRejection(error as ApiError));
+  await assert.rejects(join('Fadi', { classEnd: '16:30' }), errorWith('group_mismatch', 409));
+
+  const zaid = await join('Zaid', { stop: 'Wadi As-Seer', classEnd: '16:05' });
+  assert.equal(zaid.request.friendGroup, code);
+  await join('Karim', { stop: 'Khalda' });
+  await join('Majd', { stop: 'Al Bayader' });
+  await assert.rejects(join('Rami'), (error: unknown) => errorWith('group_full', 409)(error) && isDefiniteRejection(error as ApiError));
+
+  const matched = await operator<{ ranNow: boolean }>(`/batches/${batch.id}/matching`, {}, batch.operatorToken);
+  assert.equal(matched.ranNow, true);
+  const plan = (await api.rider(origin, omarSession.token, omar.id)).plan;
+  assert.ok(plan?.shared);
+  assert.deepEqual([...plan.riders].sort(), ['Karim', 'Majd', 'Zaid'], 'the whole group shares one car');
+  assert.equal(plan.friendGroup, code);
+  assert.equal(plan.only, 'men');
+  assert.equal(plan.womenOnly, false);
+
+  const late = await verifiedJoin(batch.joinCode, 'Tariq');
+  await assert.rejects(
+    api.book(origin, late.token, batch.id, { ...base, name: 'Tariq', friends: { mode: 'start', open: true } }, 'friends-tariq-0001'),
+    (error: unknown) => errorWith('batch_matched', 409)(error) && isDefiniteRejection(error as ApiError),
+  );
+  t.diagnostic('Profile gender, men-only, start, join, retry, group errors, one car after matching and closed booking passed');
 });

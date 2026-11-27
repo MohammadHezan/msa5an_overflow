@@ -35,7 +35,7 @@ DEMO_JOINERS = ["Lina", "Noor", "Huda", "Rama", "Dima", "Tala"]
 CAR_COLORS = ["White sedan", "Silver sedan", "Grey hatchback", "Black sedan"]
 PREFERENCE_NAMES = {"mixed": "Anyone", "women": "Women only", "men": "Men only"}
 DEFAULT_DRAFT = {"direction": "from_campus", "stop": "Dabouq", "class_end": "16:00", "class_start": "08:30",
-                 "gender": "woman", "preference": "mixed", "quiet": False, "friends": "", "group_code": "",
+                 "gender": config.DEMO_STUDENT_GENDER, "preference": "mixed", "quiet": False, "friends": "", "group_code": "",
                  "group_open": True, "ready_at": "", "slot": 0,
                  "max_gate_wait": config.DEFAULT_MAX_GATE_WAIT_MIN, "max_extra_ride": config.DEFAULT_MAX_EXTRA_RIDE_MIN}
 LIMIT_CHOICES = (5, 10, 15, 20)  # minutes offered on screen 07 for the gate-wait and extra-ride limits
@@ -85,7 +85,7 @@ def verified():
 
 
 def student_name():
-    return session.get("yalla_name", "Sara A")
+    return session.get("yalla_name", config.DEMO_STUDENT_NAME)
 
 
 def walk_minutes(meters):
@@ -759,8 +759,10 @@ def demo(screen):
         abort(404)
     endpoint, args = DEMO_SCREENS[screen]
     session["student_verified"] = True
+    # The designed screens show Sara, a woman student, whatever the default demo profile is
     session["yalla_name"] = "Sara A"
-    session["yalla"] = {**DEFAULT_DRAFT, "quiet": True}
+    session["student_gender"] = "woman"
+    session["yalla"] = {**DEFAULT_DRAFT, "gender": "woman", "quiet": True}
     session["yalla_recent"] = ["Sweileh"]
     session.pop("yalla_saved", None)
     if screen == "03":
