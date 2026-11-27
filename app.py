@@ -135,8 +135,8 @@ def index():
     db = database()
     demo = current_demo(db)
     trips = list_requests(db, demo["id"])
-    active = request.args.get("view", "student")
-    if active not in {"student", "ops", "results"}:
+    active = request.args.get("view", "student" if request.args.get("ride") else "home")
+    if active not in {"home", "student", "ops", "results"}:
         abort(404)
     try:
         selected_id = int(request.args.get("ride", "0"))
@@ -176,7 +176,7 @@ def submit_request():
         valid_time = False
     if not 1 <= len(name) <= 40 or area not in ROUTES or not valid_time:
         flash("Enter a demo name, a pickup area, and an arrival time between 06:00 and 22:00.")
-        return redirect(url_for("index"))
+        return redirect(url_for("index", view="student"))
 
     db = database()
     with db:
@@ -184,17 +184,17 @@ def submit_request():
         demo = db.execute("SELECT * FROM demos WHERE id = ?", (session["demo"],)).fetchone()
         if not demo or demo["finalized"]:
             flash("The cutoff has passed. Start a new demo batch to submit another request.")
-            return redirect(url_for("index"))
+            return redirect(url_for("index", view="student"))
         if len(list_requests(db, demo["id"])) >= MAX_REQUESTS:
             flash("This demo batch is full.")
-            return redirect(url_for("index"))
+            return redirect(url_for("index", view="student"))
         try:
             ride_id = add_request(db, demo["id"], name, area, arrival, request.form.get("full_fare") == "yes")
         except sqlite3.IntegrityError:
             flash("That demo name already has a request in this batch.")
-            return redirect(url_for("index"))
+            return redirect(url_for("index", view="student"))
     flash("Request added to this evening’s batch.")
-    return redirect(url_for("index", ride=ride_id))
+    return redirect(url_for("index", view="student", ride=ride_id))
 
 
 @app.post("/allocate")

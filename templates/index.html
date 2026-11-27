@@ -3,7 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Campus Connect · {{ {"student": "Student", "ops": "Operations", "results": "Results"}[active] }}</title>
+  {% set titles = {"home": "Home", "student": "Plan a campus ride", "ops": "Operations", "results": "Results"} %}
+  <title>Jeeny · Campus Connect · {{ titles.get(active, "Home") }}</title>
+  <link rel="icon" href="{{ url_for('static', filename='jeeny/favicon.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script src="{{ url_for('static', filename='trip.js') }}" defer></script>
 </head>
@@ -15,184 +19,259 @@
     {% elif trip.outcome == "unconfirmed" %}<span class="status neutral">Ride unconfirmed</span>
     {% else %}<span class="status waiting">Awaiting cutoff</span>{% endif %}
   {% endmacro %}
-  <header class="top">
-    <div class="top-inner">
-      <a class="brand" href="{{ url_for('index') }}"><span class="mark" aria-hidden="true">↗</span>Campus Connect</a>
-      <nav aria-label="Demo views">
-        {% for view, label in (("student", "Student"), ("ops", "Operations"), ("results", "Results")) %}
-          <a href="{{ url_for('index', view=view) }}"{% if view == active %} aria-current="page"{% endif %}>{{ label }}</a>
-        {% endfor %}
+  {% set student_mode = "status" if (selected or demo.finalized) else "plan" %}
+  <div class="app">
+    <aside class="drawer" id="drawer" aria-label="Jeeny menu">
+      <a class="logo" href="{{ url_for('index', view='home') }}"><img src="{{ url_for('static', filename='jeeny/logo.svg') }}" alt="Jeeny home"></a>
+      <div class="profile"><span class="avatar">CS</span><span><strong>Campus student</strong><small>Sample passenger</small></span></div>
+      <nav aria-label="Main">
+        <a href="{{ url_for('index', view='home') }}"{% if active == "home" %} aria-current="page"{% endif %}>Home</a>
+        <p class="nav-label">Campus Connect <span class="new">New</span></p>
+        <a href="{{ url_for('index', view='student') }}"{% if active == "student" and student_mode == "plan" %} aria-current="page"{% endif %}>Plan a campus ride</a>
+        <a href="{{ url_for('index', view='student', ride=(selected.id if selected else (trips[-1].id if trips else None))) }}"{% if active == "student" and student_mode == "status" %} aria-current="page"{% endif %}>Ride status &amp; credits</a>
+        <p class="nav-label">Hackathon demo</p>
+        <a href="{{ url_for('index', view='ops') }}"{% if active == "ops" %} aria-current="page"{% endif %}>Operations</a>
+        <a href="{{ url_for('index', view='results') }}"{% if active == "results" %} aria-current="page"{% endif %}>Results</a>
       </nav>
-    </div>
-  </header>
-  <main>
-    <section class="hero">
-      <div>
-        <p class="location">AMMAN CAMPUS <span>·</span> {{ date_label }}</p>
-        <h1>{{ {"student": "Plan your campus ride.", "ops": "Manage the evening batch.", "results": "See where the credits went."}[active] }}</h1>
-        <p>{{ {
-          "student": "Set your arrival time and request a private ride before the 9 p.m. cutoff.",
-          "ops": "Set the available credits and drivers, then simulate the 9 p.m. cutoff.",
-          "results": "Compare Campus Connect with first come, first served using the same requests, credits, and drivers."
-        }[active] }}</p>
+      <p class="drawer-foot">Simulated data · No live rides or payments</p>
+    </aside>
+    <div class="scrim" data-close-drawer></div>
+
+    <div class="stage">
+      <header class="bar">
+        <button class="icon-btn" type="button" id="menu-btn" aria-controls="drawer" aria-expanded="false" aria-label="Open menu"><span></span><span></span><span></span></button>
+        <a class="bar-logo" href="{{ url_for('index', view='home') }}"><img src="{{ url_for('static', filename='jeeny/logo.svg') }}" alt="Jeeny home"></a>
+        <span class="chip">Hackathon demo</span>
+      </header>
+
+      <div class="map" role="img" aria-label="Illustrative map of a route to campus">
+        <img src="{{ url_for('static', filename='map.svg') }}" alt="">
+        <span class="map-tag">Illustrative map</span>
+        <span class="map-pill">Amman campus · {{ date_label }}</span>
       </div>
-      <span class="demo-label"><span aria-hidden="true"></span> Hackathon simulation</span>
-    </section>
-    {% for message in get_flashed_messages() %}<p class="notice" role="status">{{ message }}</p>{% endfor %}
-    {% if active == "student" %}
-      <div class="layout">
-        <section class="panel">
-          {% if demo.finalized %}
-            <h2>Requests are closed</h2>
-            <p>The batch has been processed. Open a request to see its outcome and pickup time.</p>
-            {% if selected %}
-              <article class="trip-summary">
-                <h3>{{ selected.name }} · {{ selected.area }}</h3>
-                {{ status(selected) }}
-                {% if selected.outcome in ("credit", "full") %}
-                  <p>Pickup at <strong>{{ selected.leave }}</strong> · Arrive by {{ selected.arrival }}</p>
-                  <p>You pay <strong>{{ (selected.fare - (credit if selected.outcome == "credit" else 0)) | jod }}</strong>.</p>
-                {% elif selected.bus %}
-                  <p>Next option: take the preset bus from {{ selected.area }}. The demo timetable shows an on-time trip for {{ selected.arrival }}.</p>
-                {% else %}
-                  <p>Next option: check the next bus or request a later arrival in a new demo batch.</p>
+
+      <main class="sheet">
+        <span class="grip" aria-hidden="true"></span>
+        {% for message in get_flashed_messages() %}<p class="notice" role="status">{{ message }}</p>{% endfor %}
+
+        {% if active == "home" %}
+          <p class="eyebrow">Good evening</p>
+          <h1>Where to tomorrow?</h1>
+          <a class="where" href="{{ url_for('index', view='student') }}"><span class="dot"></span>Plan a ride to campus<span class="arrow" aria-hidden="true">›</span></a>
+          <a class="feature" href="{{ url_for('index', view='student') }}">
+            <span class="feature-badge">New in Jeeny</span>
+            <strong>Campus Connect</strong>
+            <span>Request a private ride to class tonight. See your leave-by time now and get a credit result at the 9 p.m. cutoff.</span>
+            <span class="feature-cta">Plan a campus ride <span aria-hidden="true">›</span></span>
+          </a>
+          {% if trips %}
+          <div class="row-head"><h2>Recent campus requests</h2><a href="{{ url_for('index', view='student', ride=trips[-1].id) }}">Status</a></div>
+          <ul class="trip-list">
+            {% for trip in trips[-3:]|reverse %}
+              <li><a href="{{ url_for('index', view='student', ride=trip.id) }}"><span><strong>{{ trip.name }}</strong><small>{{ trip.area }} · arrive {{ trip.arrival }}</small></span>{{ status(trip) }}</a></li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+
+        {% elif active == "student" %}
+          <div class="sheet-grid">
+            <section>
+              {% if demo.finalized %}
+                <p class="eyebrow">Ride status &amp; credits</p>
+                <h1>Requests are closed</h1>
+                <p class="muted">The batch has been processed. Open a request to see its outcome and pickup time.</p>
+                {% if selected %}
+                  <article class="ride-card selected-ride">
+                    <div class="ride-top"><span><strong>{{ selected.name }}</strong><small>{{ selected.area }} → Campus</small></span>{{ status(selected) }}</div>
+                    {% if selected.outcome in ("credit", "full") %}
+                      <div class="kv"><span>Pickup</span><strong>{{ selected.leave }}</strong></div>
+                      <div class="kv"><span>Arrive by</span><strong>{{ selected.arrival }}</strong></div>
+                      <div class="kv"><span>Sample fare</span><strong>{{ selected.fare | jod }}</strong></div>
+                      {% if selected.outcome == "credit" %}<div class="kv credit"><span>Campus credit</span><strong>− {{ credit | jod }}</strong></div>{% endif %}
+                      <div class="kv total"><span>You pay</span><strong>{{ (selected.fare - (credit if selected.outcome == "credit" else 0)) | jod }}</strong></div>
+                      <p>You pay <strong>{{ (selected.fare - (credit if selected.outcome == "credit" else 0)) | jod }}</strong>.</p>
+                    {% elif selected.bus %}
+                      <p>Next option: take the preset bus from {{ selected.area }}. The demo timetable shows an on-time trip for {{ selected.arrival }}.</p>
+                    {% else %}
+                      <p>Next option: check the next bus or request a later arrival in a new demo batch.</p>
+                    {% endif %}
+                  </article>
                 {% endif %}
-              </article>
-            {% endif %}
-          {% else %}
-            <h2>Request a ride</h2>
-            {% if selected %}<div class="notice">Request for {{ selected.name }} is awaiting the cutoff. Suggested leave-by time: <strong>{{ selected.leave }}</strong>.</div>{% endif %}
-            <form action="{{ url_for('submit_request') }}" method="post" id="trip-form"
-                  data-minutes='{{ route_minutes | tojson }}' data-buffer="{{ buffer }}">
-              {{ token() }}
-              <label>Demo student name <input name="name" maxlength="40" placeholder="e.g. Sara" required></label>
-              <div class="fields">
-                <label>Pickup area
-                  <select name="area" id="area" required>
-                    {% for area in routes %}<option value="{{ area }}">{{ area }}</option>{% endfor %}
-                  </select>
-                </label>
-                <label>Arrive by <input type="time" name="arrival" id="arrival" value="08:30" min="06:00" max="22:00" required></label>
-              </div>
-              <div class="estimate">
-                <div><span>Suggested leave-by</span><strong id="leave-by">07:58</strong></div>
-                <div><span>Sample fare</span><strong id="fare">{{ routes["Sweileh"].fare | jod }}</strong></div>
-              </div>
-              <script type="application/json" id="fares">{ {% for area, route in routes.items() %}{{ area | tojson }}: {{ route.fare }}{{ "," if not loop.last }}{% endfor %} }</script>
-              <label class="check"><input type="checkbox" name="full_fare" value="yes"> Confirm at full fare if no credit is available</label>
-              <button class="primary" type="submit">Request ride <span aria-hidden="true">↗</span></button>
-            </form>
-          {% endif %}
-        </section>
-        <aside class="panel">
-          <div class="panel-heading"><h2>Student requests</h2><span class="count">{{ trips | length }}</span></div>
-          {% if not trips %}<p>No requests yet. Add one using the ride form.</p>{% endif %}
-          <ul class="trip-list">
-            {% for trip in trips %}
-              <li>
-                <a href="{{ url_for('index', ride=trip.id) }}"{% if selected and trip.id == selected.id %} aria-current="true"{% endif %}>
-                  <span><strong>{{ trip.name }}</strong><small>{{ trip.area }} · {{ trip.arrival }}</small></span>
-                  {{ status(trip) }}
-                </a>
-              </li>
-            {% endfor %}
-          </ul>
-        </aside>
-      </div>
-    {% elif active == "ops" %}
-      <div class="layout">
-        <section class="panel">
-          <h2>Allocation settings</h2>
-          {% if demo.finalized %}
-            <p>This batch is complete. Its settings and outcomes are saved.</p>
-            <a class="primary" href="{{ url_for('index', view='results') }}">View batch results <span aria-hidden="true">↗</span></a>
-          {% else %}
-            <form action="{{ url_for('allocate') }}" method="post">
-              {{ token() }}
-              <div class="fields">
-                <label>Credit budget (JOD) <input type="number" name="budget" value="{{ '%.2f' | format(demo.budget / 1000) }}" min="0" max="500" step="0.01" required></label>
-                <label>Credit cap per student
-                  <select name="cap"><option value="1">1 credit</option><option value="0">0 credits</option></select>
-                </label>
-              </div>
-              <p class="hint">Each credit covers {{ credit | jod }} of a single private ride.</p>
-              <fieldset>
-                <legend>Available drivers by arrival window</legend>
-                <div class="fields three">
-                  {% for window, times in (("Morning", "06:00–10:59"), ("Midday", "11:00–15:59"), ("Evening", "16:00–22:00")) %}
-                    <label>{{ window }} <small>{{ times }}</small>
-                      <input type="number" name="{{ window | lower }}" value="{{ demo[window | lower] }}" min="0" max="50" required>
+              {% else %}
+                <p class="eyebrow">Campus Connect · tomorrow</p>
+                <h1>Plan a campus ride</h1>
+                {% if selected %}<div class="notice pending"><span class="pulse"></span><span>Request for {{ selected.name }} is awaiting the cutoff. Suggested leave-by time: <strong>{{ selected.leave }}</strong>. Fare {{ selected.fare | jod }}{% if selected.full_fare %} · full fare accepted{% else %} · credit only{% endif %}.</span></div>{% endif %}
+                <form action="{{ url_for('submit_request') }}" method="post" id="trip-form" class="form"
+                      data-minutes='{{ route_minutes | tojson }}' data-buffer="{{ buffer }}">
+                  {{ token() }}
+                  <label>Demo student name <input name="name" maxlength="40" placeholder="e.g. Sara" required></label>
+                  <div class="fields">
+                    <label>Pickup area
+                      <select name="area" id="area" required>
+                        {% for area in routes %}<option value="{{ area }}">{{ area }}</option>{% endfor %}
+                      </select>
                     </label>
-                  {% endfor %}
-                </div>
-              </fieldset>
-              <button type="submit" class="primary">Run allocation <span aria-hidden="true">↗</span></button>
-            </form>
-          {% endif %}
-        </section>
-        <aside class="panel">
-          <div class="panel-heading"><h2>Request queue</h2><span class="count">{{ trips | length }}</span></div>
-          {% if not trips %}<p>No students have requested a ride for this batch.</p>{% endif %}
-          <ul class="trip-list">
-            {% for trip in trips %}
-              <li class="queue-item">
-                <span><strong>{{ trip.name }}</strong><small>{{ trip.area }} · {{ trip.arrival }}</small></span>
-                <span class="status {{ 'neutral' if trip.bus else 'waiting' }}">{{ "Bus available" if trip.bus else "Needs backup" }}</span>
-              </li>
+                    <label>Arrive by <input type="time" name="arrival" id="arrival" value="08:30" min="06:00" max="22:00" required></label>
+                  </div>
+                  <p class="note">Prices shown are sample estimates and may vary</p>
+                  <div class="ride-card estimate">
+                    <div><span>Suggested leave-by</span><strong id="leave-by">--:--</strong></div>
+                    <div class="right"><span>Sample fare</span><strong id="fare">{{ routes["Sweileh"].fare | jod }}</strong></div>
+                  </div>
+                  <script type="application/json" id="fares">{ {% for area, route in routes.items() %}{{ area | tojson }}: {{ route.fare }}{{ "," if not loop.last }}{% endfor %} }</script>
+                  <label class="check"><input type="checkbox" name="full_fare" value="yes"><span>Confirm at full fare if no credit is available</span></label>
+                  <p class="note">Credits of {{ credit | jod }} are allocated at the 9 p.m. cutoff.</p>
+                  <button class="primary block" type="submit">Request ride</button>
+                </form>
+              {% endif %}
+            </section>
+            <section>
+              <div class="row-head"><h2>Campus requests</h2><span class="count">{{ trips | length }}</span></div>
+              {% if not trips %}<div class="empty">No requests yet. Add one using the ride form.</div>{% endif %}
+              <ul class="trip-list">
+                {% for trip in trips %}
+                  <li>
+                    <a href="{{ url_for('index', view='student', ride=trip.id) }}"{% if selected and trip.id == selected.id %} aria-current="true"{% endif %}>
+                      <span><strong>{{ trip.name }}</strong><small>{{ trip.area }} · {{ trip.arrival }}</small></span>
+                      {{ status(trip) }}
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            </section>
+          </div>
+
+        {% elif active == "ops" %}
+          <div class="sheet-grid">
+            <section>
+              <p class="eyebrow">Hackathon demo · Simulated</p>
+              <h1>Allocation settings</h1>
+              {% if demo.finalized %}
+                <p class="muted">This batch is complete. Its settings and outcomes are saved.</p>
+                <a class="primary block" href="{{ url_for('index', view='results') }}">View batch results</a>
+              {% else %}
+                <form action="{{ url_for('allocate') }}" method="post" class="form">
+                  {{ token() }}
+                  <div class="fields">
+                    <label>Credit budget (JOD) <input type="number" name="budget" value="{{ '%.2f' | format(demo.budget / 1000) }}" min="0" max="500" step="0.01" required></label>
+                    <label>Credit cap per student
+                      <select name="cap"><option value="1">1 credit</option><option value="0">0 credits</option></select>
+                    </label>
+                  </div>
+                  <p class="note">Each credit covers {{ credit | jod }} of a single private ride.</p>
+                  <fieldset>
+                    <legend>Available drivers by arrival window</legend>
+                    <div class="fields three">
+                      {% for window, times in (("Morning", "06:00–10:59"), ("Midday", "11:00–15:59"), ("Evening", "16:00–22:00")) %}
+                        <label>{{ window }} <small>{{ times }}</small>
+                          <input type="number" name="{{ window | lower }}" value="{{ demo[window | lower] }}" min="0" max="50" required>
+                        </label>
+                      {% endfor %}
+                    </div>
+                  </fieldset>
+                  <button type="submit" class="primary block">Run allocation (simulate 9 p.m. cutoff)</button>
+                </form>
+              {% endif %}
+            </section>
+            <section>
+              <div class="row-head"><h2>Request queue</h2><span class="count">{{ trips | length }}</span></div>
+              {% if not trips %}<div class="empty">No students have requested a ride for this batch.</div>{% endif %}
+              <ul class="trip-list">
+                {% for trip in trips %}
+                  <li class="queue-item">
+                    <span><strong>{{ trip.name }}</strong><small>{{ trip.area }} · {{ trip.arrival }}</small></span>
+                    <span class="status {{ 'neutral' if trip.bus else 'waiting' }}">{{ "Bus available" if trip.bus else "Needs backup" }}</span>
+                  </li>
+                {% endfor %}
+              </ul>
+            </section>
+          </div>
+
+        {% elif not demo.finalized %}
+          <p class="eyebrow">Results</p>
+          <h1>Waiting for the cutoff</h1>
+          <p class="muted">Run allocation in Operations to compare outcomes for {{ trips | length }} student requests.</p>
+          <a class="primary block" href="{{ url_for('index', view='ops') }}">Open Operations</a>
+
+        {% else %}
+          <p class="eyebrow">Results · Simulated</p>
+          <h1>See where the credits went</h1>
+          {% set gain = comparison.outcome.arrivals - comparison.baseline.arrivals %}
+          <p class="notice" role="status">
+            {% if gain > 0 %}
+              Campus Connect gives {{ gain }} more {{ "student" if gain == 1 else "students" }} an on-time option than first come, first served.
+            {% elif gain == 0 %}
+              Tie: both methods give {{ comparison.outcome.arrivals }} of {{ trips | length }} students an on-time option. Credit spend may differ.
+            {% else %}
+              First come, first served gives {{ -gain }} more students an on-time option in this scenario.
+            {% endif %}
+          </p>
+          <details class="ride-card">
+            <summary>Scenario assumptions and saved settings</summary>
+            <p class="note">
+              {{ trips | length }} requests; {{ trips | selectattr("bus") | list | length }} have a preset on-time bus.
+              Budget {{ demo.budget | jod }}; each credit {{ credit | jod }}; cap {{ demo.cap }} per student.
+              Simulated driver capacity: morning {{ demo.morning }}, midday {{ demo.midday }}, evening {{ demo.evening }}.
+              One driver serves one ordinary private ride in its window; no pooling.
+              Travel time uses a preset route plus a {{ buffer }}-minute buffer, not a measured arrival guarantee.
+              Bus riders still count as on time without a ride.
+            </p>
+            <p class="note">
+              In the seven-student sample, two have buses and five need backup.
+              Four credits fund four of those five; with the two buses, six students have an on-time option.
+              First come spends two credits on bus users and helps only two additional students, for four of seven.
+              Other budgets, capacity limits or full-fare choices can change the comparison.
+            </p>
+          </details>
+          <div class="compare">
+            {% for key, label in (("outcome", "Campus Connect"), ("baseline", "First come, first served")) %}
+              {% set outcome = comparison[key] %}
+              <section class="ride-card score{% if key == "outcome" %} selected-ride{% endif %}">
+                <h2>{{ label }}</h2>
+                <div class="number">{{ outcome.arrivals }}<span> / {{ trips | length }}</span></div>
+                <p>Simulated on-time arrivals</p>
+                <progress value="{{ outcome.arrivals }}" max="{{ trips | length }}" aria-label="{{ label }} on-time arrivals"></progress>
+                <dl>
+                  <div><dt>Total requests</dt><dd>{{ trips | length }}</dd></div>
+                  <div><dt>Projected on-time rate</dt><dd>{{ "%.1f" | format(100 * outcome.arrivals / (trips | length)) }}% ({{ outcome.arrivals }}/{{ trips | length }})</dd></div>
+                  <div><dt>Students without an on-time option</dt><dd>{{ outcome.unserved }}</dd></div>
+                  <div><dt>Credits spent</dt><dd>{{ outcome.spent | jod }}</dd></div>
+                  <div><dt>Credits used</dt><dd>{{ outcome.spent // credit }}</dd></div>
+                  <div><dt>Credit spend per on-time arrival</dt><dd>{{ (outcome.spent / outcome.arrivals) | jod if outcome.arrivals else "Not applicable" }}</dd></div>
+                </dl>
+                <p>Rate and cost include every requester with a ride or a preset on-time bus, counted once.</p>
+              </section>
             {% endfor %}
-          </ul>
-        </aside>
-      </div>
-    {% elif not demo.finalized %}
-      <section class="panel">
-        <h2>Waiting for the cutoff</h2>
-        <p>Run allocation in Operations to compare outcomes for {{ trips | length }} student requests.</p>
-        <a class="primary" href="{{ url_for('index', view='ops') }}">Open Operations <span aria-hidden="true">↗</span></a>
-      </section>
-    {% else %}
-      <div class="layout comparison">
-        {% for key, label in (("outcome", "Campus Connect"), ("baseline", "First come, first served")) %}
-          {% set outcome = comparison[key] %}
-          <section class="panel score{% if key == "outcome" %} featured{% endif %}">
-            <h2>{{ label }}</h2>
-            <div class="number">{{ outcome.arrivals }}<span> / {{ trips | length }}</span></div>
-            <p>Simulated on-time arrivals</p>
-            <progress value="{{ outcome.arrivals }}" max="{{ trips | length }}" aria-label="{{ label }} on-time arrivals"></progress>
-            <dl>
-              <div><dt>Students without an on-time option</dt><dd>{{ outcome.unserved }}</dd></div>
-              <div><dt>Credits spent</dt><dd>{{ outcome.spent | jod }}</dd></div>
-            </dl>
-          </section>
-        {% endfor %}
-      </div>
-      <section class="panel table-panel">
-        <h2>Student outcomes</h2>
-        <p>Both scores count students with a scheduled ride or an on-time bus option. Each student counts once.</p>
-        <div class="table-scroll">
-          <table>
-            <thead><tr><th>Student</th><th>Bus option</th><th>Campus Connect</th><th>First come</th></tr></thead>
-            <tbody>
-              {% for trip in trips %}
-                <tr>
-                  <th scope="row"><a href="{{ url_for('index', ride=trip.id) }}">{{ trip.name }}</a></th>
-                  <td>{{ "On-time bus" if trip.bus else "Unavailable" }}</td>
-                  <td>{{ status(trip) }}</td>
-                  <td>{{ {"credit": "With credit", "full": "Full fare", "unconfirmed": "Ride unconfirmed"}[trip.baseline] }}</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    {% endif %}
-    <footer>
-      <span>Demo data · No live rides or payments</span>
-      <form action="{{ url_for('reset') }}" method="post">
-        {{ token() }}
-        <button class="secondary" name="mode" value="empty" type="submit">Start empty batch</button>
-        <button class="secondary" name="mode" value="seeded" type="submit">Load seven-student scenario</button>
-      </form>
-    </footer>
-  </main>
+          </div>
+          <h2 class="sub">Student outcomes</h2>
+          <p class="note">Both scores count students with a scheduled ride or an on-time bus option. Each student counts once.</p>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Student</th><th>Bus option</th><th>Campus Connect</th><th>First come</th></tr></thead>
+              <tbody>
+                {% for trip in trips %}
+                  <tr>
+                    <th scope="row"><a href="{{ url_for('index', view='student', ride=trip.id) }}">{{ trip.name }}</a></th>
+                    <td>{{ "On-time bus" if trip.bus else "Unavailable" }}</td>
+                    <td>{{ status(trip) }}{% if trip.bus and trip.outcome == "unconfirmed" %}<small>On-time by bus</small>{% endif %}</td>
+                    <td>{{ {"credit": "With credit", "full": "Full fare", "unconfirmed": "Ride unconfirmed"}[trip.baseline] }}{% if trip.bus and trip.baseline == "unconfirmed" %}<small>On-time by bus</small>{% endif %}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+
+        <footer>
+          <span>Hackathon demo · Simulated data · No live rides or payments</span>
+          <form action="{{ url_for('reset') }}" method="post">
+            {{ token() }}
+            <button class="secondary" name="mode" value="empty" type="submit">Start empty batch</button>
+            <button class="secondary" name="mode" value="seeded" type="submit">Load seven-student scenario</button>
+          </form>
+        </footer>
+      </main>
+    </div>
+  </div>
 </body>
 </html>

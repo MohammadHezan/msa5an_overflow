@@ -2,7 +2,11 @@
 
 Use this file to agree on the hackathon demo, record what students tell us, and guide Replit Agent as it works in this repository.
 
-Use [document.md](document.md) for the next phase, including the Expo and backend task split, proposed API, and simulation.
+Use [document.md](document.md) for the Expo and backend task split, proposed API, and simulation. The design handoff from the Expo integration branch is in [design.md](design.md).
+
+## Jeeny feature scope
+
+The user clarified that this is a Jeeny hackathon MVP with a pitch, and Campus Connect is a feature inside the Jeeny app. The student experience should match Jeeny's ride-app UI rather than look like a separate campus product. Preserve clearly visible hackathon and simulation labels; the demo is not a live Jeeny service.
 
 ## What problem are we solving?
 
@@ -55,7 +59,7 @@ The hackathon scope uses simulated bus availability, driver supply, fares, and o
 
 ## Replit workflow
 
-1. **Import the existing project.** Import [the GitHub repository](https://github.com/MohammadHezan/msa5an_overflow). Replit also supports uploading a ZIP of the project source. Include `.replit` and `agent.md`. Leave out local settings, data, and dependencies such as `.env`, `instance/`, and `.venv/`. [Replit import instructions](https://docs.replit.com/build/import-from-providers)
+1. **Import the existing project.** Import [the GitHub repository](https://github.com/MohammadHezan/msa5an_overflow) once the code and this file are pushed. That push is currently blocked by write access. If the team needs to start before access is resolved, Replit also supports uploading a ZIP of the project source. Include `.replit` and `agent.md`. Leave out local data and dependencies such as `instance/` and `.venv/`. [Replit import instructions](https://docs.replit.com/build/import-from-providers)
 2. **Run the baseline.** Click **Run** and open **Preview**. The existing `.replit` config installs dependencies from `requirements.txt` and starts Flask on port 5000. Run the acceptance checks below before changing implementation. [Replit Preview](https://docs.replit.com/features/editor/preview)
 3. **Give Agent the file explicitly.** Paste the starter prompt below into the existing project's Agent chat. Add a question ID and the chosen team answer when asking Agent to implement a decision.
 4. **Work in the existing files.** Use `app.py` for the student request, simulated cutoff, and SQLite state. Use `allocation.py` for allocation and comparison. Use `templates/index.html` and `static/` for the student, operations, and results views. Keep the single Python/Flask app for the hackathon.
