@@ -101,6 +101,11 @@ a.yr-row:hover, label.yr-row:hover { border-color: #D3D3D3; }
 .yr-seg input:checked + span { border-color: var(--pink); color: var(--pink); background: #FFF0F7; font-weight: 500; }
 .yr-seg input:focus-visible + span { outline: 3px solid #47B2E4; }
 .yr-seg input:disabled + span { color: #BDBDBD; border-style: dashed; cursor: not-allowed; }
+.yr-slots { margin: 14px 0 4px; }
+.yr-slots span { border-radius: 14px; padding: 8px 4px; }
+.yr-slots b { display: block; font-weight: 600; }
+.yr-slots small { display: block; font-size: .68rem; color: var(--muted); }
+.yr-limit { margin-top: 12px; }
 .yr-chips { display: flex; flex-wrap: wrap; gap: 10px; }
 .yr-chips span { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border: 1.5px solid var(--pink); border-radius: 999px; color: var(--pink); font-size: .8rem; font-weight: 500; }
 .yr-chips span .yr-ico { width: 18px; height: 18px; stroke: var(--pink); }

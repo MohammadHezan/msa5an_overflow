@@ -4,7 +4,12 @@ import re
 import pytest
 
 import app as campus
-from store import database, fare_estimates, get_batch, load_riders
+from store import database, default_ready_time as ready_for, fare_estimates, get_batch, load_riders
+
+
+def get_batch_date(batch_id):
+    with campus.app.app_context():
+        return get_batch(database(), batch_id)["trip_date"]
 
 
 @pytest.fixture
@@ -88,7 +93,15 @@ def test_review_shows_backend_estimate_and_brief_02_street_pickup(client):
     plan(client, quiet="yes")
     page = text(client.get("/yalla/plan/review"))
     estimate = fare_estimates("Lina K")["Khalda"]
-    assert f"JOD {estimate['shared'] / 1000:.2f}–{estimate['solo'] / 1000:.2f}" in page
+    with client.session_transaction() as session:
+        trip_date = get_batch_date(session["batch"])
+        slot = session["yalla"].get("ready_at") or None
+    ready = ready_for("Lina K", "Khalda", "16:00")
+    api = client.get(f"/api/v1/estimate?stop=Khalda&preferredPickup={ready}&rideDate={trip_date}").get_json()
+    low, high = api["estimatedShare"]["low"]["fils"], api["estimatedShare"]["high"]["fils"]
+    assert slot is None and f"JOD {low / 1000:.2f}–{high / 1000:.2f}" in page  # The backend's range, full car to two riders
+    hour, minute = map(int, api["dropOffTime"].split(":"))
+    assert f"about {(hour - 1) % 12 + 1}:{minute:02d} PM" in page
     assert f"walk {estimate['pickups']['from_campus']['walk_minutes']} min" in page
     assert "Quiet ride" in page and "main gate" not in page.lower()
 
@@ -218,3 +231,26 @@ def test_design_copies_show_the_design_values(client):
     assert "JOD 1.67" in text(client.get("/yalla/design/10")) and "Main gate" in text(client.get("/yalla/design/12"))
     assert "New code sent" in text(client.get("/yalla/design/03?toast=code"))
     assert client.get("/yalla/design/99").status_code == 404
+
+
+def test_planned_request_fields_flow_from_screens_06_to_08_into_the_booking(client):
+    verify(client)
+    post(client, "/yalla/plan/destination", stop="Khalda", direction="from_campus", go="next")
+    page = text(client.get("/yalla/plan/time"))
+    assert 'name="ready_at"' in page and page.count('name="slot"') == 3
+    post(client, "/yalla/plan/time", class_end="16:00", ready_at="16:06", ready_default="16:03", slot="5")
+    page = text(client.get("/yalla/plan/preferences"))
+    assert 'name="max_gate_wait"' in page and 'name="max_extra_ride"' in page
+    assert "I am" not in page and 'name="name"' not in page  # Profile supplies name, gender and direction
+    post(client, "/yalla/plan/preferences", gender="woman", preference="mixed", quiet="yes",
+         max_gate_wait="15", max_extra_ride="5")
+    review = text(client.get("/yalla/plan/review"))
+    assert "Ready 4:06 PM · pickup about 4:11 PM" in review and "Wait up to 15 min" in review
+    assert "Cash" in review and "No payment is taken" in review
+    assert post(client, "/yalla/plan/book").location == "/yalla/ride"
+    rider = my_rider(client)
+    assert (rider["ready_time"], rider["preferred_pickup"], rider["quiet_ride"]) == ("16:06", "16:11", 1)
+    assert (rider["max_gate_wait_min"], rider["max_extra_ride_min"], rider["payment_method"]) == (15, 5, "cash")
+    matching = text(client.get("/yalla/ride"))
+    assert "Ready at 4:06 PM · pickup around 4:11 PM · wait up to 15 min" in matching
+    assert "Quiet ride" in matching and "up to 5 min extra" in matching

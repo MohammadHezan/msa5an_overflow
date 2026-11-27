@@ -14,7 +14,8 @@ from pooling import config
 from store import (
     AMMAN, RULES, Problem, batch_for_join_code, bind_token, check_request, create_batch, database, fare_estimates,
     find_token, get_batch, insert_request, legacy_options, refresh, issue_token, join_code, load_riders, locked_batch, now,
-    respond_to_plan, run_matching, summarize, verify_ride_code,
+    respond_to_plan, run_matching, summarize, verify_ride_code, check_ride_options, request_checks, ride_estimate,
+    RIDE_OPTION_KEYS,
 )
 from student_verification import (
     booking_identity, confirm_verification, public_student, request_notification, resend_verification,
@@ -27,6 +28,16 @@ CLIENT_REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
 SAMPLE_RIDERS = 3
 
 
+# ---------- Errors and helpers ----------
+
+
+"""Versioned JSON API for the Expo student app and operator tools.
+Each endpoint mirrors an HTML form route in app.py and calls the same functions in store.py.
+Access uses bearer tokens: an operator token from creating a batch, or a student token from a join code.
+"""
+api = Blueprint("api", __name__, url_prefix="/api/v1")
+CLIENT_REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
+SAMPLE_RIDERS = 3
 # ---------- Errors and helpers ----------
 
 @api.errorhandler(Problem)
@@ -204,9 +215,16 @@ def rider_json(batch, rider):
                     "streetKm": rider["km"], "walkMeters": min(rider["start_side_m"], 200),
                     "gender": rider["gender"],
                     "preference": rider["preference"], "friendGroup": rider["friend_group"],
+                    "rideDate": rider["ride_date"] or batch["trip_date"], "readyAt": rider["ready_time"],
+                    "preferredPickup": rider["preferred_pickup"], "quietRide": bool(rider["quiet_ride"]),
+                    "maxGateWaitMin": rider["max_gate_wait_min"], "maxExtraRideMin": rider["max_extra_ride_min"],
+                    "paymentMethod": rider["payment_method"],
                     # Older clients read these two flags
                     "woman": rider["gender"] == "woman", "womenOnly": rider["preference"] == "women"},
         "soloFare": money(rider["solo"]), "rideCode": rider["ride_code"], "plan": None,
+        # Screen 09: "matching" until the batch is matched, then the checks stay for reference
+        "requestStatus": "matching" if not batch["matched"] else "matched",
+        **request_checks(batch, rider),
         "holdUntil": rider["hold_until"].isoformat() if rider["hold_until"] else None,
         "waitUntil": rider["wait_until"].isoformat() if rider["wait_until"] else None,
     }
@@ -248,6 +266,7 @@ def batch_json(db, batch):
              "classStart": r["class_start"], "stop": r["stop"], "corridor": r["corridor"],
              "streetKm": r["km"], "walkMeters": min(r["start_side_m"], 200),
              "gender": r["gender"], "preference": r["preference"], "friendGroup": r["friend_group"],
+             "quietRide": bool(r["quiet_ride"]),
              "woman": r["gender"] == "woman", "womenOnly": r["preference"] == "women", "status": r["status"],
              "car": r["car"] if r["plan"] else None, "share": money(r["share"]) if r["plan"] else None,
              "soloFare": money(r["solo"]), "rideCode": r["ride_code"]}
@@ -354,6 +373,22 @@ def stops():
     })
 
 
+@api.get("/estimate")
+def estimate():
+    """Screen 08: estimated share range and drop-off ETA for a ride from campus. No payment, no booking."""
+    stop, slot = request.args.get("stop", ""), request.args.get("preferredPickup", "")
+    result = ride_estimate(stop, slot, request.args.get("rideDate") or None)
+    return jsonify({
+        "stop": result["stop"], "corridor": result["corridor"], "km": result["km"], "currency": "JOD",
+        "preferredPickup": slot, "pickupAt": result["pickup"].isoformat(),
+        "estimatedShare": {"low": money(result["low"]), "high": money(result["high"])},
+        "soloFare": money(result["solo"]),
+        "dropOffEta": result["drop_off"].isoformat(), "dropOffTime": result["drop_off"].strftime("%H:%M"),
+        "riders": {"low": config.ESTIMATE_FULL_RIDERS, "high": config.ESTIMATE_PAIR_RIDERS},
+        "paymentMethod": "cash", "paymentTakenNow": False,
+    })
+
+
 @api.get("/batches/<batch_id>")
 def batch_detail(batch_id):
     db = database()
@@ -389,28 +424,42 @@ def book(batch_id):
     direction = field(body, "direction", str, "from_campus")
     class_end, class_start, stop = field(body, "classEnd", str, ""), field(body, "classStart", str, ""), field(body, "stop", str)
     if "gender" in body or "preference" in body:
-        gender, preference = field(body, "gender", str), field(body, "preference", str, "mixed")
+        women_only = field(body, "womenOnly", bool, False)
+        gender, preference = field(body, "gender", str), field(body, "preference", str, "women" if women_only else "mixed")
+        if women_only and preference != "women":
+            raise Problem("invalid_input", "`womenOnly` is true but `preference` is not \"women\".", 400)
     else:  # Older clients send woman/womenOnly flags
         gender, preference = legacy_options(field(body, "woman", bool, False), field(body, "womenOnly", bool, False))
     name = check_request(name, class_end, stop, gender, preference, direction, class_start)
+    optional = {key: field(body, key, kind) if body.get(key) is not None else None
+                for key, kind in (("rideDate", str), ("readyAt", str), ("preferredPickup", str),
+                                  ("maxGateWaitMin", int), ("maxExtraRideMin", int), ("paymentMethod", str))}
+    quiet_ride = field(body, "quietRide", bool, False)
 
     with db:
         batch = locked_batch(db, batch_id)
         token = find_token_row(db, token["token_hash"])
         if not batch or not token:
             raise Problem("unauthorized", "This batch no longer exists.", 401)
+        options = check_ride_options(
+            name, stop, direction, class_end, trip_date=batch["trip_date"], ride_date=optional["rideDate"],
+            ready_at=optional["readyAt"], preferred_pickup=optional["preferredPickup"], quiet_ride=quiet_ride,
+            max_gate_wait_min=optional["maxGateWaitMin"], max_extra_ride_min=optional["maxExtraRideMin"],
+            payment_method=optional["paymentMethod"])
         if token["rider"] is not None:
             if token["client_request_id"] != client_request_id:
                 raise Problem("already_booked", "This student session already booked a ride.")
             saved = db.execute("SELECT * FROM riders WHERE id = ?", (token["rider"],)).fetchone()
             if (saved["name"], saved["class_end"], saved["class_start"], saved["stop"], saved["gender"],
-                saved["preference"], saved["direction"]) != (name, class_end, class_start, stop, gender, preference, direction):
+                saved["preference"], saved["direction"], *(saved[key] for key in RIDE_OPTION_KEYS)) \
+                    != (name, class_end, class_start, stop, gender, preference, direction,
+                        *(options[key] for key in RIDE_OPTION_KEYS)):
                 raise Problem("request_conflict", "This clientRequestId was already used with different details.")
             rider_id, status = saved["id"], 200
         else:
             rider_id, status = insert_request(db, batch, name, class_end, stop, gender, preference,
                                               direction=direction, class_start=class_start,
-                                              student_key=student_key), 201
+                                              student_key=student_key, options=options), 201
             bind_token(db, token["token_hash"], rider_id, client_request_id)
     return jsonify(rider_json(*load_rider(db, batch_id, rider_id))), status
 

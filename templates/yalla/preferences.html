@@ -27,8 +27,16 @@
       <label class="yr-inline-field" data-friends="join"{% if draft.friends != "join" %} hidden{% endif %}><small>Group code</small><input name="group_code" value="{{ draft.group_code }}" maxlength="10" placeholder="GR-48" autocapitalize="characters"></label>
     </div>
     {% endif %}
-    {{ ui.row("clock", "Maximum wait for your group", rules.gap ~ " minutes") }}
-    {{ ui.row("route", "Maximum extra ride time", extra_minutes ~ " minutes") }}
+    <div class="yr-card yr-pref">
+      <div class="yr-pref-head">{{ ui.icon("clock") }}<span><strong>Maximum wait at the street</strong><small>Pickup is never later than this after you’re ready.</small></span></div>
+      <fieldset class="yr-seg small"><legend class="sr">Maximum wait at the street</legend>
+        {% for m in limit_choices %}<label><input type="radio" name="max_gate_wait" value="{{ m }}"{% if draft.max_gate_wait == m %} checked{% endif %}><span>{{ m }} min</span></label>{% endfor %}
+      </fieldset>
+      <div class="yr-pref-head yr-limit">{{ ui.icon("route") }}<span><strong>Maximum extra ride time</strong><small>Compared with riding alone to your stop.</small></span></div>
+      <fieldset class="yr-seg small"><legend class="sr">Maximum extra ride time</legend>
+        {% for m in limit_choices %}<label><input type="radio" name="max_extra_ride" value="{{ m }}"{% if draft.max_extra_ride == m %} checked{% endif %}><span>{{ m }} min</span></label>{% endfor %}
+      </fieldset>
+    </div>
     {{ ui.row("walk", "Maximum walk to the pickup street", "200 m") }}
   </form>
   {{ ui.info("people", "One street pickup. Up to " ~ rules.seats ~ " students.", "Meet together on your street, then get dropped off at your own stop.") }}
