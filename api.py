@@ -13,7 +13,7 @@ from sharing import CORRIDORS
 from store import (
     AMMAN, RULES, Problem, batch_for_join_code, bind_token, check_request, create_batch, database, fare_estimates,
     find_token, get_batch, insert_request, issue_token, join_code, load_riders, locked_batch, now,
-    respond_to_plan, run_matching, summarize,
+    respond_to_plan, run_matching, summarize, verify_ride_code,
 )
 
 api = Blueprint("api", __name__, url_prefix="/api/v1")
@@ -117,7 +117,7 @@ def rider_json(batch, rider):
         "batchId": batch["id"], "tripDate": batch["trip_date"], "timezone": "Asia/Amman", "matched": bool(batch["matched"]),
         "request": {"classEnd": rider["class_end"], "stop": rider["stop"], "woman": bool(rider["woman"]),
                     "womenOnly": bool(rider["women_only"])},
-        "soloFare": money(rider["solo"]), "plan": None,
+        "soloFare": money(rider["solo"]), "rideCode": rider["ride_code"], "plan": None,
     }
     if plan:
         body["plan"] = {
@@ -147,7 +147,7 @@ def batch_json(db, batch):
             {"id": r["id"], "name": r["name"], "classEnd": r["class_end"], "stop": r["stop"], "corridor": r["corridor"],
              "woman": bool(r["woman"]), "womenOnly": bool(r["women_only"]), "status": r["status"],
              "car": r["car"] if r["plan"] else None, "share": money(r["share"]) if r["plan"] else None,
-             "soloFare": money(r["solo"])}
+             "soloFare": money(r["solo"]), "rideCode": r["ride_code"]}
             for r in riders
         ],
         "cars": [
@@ -241,6 +241,20 @@ def stops():
 def batch_detail(batch_id):
     db = database()
     return jsonify(batch_json(db, operator_batch(db, batch_id)))
+
+
+@api.post("/batches/<batch_id>/verify-code")
+def verify_code(batch_id):
+    """Driver check at the meeting point: is this ride code held by a confirmed rider in the batch?"""
+    db = database()
+    batch = operator_batch(db, batch_id)
+    rider = verify_ride_code(db, batch, field(json_body(), "code", str))
+    if not rider:
+        return jsonify({"valid": False})
+    return jsonify({"valid": True, "rider": {
+        "firstName": first_name(rider["name"]), "stop": rider["stop"], "carId": rider["car"],
+        "pickupTime": rider["plan"]["pickup"],
+    }})
 
 
 @api.post("/batches/<batch_id>/riders")

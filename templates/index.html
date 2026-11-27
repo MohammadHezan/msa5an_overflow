@@ -178,6 +178,16 @@
       </div>
 
     {% elif active == "match" %}
+    {% if batch.matched %}
+    {% set saved_pct = ((summary.solo_total - summary.paid_total) * 100 / summary.solo_total) | round | int if summary.solo_total else 0 %}
+    <dl class="totals" aria-label="Matching totals">
+      <div><dt>Students</dt><dd>{{ summary.requests }}</dd></div>
+      <div><dt>Cars used</dt><dd>{{ summary.cars }}</dd></div>
+      <div><dt>Everyone alone</dt><dd><s>{{ summary.solo_total | jod }}</s></dd></div>
+      <div><dt>Shared total</dt><dd>{{ summary.paid_total | jod }}</dd></div>
+      <div class="hl"><dt>Average saved</dt><dd>{{ saved_pct }}%</dd></div>
+    </dl>
+    {% endif %}
       <div class="layout">
         <section class="panel">
           <h2>Matching rules</h2>
@@ -186,7 +196,7 @@
             <li><strong>Same time.</strong> Classes in one car end within {{ rules.gap }} minutes of each other. Pickup is {{ rules.walk }} minutes after the last class ends.</li>
             <li><strong>Up to {{ rules.seats }} students per car</strong>, using as few cars as possible.</li>
             <li><strong>Women only.</strong> Students who ask for it are only matched with women students.</li>
-            <li><strong>Fair split.</strong> Each car is one regular Jeeny ride at the regulated app fare: {{ rules.base | jod }} + {{ rules.per_km | jod }}/km over the whole route. Each student pays in proportion to their own distance, the shares add up to exactly that fare, and a student only shares a car if they save at least {{ rules.min_saving }}% compared with riding alone.</li>
+            <li><strong>Fair split.</strong> Each car is one regular Jeeny ride at the regulated app fare: JOD {{ "%.3f" | format(rules.base / 1000) }} + JOD {{ "%.3f" | format(rules.per_km / 1000) }}/km over the whole route. Each student pays in proportion to their own distance, the shares add up to exactly that fare, and a student only shares a car if they save at least {{ rules.min_saving }}% compared with riding alone.</li>
           </ul>
           {% if batch.matched %}
             <p>Matching has run for this batch.</p>
@@ -237,6 +247,25 @@
         <div class="panel stat"><span>Cars leaving campus</span><strong>{{ summary.cars }}</strong><small>instead of {{ summary.requests }}</small></div>
         <div class="panel stat"><span>Confirmed</span><strong>{{ summary.confirmed }}<em> / {{ summary.requests }}</em></strong><small>students</small></div>
       </div>
+      <form action="{{ url_for('driver_check') }}" method="post" class="panel driver-check">
+        {{ token() }}
+        <div>
+          <h2>Driver check</h2>
+          <p class="hint">At the gate, the driver types the code the student shows.</p>
+        </div>
+        <label><span class="visually-hidden">Ride code</span>
+          <input name="code" maxlength="20" placeholder="CC-0000" autocomplete="off" autocapitalize="characters" required
+                 value="{{ driver_check.code if driver_check else '' }}">
+        </label>
+        <button class="primary" type="submit">Check code</button>
+        {% if driver_check %}
+          {% if driver_check.valid %}
+            <p class="check-result ok" role="status"><strong>✓ Valid.</strong> {{ driver_check.name }} · drop-off {{ driver_check.stop }} · pickup {{ driver_check.pickup }} at the {{ driver_check.gate | lower }}</p>
+          {% else %}
+            <p class="check-result bad" role="status"><strong>✗ Invalid.</strong> {{ driver_check.code or "That" }} is not a confirmed ride in this batch.</p>
+          {% endif %}
+        {% endif %}
+      </form>
       <div class="cars">
         {% for car in cars %}
           <section class="panel car{% if not car.shared %} solo{% endif %}">
@@ -248,7 +277,7 @@
             <ol class="route compact">
               {% for member in car.members %}
                 <li>
-                  <span><a href="{{ url_for('index', rider=member.id) }}"><strong>{{ member.name }}</strong></a><small>{{ member.stop }} · {{ member.km }} km · alone {{ member.solo | jod }}</small></span>
+                  <span><a href="{{ url_for('index', rider=member.id) }}"><strong>{{ member.name }}</strong></a><small>{{ member.stop }} · {{ member.km }} km · alone {{ member.solo | jod }}</small>{% if member.ride_code %}<code class="ride-code">{{ member.ride_code }}</code>{% endif %}</span>
                   <span class="price">{{ car.shares[member.id] | jod }} {{ status(member) }}</span>
                 </li>
               {% endfor %}

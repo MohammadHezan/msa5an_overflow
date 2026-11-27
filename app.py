@@ -11,7 +11,7 @@ from sharing import CORRIDORS, route_map
 from store import (
     API_BATCH_TTL, RULES, WEB_BATCH_TTL, Problem, check_request, close_database, create_batch, database, delete_old_batches, fare_estimates,
     get_batch, insert_request, join_code, load_riders, locked_batch, operator_batch_for_token, respond_to_plan,
-    run_matching, summarize,
+    run_matching, summarize, verify_ride_code,
 )
 
 load_dotenv(Path(__file__).with_name(".env"), override=False)
@@ -97,6 +97,7 @@ def index():
         corridors=CORRIDORS, estimates=fare_estimates(), rules=RULES,
         join_code=code, join_expires=code_expires, opened=batch["id"] != own_batch_id(),
         api_ttl_hours=int(API_BATCH_TTL.total_seconds() // 3600),
+        driver_check=session.pop("driver_check", None) if active == "trips" else None,
     )
 
 
@@ -167,6 +168,19 @@ def respond(rider_id, action):
     else:
         flash(f"{rider['name']} left the ride. Anyone else in the car sees an updated plan.")
     return redirect(url_for("index", rider=rider_id))
+
+
+@app.post("/driver-check")
+def driver_check():
+    """The driver types the code a student shows at the meeting point."""
+    code = request.form.get("code", "")[:20]
+    db = database()
+    batch = get_batch(db, session.get("batch"))
+    rider = verify_ride_code(db, batch, code) if batch else None
+    session["driver_check"] = {"code": code.strip().upper(), "valid": bool(rider)} | (
+        {"name": rider["name"].split()[0], "stop": rider["stop"], "pickup": rider["plan"]["pickup"],
+         "gate": rider["plan"]["gate"]} if rider else {})
+    return redirect(url_for("index", view="trips"))
 
 
 @app.post("/batches/open")

@@ -215,6 +215,13 @@
             {% if selected.status in ("confirmed",) %}
               <div class="booked">✓ Booked</div>
               <h2>See you at the {{ plan.gate | lower }} at {{ plan.pickup }}</h2>
+            {% if selected.ride_code %}
+              <div class="ride-code-card">
+                <small>Show this to your driver</small>
+                <strong>{{ selected.ride_code }}</strong>
+                <span>The driver checks it at the {{ plan.gate | lower }} before you get in.</span>
+              </div>
+            {% endif %}
             {% else %}
               <p class="eyebrow">Your shared ride</p>
               <h2>Meet at the {{ plan.gate | lower }} at {{ plan.pickup }}</h2>
@@ -238,7 +245,16 @@
                 </li>
               {% endfor %}
             </ol>
-            <p class="fine-print">The car fare of {{ plan.car_fare | jod }} is split by distance, so students who get out earlier pay less.</p>
+            {% set total_km = plan.members | sum(attribute="km") %}
+            <details class="how" open>
+              <summary>How your share is worked out</summary>
+              <ol>
+                <li><span>Car fare <small>JOD {{ "%.3f" | format(rules.base / 1000) }} + JOD {{ "%.3f" | format(rules.per_km / 1000) }} × {{ "%g" | format(plan.route_km) }} route km</small></span><b>{{ plan.car_fare | jod }}</b></li>
+                <li><span>Your part <small>your {{ "%g" | format(selected.km) }} km of everyone's {{ "%g" | format(total_km) }} km × {{ plan.car_fare | jod }}</small></span><b>{{ selected.share | jod }}</b></li>
+                <li><span>Shares add up to the car fare <small>{% for m in plan.members %}{{ "%.2f" | format(plan.shares[m.id] / 1000) }}{% if not loop.last %} + {% endif %}{% endfor %} = {{ "%.2f" | format(plan.shares.values() | sum / 1000) }}</small></span><b>✓</b></li>
+              </ol>
+              <p>One regular Jeeny ride at the regulated LTRC app fare, split by how far each student rides.</p>
+            </details>
             {% if selected.status == "changed" %}<p class="warn">Someone left this car, so your plan changed. Review it and confirm again.</p>{% endif %}
             {% if selected.status in ("review", "changed") %}
               <div class="sheet-actions">
@@ -260,6 +276,13 @@
               <div class="booked">✓ Booked</div>
               <h2>Economy ride at {{ plan.pickup }}</h2>
               <p class="sub">Your driver will meet you at the {{ plan.gate | lower }}.</p>
+            {% if selected.ride_code %}
+              <div class="ride-code-card">
+                <small>Show this to your driver</small>
+                <strong>{{ selected.ride_code }}</strong>
+                <span>The driver checks it at the {{ plan.gate | lower }} before you get in.</span>
+              </div>
+            {% endif %}
             {% else %}
               <h2>No one's going your way yet</h2>
               <p class="sub">No student heading toward {{ selected.stop }} finishes within {{ rules.gap }} minutes of {{ selected.class_end }}{% if selected.women_only %} with women-only matching{% endif %}.</p>

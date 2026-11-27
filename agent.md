@@ -73,3 +73,20 @@ The hackathon scope uses simulated distances, fares and gates. Live dispatch, pa
 - [ ] **Confirm and decline.** Confirm Sara's plan, then decline as Rama. Sara sees **plan changed** with a new share and confirms again. A confirmation of an outdated plan is rejected.
 - [ ] **Sample afternoon.** Load the ten students and match. There are five cars. Sara, Rama and Huda share a women-only West car from the main gate at 16:15, and Sara pays **JOD 1.67** instead of **JOD 4.50**. Kareem is offered a solo ride. Zaid rides alone east.
 - [ ] **Judge walkthrough.** In Replit Preview, complete the Book → Matching → Trips flow on phone and desktop widths. The judge can open an individual student's plan from Trips.
+
+## Agent build log: ride codes and savings (2026-11-27)
+
+**Changed**
+- `store.py`: new `riders.ride_code` column (migration for older databases, unique per batch). Confirming (`confirmed` or `solo_confirmed`) issues a code from `pooling/codes.py` `new_code()`. Re-confirming after a plan change keeps it, declining clears it, and it is hidden while the status is `changed`. New `verify_ride_code()`.
+- `api.py`: `rideCode` on `GET /api/v1/riders/{id}` and on every rider in `GET /api/v1/batches/{id}` (`null` when not confirmed). New `POST /api/v1/batches/{id}/verify-code` (operator token only) returning `{"valid": true, "rider": {firstName, stop, carId, pickupTime}}` or `{"valid": false}`.
+- `app.py` + `templates/index.html`: Trips shows each confirmed rider's code and a **Driver check** box (`POST /driver-check`). Matching shows totals: students, cars used, everyone-alone total, shared total, average % saved.
+- `templates/phone.html`: confirmed screens show the code large ("Show this to your driver"). The plan screen has "How your share is worked out" (car fare formula, your km of everyone's km, shares add up to the car fare). The booking screen is now a Jeeny-style ride list (Campus Connect, Economy, Taxi, Jeeny Comfort, Box). Only Campus Connect can be booked; the others are priced from the solo fare for comparison.
+- `tests/test_ride_codes.py`: 8 tests covering code on confirm, unique codes, kept after re-confirm, hidden while changed, cleared on decline, migration, the dashboard Driver check, and verify-code for valid, invalid, other-batch and unauthorized calls. `python -m pytest`: 93 passed.
+- `replit.md`: Layout corrected and a Rules section added.
+
+**Acceptance (checked in Preview)**: 5 cars. Sara, Rama and Huda share the women-only West car from the main gate at 16:15, and Sara pays JOD 1.67 instead of JOD 4.50. Every car's shares add up to its car fare. Confirming Sara shows a CC-#### code on her phone and on Trips, and Driver check accepts it. After Huda declines, Sara is `changed` and her code is hidden until she confirms again.
+
+**Questions**
+1. "Average % saved" is computed as (everyone-alone total − shared total) ÷ everyone-alone total = 43% for the sample afternoon. Solo riders count at 0%. Should it instead be the mean of each student's own % saved, or only include students who share?
+2. The Acceptance checklist above still says "each share is at least JOD 0.50, a multiple of JOD 0.05". That contradicts the tariff rules (exact fils, no rounding to 50 fils). Lina's share is JOD 0.57. Should that line be updated?
+3. The comparison prices on the booking screen for Taxi, Jeeny Comfort and Box are demo multiples of the solo fare (1.0, 1.1, 0.88). Do you want real Jeeny prices there, or should those rows be removed?

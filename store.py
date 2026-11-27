@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 from flask import current_app, g
 
+from pooling.codes import new_code
 from sharing import (
     BASE_FARE, MAX_GAP, MIN_SAVING_PCT, PER_KM, SEATS, STOPS, WALK,
     group_riders, plan_car, sample_share, solo_fare,
@@ -63,7 +64,7 @@ def database():
                 id INTEGER PRIMARY KEY, batch TEXT NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
                 name TEXT NOT NULL, student_key TEXT NOT NULL, class_end TEXT NOT NULL, stop TEXT NOT NULL,
                 woman INTEGER NOT NULL, women_only INTEGER NOT NULL,
-                car INTEGER, declined INTEGER NOT NULL DEFAULT 0, confirmed_plan TEXT,
+                car INTEGER, declined INTEGER NOT NULL DEFAULT 0, confirmed_plan TEXT, ride_code TEXT,
                 UNIQUE(batch, student_key)
             );
             CREATE TABLE IF NOT EXISTS join_codes (
@@ -81,6 +82,10 @@ def database():
             with g.db:  # Existing batches get a full retention period from now rather than being deleted at once
                 g.db.execute("ALTER TABLE batches ADD COLUMN created_at TEXT")
                 g.db.execute("UPDATE batches SET created_at = ? WHERE created_at IS NULL", (utc_stamp(),))
+        if "ride_code" not in {row["name"] for row in g.db.execute("PRAGMA table_info(riders)")}:
+            with g.db:  # Databases made before confirmed riders got a ride code for the driver check
+                g.db.execute("ALTER TABLE riders ADD COLUMN ride_code TEXT")
+        g.db.execute("CREATE UNIQUE INDEX IF NOT EXISTS riders_ride_code ON riders (batch, ride_code)")
     return g.db
 
 
@@ -169,6 +174,8 @@ def load_riders(db, batch):
             rider["status"] = "changed"
         else:
             rider["status"] = "review" if plan["shared"] else "no_match"
+        # The driver check only accepts a code while the student's confirmation matches the current plan
+        rider["ride_code"] = rider["ride_code"] if rider["status"] in ("confirmed", "solo_confirmed") else None
         rider["share"] = plan["shares"][rider["id"]] if plan else None
         rider["signature"] = signature(plan, rider["id"]) if plan else None
     ordered = sorted(plans.values(), key=lambda p: (p["pickup"], p["gate"], -len(p["members"])))
@@ -249,9 +256,21 @@ def respond_to_plan(db, batch, rider_id, action, reviewed):
         if reviewed != rider["signature"]:
             raise Problem("plan_changed", "This plan changed before you confirmed. Review the updated plan.")
         db.execute("UPDATE riders SET confirmed_plan = ? WHERE id = ?", (rider["signature"], rider_id))
+        if not db.execute("SELECT ride_code FROM riders WHERE id = ?", (rider_id,)).fetchone()["ride_code"]:
+            # Re-confirming after a plan change keeps the code the student already has
+            taken = {row[0] for row in db.execute(
+                "SELECT ride_code FROM riders WHERE batch = ? AND ride_code IS NOT NULL", (batch["id"],))}
+            db.execute("UPDATE riders SET ride_code = ? WHERE id = ?", (new_code(taken), rider_id))
     else:
-        db.execute("UPDATE riders SET declined = 1, confirmed_plan = NULL WHERE id = ?", (rider_id,))
+        db.execute("UPDATE riders SET declined = 1, confirmed_plan = NULL, ride_code = NULL WHERE id = ?", (rider_id,))
     return rider
+
+
+def verify_ride_code(db, batch, code):
+    """The confirmed rider holding `code` in this batch, or None. Codes of riders whose plan changed are not valid."""
+    code = code.strip().upper()
+    riders, _ = load_riders(db, batch)
+    return next((r for r in riders if code and r["ride_code"] == code), None)
 
 
 def join_code(db, batch_id):
