@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { api, ApiError, newClientRequestId } from '../api';
@@ -9,11 +9,22 @@ import { Banner, Button, Card, Header, text } from '../ui';
 type Health = 'checking' | 'ok' | 'down';
 
 export function JoinScreen() {
-  const { apiUrl, save } = useSession();
+  const { apiUrl, session, save, pendingJoin, finishJoin } = useSession();
   const [code, setCode] = useState<string>('');
   const [health, setHealth] = useState<Health>('checking');
   const [busy, setBusy] = useState<boolean>(false);
   const [error, setError] = useState<ApiError | null>(null);
+
+  // A scanned join QR fills in its code and joins once; the student can still go back to their current ride.
+  const submitted = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pendingJoin || !apiUrl || submitted.current === pendingJoin) return;
+    submitted.current = pendingJoin;
+    setCode(pendingJoin);
+    void join(pendingJoin);
+    // join only reads state set above; re-running on its identity would submit twice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingJoin, apiUrl]);
 
   const checkHealth = async () => {
     if (!apiUrl) return;
@@ -32,9 +43,9 @@ export function JoinScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiUrl]);
 
-  const join = async () => {
+  const join = async (input: string = code) => {
     if (!apiUrl) return;
-    const joinCode = code.trim().toUpperCase();
+    const joinCode = input.trim().toUpperCase();
     if (!joinCode) return;
     setBusy(true);
     setError(null);
@@ -53,6 +64,7 @@ export function JoinScreen() {
         student: joined.student,
         verification: null,
       });
+      finishJoin();
     } catch (e) {
       const err = e instanceof ApiError ? e : new ApiError('offline', String(e), 0);
       if (err.isNetwork) setHealth('down');
@@ -99,7 +111,7 @@ export function JoinScreen() {
             maxLength={12}
             style={styles.code}
             returnKeyType="go"
-            onSubmitEditing={join}
+            onSubmitEditing={() => join()}
             accessibilityLabel="Join code"
             testID="join-code"
           />
@@ -111,7 +123,10 @@ export function JoinScreen() {
               testID="join-error"
             />
           ) : null}
-          <Button label="Join" icon="enter-outline" onPress={join} busy={busy} disabled={!apiUrl || code.trim().length === 0} testID="join-submit" />
+          <Button label="Join" icon="enter-outline" onPress={() => join()} busy={busy} disabled={!apiUrl || code.trim().length === 0} testID="join-submit" />
+          {session && pendingJoin ? (
+            <Button label="Back to my current ride" icon="arrow-back-outline" onPress={finishJoin} disabled={busy} testID="join-cancel" />
+          ) : null}
         </Card>
 
         <View style={styles.status}>

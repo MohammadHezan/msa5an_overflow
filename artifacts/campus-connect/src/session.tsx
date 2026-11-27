@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { addEventListener, getInitialURL } from 'expo-linking';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { BookingPayload, configuredApiUrl, Student } from './api';
+import { parseJoinLink } from './joinLink';
 
 const STORAGE_KEY = 'campus-connect/session/v1';
 
@@ -40,6 +42,9 @@ type SessionContextValue = {
   apiUrl: string | null;
   session: Session | null;
   loaded: boolean;
+  /** A join code from a scanned QR link, waiting for the Join screen to use it. */
+  pendingJoin: string | null;
+  finishJoin: () => void;
   save: (session: Session) => Promise<void>;
   update: (changes: Partial<Session>) => Promise<void>;
   clear: () => Promise<void>;
@@ -51,6 +56,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const apiUrl = configuredApiUrl();
   const [session, setSession] = useState<Session | null>(null);
   const [loaded, setLoaded] = useState<boolean>(false);
+  const [pendingJoin, setPendingJoin] = useState<string | null>(null);
+  useEffect(() => {
+    const receive = (url: string | null) => {
+      const code = url ? parseJoinLink(url) : null;
+      if (code) setPendingJoin(code);
+    };
+    const subscription = addEventListener('url', ({ url }) => receive(url));
+    getInitialURL().then(receive).catch(() => undefined);
+    return () => subscription.remove();
+  }, []);
+  const finishJoin = useCallback(() => setPendingJoin(null), []);
   // Latest saved session, so consecutive updates inside one async flow never merge into a stale copy.
   const current = useRef<Session | null>(null);
 
@@ -102,7 +118,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.removeItem(STORAGE_KEY);
   }, []);
 
-  const value = useMemo(() => ({ apiUrl, session, loaded, save, update, clear }), [apiUrl, session, loaded, save, update, clear]);
+  const value = useMemo(() => ({ apiUrl, session, loaded, pendingJoin, finishJoin, save, update, clear }), [apiUrl, session, loaded, pendingJoin, finishJoin, save, update, clear]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 

@@ -166,6 +166,7 @@
           {% endif %}
           {% if join_code %}
             <p class="join-code">Students join this batch from the phone app with code <strong>{{ join_code }}</strong> <small>(valid until {{ join_expires.strftime("%H:%M") }})</small></p>
+            <div class="join-qr" role="img" aria-label="QR code to join this batch">{{ join_qr_svg | safe }}</div>
           {% endif %}
           <form action="{{ url_for('open_batch') }}" method="post" class="open-batch">
             {{ token() }}
