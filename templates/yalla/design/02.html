@@ -1,0 +1,12 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go %}{% import "yalla/_ui.html" as ui with context %}
+{% block body %}
+  {{ ui.intro("Student access", "Share with your campus", "Verify once using your university email.") }}
+  {{ ui.row("cap", "University", "Al-Balqa · Salt campus", go('04')) }}
+  {{ ui.row("mail", "University email", "sara.a@bau.edu.jo", go('37')) }}
+  {{ ui.info("shield", "Your student community", "University verification helps keep this feature for students. Your email stays private.") }}
+  <div class="yr-steps">
+    <div><b>1</b><span><strong>Use your university email</strong><small>We’ll send a one-time code.</small></span></div>
+    <div><b>2</b><span><strong>Join your campus</strong><small>Then choose your route and ride preferences.</small></span></div>
+  </div>
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Send verification code", go('03')) }}</div>{% endblock %}

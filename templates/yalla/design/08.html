@@ -1,0 +1,11 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('07') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Review · 3 of 3", "Ready to find your group?", "This is a request. You confirm the fare later.") }}
+  {{ ui.price("Estimated share", "JOD 1.67–2.40", "Exact fare shown when a group is found", "Estimate") }}
+  {{ ui.timeline("Al-Balqa · Main gate", "Pickup · 4:15 PM", "Dabouq", "Your drop-off · about 4:44 PM") }}
+  <div class="yr-chips"><span>Women-only</span><span>Quiet ride</span></div>
+  {{ ui.row("wallet", "Payment method", "Cash") }}
+  <p class="yr-fine">No payment is taken while we look for a match.</p>
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Find my group", go('09')) }}</div>{% endblock %}

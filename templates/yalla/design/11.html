@@ -1,0 +1,17 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('10') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Fare details", "A fair share of one ride", "You pay in proportion to the distance you ride.") }}
+  {{ ui.price("Your share · 12 km", "JOD 1.67", "Compared with JOD 4.50 riding alone", "Save 63%") }}
+  <dl class="yr-facts dz-tight">
+    <div><dt>Whole car fare</dt><dd>JOD 5.844</dd></div>
+    <div><dt>Combined rider distances</dt><dd>42 km</dd></div>
+  </dl>
+  <div class="yr-split">
+    <div class="me"><span>You · 12 km</span><b>JOD 1.670</b></div>
+    <div><span>Rama · 14 km</span><b>JOD 1.948</b></div>
+    <div><span>Huda · 16 km</span><b>JOD 2.226</b></div>
+  </div>
+  {{ ui.info("money", "One car fare, split exactly", "Your 12 km ÷ 42 km combined × JOD 5.844. The three shares add up to the car fare.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Back to my group", go('10')) }}</div>{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, captain, people %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('13') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Meet at the main gate", "Your ride. Your code.", "Each student has a separate boarding code.") }}
+  {{ captain() }}
+  <div class="yr-code-card"><small>Show this to your captain</small><strong>CC-4827</strong><span>Check the plate first: 12–34567</span></div>
+  {{ people([("You", "At the main gate", "Ready"), ("Rama & Huda", "Same pickup point", "Ready")]) }}
+  <p class="yr-fine">Only share this code with your assigned captain.</p>
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("I’m at the gate", go('15')) }}</div>{% endblock %}

@@ -1,0 +1,18 @@
+{% import "yalla/_ui.html" as ui with context %}
+{% macro go(n) %}{{ url_for('yalla.design', screen=n) }}{% endmacro %}
+{% macro people(rows) %}<ul class="yr-people">{% for r in rows %}<li><span class="yr-initial">{{ r[0][0] }}</span><span><strong>{{ r[0] }}</strong><small>{{ r[1] }}</small></span><em>{{ r[2] }}</em>{{ ui.icon("check") }}</li>{% endfor %}</ul>{% endmacro %}
+{% macro captain() %}
+<div class="yr-card yr-captain">
+  <span class="yr-initial big">MA</span>
+  <span><strong>Mahmoud A.</strong><small>☆ 4.9 · 328 ratings</small></span>
+  <img src="{{ url_for('static', filename='rides/comfort.webp') }}" alt="">
+  <p><b>White sedan · 12–34567</b><small>Check the plate before boarding</small></p>
+</div>
+{% endmacro %}
+{% macro nav(active) %}
+<nav class="yr-nav" aria-label="Yalla Ride">
+  <a class="{{ 'on' if active == 'campus' }}" href="{{ go('01') }}">{{ ui.icon("cap") }}<span>Campus</span></a>
+  <a class="{{ 'on' if active == 'trips' }}" href="{{ go('26') }}">{{ ui.icon("history") }}<span>Trips</span></a>
+  <a class="{{ 'on' if active == 'saved' }}" href="{{ go('28') }}">{{ ui.icon("bookmark") }}<span>Saved</span></a>
+</nav>
+{% endmacro %}

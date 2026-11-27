@@ -1,0 +1,22 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, nav %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ url_for('index', screen='book', ride='campus') }}{% endblock %}
+{% block bodyclass %} with-nav yr-home{% endblock %}
+{% block body %}
+  <p class="yr-verified">Student verified · Al-Balqa</p>
+  <section class="yr-hero">
+    <p class="yr-eyebrow">{{ ui.icon("cap") }} For your campus</p>
+    <h2>Same campus.<br>Better way home.</h2>
+    <p>One pickup. Your own stop.<br>A fair share of the fare.</p>
+    <img src="{{ url_for('static', filename='rides/comfort.webp') }}" alt="">
+  </section>
+  {{ ui.cta("Plan a shared ride", go('02')) }}
+  {{ ui.cta("Leave now & share", go('17'), cls="ghost") }}
+  {{ ui.info("shield", "Know before you go", "Your pickup, co-riders and fare are shown before you confirm. You choose what works.") }}
+  <a class="yr-card yr-trips-card" href="{{ go('26') }}">
+    <p class="yr-eyebrow">Your campus trips</p>
+    <strong>Every shared ride, in one place</strong>
+    <small>Upcoming rides, receipts and savings</small>
+    <span class="yr-link-row">View my trips <b aria-hidden="true">→</b></span>
+  </a>
+{% endblock %}
+{% block foot %}{{ nav('campus') }}{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('03') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Your community", "Choose your university", "Start with the campus you’re leaving from.") }}
+  {{ ui.row("search", "Search", "University or city") }}
+  <a class="yr-uni dz-on" href="{{ go('05') }}">{{ ui.icon("cap") }}<span><strong>Al-Balqa Applied University</strong><small>Salt campus · Main gate pickup</small><em>Available for this route</em></span></a>
+  <a class="yr-uni" href="{{ go('36') }}">{{ ui.icon("cap") }}<span><strong>University of Jordan</strong><small>Amman · Campus service updates</small><em>Get notified when available</em></span></a>
+  <a class="yr-uni" href="{{ go('36') }}">{{ ui.icon("cap") }}<span><strong>Yarmouk University</strong><small>Irbid · Campus service updates</small><em>Get notified when available</em></span></a>
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Continue with Al-Balqa", go('05')) }}</div>{% endblock %}

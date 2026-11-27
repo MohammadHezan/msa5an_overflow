@@ -1,0 +1,12 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('08') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Request received", "Finding your campus group", "Keep doing your thing. We’ll update your plan.") }}
+  {{ ui.map("Al-Balqa campus", "Main gate", "Your stop") }}
+  <ol class="yr-checks">
+    <li><b>{{ ui.icon("tick") }}</b><span><strong>Same campus &amp; direction</strong><small>Al-Balqa → Dabouq corridor</small></span></li>
+    <li><b>{{ ui.icon("tick") }}</b><span><strong>Your time window</strong><small>Ready at 4:10 · Pickup around 4:15</small></span></li>
+    <li class="wait"><b>···</b><span><strong>Compatible riders</strong><small>Women-only passengers · Quiet ride</small></span></li>
+  </ol>
+{% endblock %}
+{% block foot %}<div class="yr-foot"><a class="yr-textlink" href="{{ go('10') }}">Keep browsing Jeeny</a></div>{% endblock %}

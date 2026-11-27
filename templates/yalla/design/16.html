@@ -1,0 +1,15 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('15') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Ride complete", "You’re home. Nice save.", "Today · Main gate → Dabouq") }}
+  {{ ui.price("Paid with cash", "JOD 1.67", "You saved JOD 2.83 versus riding alone", "Save 63%") }}
+  <dl class="yr-facts">
+    <div><dt>Your ride</dt><dd>12 km · 29 min</dd></div>
+    <div><dt>Passengers sharing</dt><dd>3 students</dd></div>
+    <div><dt>Payment</dt><dd class="green">Cash · Paid</dd></div>
+  </dl>
+  <div class="yr-rate"><p><strong>How was your shared ride?</strong></p><div>{% for n in range(5) %}<button type="button" aria-label="{{ n + 1 }} stars">★</button>{% endfor %}</div></div>
+  <a class="yr-textlink" href="{{ go('28') }}">Save this campus route</a>
+  <a class="yr-textlink" href="{{ go('27') }}">View all campus trips</a>
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Done", go('01')) }}</div>{% endblock %}

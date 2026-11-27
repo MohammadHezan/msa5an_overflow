@@ -1,0 +1,12 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('05') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Trip details · 1 of 3", "Leave after class", "A planned pickup, with time to reach the gate.") }}
+  {{ ui.row("calendar", "Ride date", "Today") }}
+  {{ ui.row("clock", "My class ends", "4:00 PM") }}
+  {{ ui.row("nav", "I can reach the main gate by", "4:10 PM") }}
+  <p class="yr-label">Preferred pickup</p>
+  <div class="dz-pills"><span>4:10 PM</span><span class="on">4:15 PM</span><span>4:20 PM</span></div>
+  {{ ui.info("clock", "Your time matters", "The default gate-wait limit is 10 minutes. You’ll see the exact pickup before confirming.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Choose ride preferences", go('07')) }}</div>{% endblock %}

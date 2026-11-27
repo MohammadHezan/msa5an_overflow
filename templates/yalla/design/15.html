@@ -1,0 +1,12 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('14') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Trip in progress", "Next stop: your destination", "Boarding verified · Quiet ride") }}
+  {{ ui.map("Al-Balqa campus", "Main gate", "Your stop") }}
+  <ol class="yr-stops">
+    <li><b>1</b><span><strong>Dabouq · Your stop</strong><small>Estimated arrival · 4:44 PM</small></span></li>
+    <li><b>2</b><span><strong>Al Bayader</strong><small>Rama’s stop</small></span></li>
+    <li><b>3</b><span><strong>Wadi As-Seer</strong><small>Huda’s stop</small></span></li>
+  </ol>
+{% endblock %}
+{% block foot %}<div class="yr-foot yr-two"><a class="yr-cta ghost" href="{{ go('dialog-share') }}">Share trip</a>{{ ui.cta("Get help", go('34')) }}</div>{% endblock %}

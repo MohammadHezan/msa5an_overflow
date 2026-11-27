@@ -29,7 +29,7 @@
 
     <div class="phone" role="main">
       <div class="screen yr">
-        <div class="statusbar"><span>16:02</span><span class="sb-icons" aria-hidden="true">▂▄▆ ◔ ▮</span></div>
+        {% block statusbar %}<div class="statusbar"><span>16:02</span><span class="sb-icons" aria-hidden="true">▂▄▆ ◔ ▮</span></div>{% endblock %}
         {% block header %}
         <header class="yr-head">
           <a class="yr-round" href="{% block back %}{{ url_for('yalla.home') }}{% endblock %}" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></a>

@@ -1,0 +1,12 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('06') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Ride preferences · 2 of 3", "Make the ride yours", "We’ll only offer groups that fit your choices.") }}
+  <label class="yr-card yr-toggle">{{ ui.icon("users") }}<span><strong>Women-only passengers</strong><small>Share with women students.<br>The captain may be any gender.</small></span><input type="checkbox" checked><i></i></label>
+  <label class="yr-card yr-toggle">{{ ui.icon("mute") }}<span><strong>Quiet ride</strong><small>Keep conversation to trip essentials.</small></span><input type="checkbox" checked><i></i></label>
+  <div class="dz-gap"></div>
+  {{ ui.row("clock", "Maximum wait at the gate", "10 minutes") }}
+  {{ ui.row("route", "Maximum extra ride time", "10 minutes") }}
+  {{ ui.info("users", "One gate. Up to four students.", "Meet together, then get dropped off at your own stop. No separate pickup detours.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Review my request", go('08')) }}</div>{% endblock %}

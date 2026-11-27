@@ -1,0 +1,10 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, people %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('09') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Your group is ready", "A shared ride, your way", "Review the details before you confirm.") }}
+  {{ ui.price("Your share", "JOD 1.67", "JOD 4.50 riding alone", "Save 63%") }}
+  {{ ui.row("pin", "Meet at the main gate", "Today · 4:15 PM", go('13')) }}
+  {{ people([("You", "Dabouq · Your own drop-off", "1st stop"), ("Rama", "Al Bayader · Verified student", "2nd stop"), ("Huda", "Wadi As-Seer · Verified student", "3rd stop")]) }}
+  <a class="yr-textlink" href="{{ go('11') }}">How is my fare split?</a>
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Confirm my seat · JOD 1.67", go('12')) }}</div>{% endblock %}

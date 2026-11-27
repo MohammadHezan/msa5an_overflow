@@ -1,0 +1,10 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go, captain %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('12') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Pickup at 4:15 PM", "Your captain is on the way", "Arriving in 3 minutes · Main gate") }}
+  {{ ui.map("Al-Balqa campus", "Main gate", "Your stop") }}
+  {{ captain() }}
+  <div class="yr-two"><a class="yr-cta ghost" href="{{ go('34') }}">Call captain</a><a class="yr-cta ghost" href="{{ go('34') }}">Message</a></div>
+  {{ ui.info("nav", "Walk to the main gate", "About a 10-minute walk from campus. Check the plate before showing your code.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Show boarding code", go('14')) }}</div>{% endblock %}

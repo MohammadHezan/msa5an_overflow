@@ -1,0 +1,12 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('04') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Trip details · 1 of 3", "Where are you headed?", "Your own drop-off, along a shared route.") }}
+  {{ ui.row("cap", "From", "Al-Balqa · Main gate") }}
+  {{ ui.row("pin", "Your drop-off", "Dabouq") }}
+  <p class="yr-label">Recent &amp; saved</p>
+  {{ ui.row("home", "Home", "Dabouq · Area drop-off", go('06')) }}
+  {{ ui.row("history", "Recent destination", "Sweileh · Shared pickup corridor", go('06')) }}
+  {{ ui.row("bookmark", "Make next time easier", "Add a saved campus route", go('28')) }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Continue", go('06')) }}</div>{% endblock %}

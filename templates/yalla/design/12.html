@@ -1,0 +1,15 @@
+{% extends "yalla/design/_base.html" %}{% from "yalla/design/_d.html" import go %}{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ go('10') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("You’re all set", "Your seat is confirmed", "Your campus ride is in My Trips.") }}
+  {{ ui.timeline("Al-Balqa · Main gate", "Pickup · 4:15 PM", "Dabouq", "Your drop-off · about 4:44 PM") }}
+  <div class="yr-stats">
+    <div><b>4:15 PM</b><small>Pickup time</small></div>
+    <div><b>JOD 1.67</b><small>Your share</small></div>
+    <div><b>3 riders</b><small>In your car</small></div>
+  </div>
+  {{ ui.info("car", "Captain assignment is next", "We’ll show the captain, plate and arrival status here before you head to the gate.") }}
+  {{ ui.row("shield", "Your boarding code", "CC-4827", go('14')) }}
+  <a class="yr-textlink" href="{{ go('32') }}">Cancel my request</a>
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("View pickup details", go('13')) }}</div>{% endblock %}
