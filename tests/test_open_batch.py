@@ -162,3 +162,34 @@ def test_legacy_database_gets_created_at_column(tmp_path):
     campus.app.config.update(TESTING=True, DATABASE=path)
     with campus.app.test_client() as client:
         assert client.get("/").status_code == 200
+
+
+def test_abandoned_web_batches_are_deleted_after_a_few_days(client):
+    import store
+    own, _ = session_batches(client)
+    other = campus.app.test_client()
+    other.get("/")
+    recent = session_batches(other)[0]
+    old = utc_stamp(datetime.now(timezone.utc) - store.WEB_BATCH_TTL - timedelta(hours=1))
+    young = utc_stamp(datetime.now(timezone.utc) - store.WEB_BATCH_TTL + timedelta(hours=1))
+    sql("UPDATE batches SET created_at = ? WHERE id = ?", old, own)
+    sql("UPDATE batches SET created_at = ? WHERE id = ?", young, recent)
+    api_batch(client)  # Creating a batch runs the cleanup
+    assert not sql("SELECT 1 FROM batches WHERE id = ?", own)
+    assert not sql("SELECT 1 FROM riders WHERE batch = ?", own)
+    assert sql("SELECT 1 FROM batches WHERE id = ?", recent)
+
+
+def test_session_whose_web_batch_was_cleared_gets_a_fresh_one(client):
+    own, _ = session_batches(client)
+    sql("DELETE FROM batches WHERE id = ?", own)
+    response = post(client, "/requests", name="Nour", class_end="16:00", stop="Dabouq", woman="yes")
+    assert response.status_code == 302
+    page = client.get("/").get_data(as_text=True)
+    assert "was cleared" in page
+    fresh, kept = session_batches(client)
+    assert fresh == kept != own
+    assert sql("SELECT COUNT(*) FROM riders WHERE batch = ?", fresh)[0][0] == 10
+    assert not sql("SELECT 1 FROM riders WHERE name = 'Nour'")
+    post(client, "/requests", name="Nour", class_end="16:00", stop="Dabouq", woman="yes")
+    assert sql("SELECT 1 FROM riders WHERE name = 'Nour' AND batch = ?", fresh)

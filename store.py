@@ -21,6 +21,7 @@ AMMAN = ZoneInfo("Asia/Amman")
 MAX_REQUESTS = 40
 JOIN_CODE_TTL = timedelta(hours=3)
 API_BATCH_TTL = timedelta(hours=24)  # Batches created through the API (they have an operator token) are deleted after this
+WEB_BATCH_TTL = timedelta(days=3)  # Browser-session batches (no operator token) are deleted after this, even if the browser never resets
 JOIN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # No 0/O or 1/I
 
 # name, class ends, drop-off, woman student, women-only matching
@@ -104,22 +105,23 @@ def utc_stamp(moment=None):
     return (moment or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat(timespec="seconds")
 
 
-def delete_old_api_batches(db):
-    """Delete API-created batches older than API_BATCH_TTL. Call inside a transaction."""
-    cutoff = utc_stamp(datetime.now(timezone.utc) - API_BATCH_TTL)
+def delete_old_batches(db):
+    """Delete API batches older than API_BATCH_TTL and browser batches older than WEB_BATCH_TTL. Call inside a transaction."""
+    moment = datetime.now(timezone.utc)
+    operator_batches = "SELECT batch FROM api_tokens WHERE role = 'operator'"
     return db.execute(
-        "DELETE FROM batches WHERE created_at < ? AND id IN "
-        "(SELECT batch FROM api_tokens WHERE role = 'operator')",
-        (cutoff,),
+        f"DELETE FROM batches WHERE (created_at < ? AND id IN ({operator_batches})) "
+        f"OR (created_at < ? AND id NOT IN ({operator_batches}))",
+        (utc_stamp(moment - API_BATCH_TTL), utc_stamp(moment - WEB_BATCH_TTL)),
     ).rowcount
 
 
 def create_batch(db, seeded, replaces=None):
-    """New batch for tomorrow in Amman. Deletes `replaces` (a previous batch id) and expired API batches in the same transaction."""
+    """New batch for tomorrow in Amman. Deletes `replaces` (a previous batch id) and expired batches in the same transaction."""
     batch = secrets.token_hex(16)
     trip_date = now().date() + timedelta(days=1)
     with db:
-        delete_old_api_batches(db)
+        delete_old_batches(db)
         db.execute("INSERT INTO batches (id, trip_date, created_at) VALUES (?, ?, ?)", (batch, trip_date.isoformat(), utc_stamp()))
         if seeded:
             for row in FIXTURE:

@@ -9,7 +9,7 @@ from flask import Flask, abort, flash, redirect, render_template, request, sessi
 from api import api
 from sharing import CORRIDORS, route_map
 from store import (
-    API_BATCH_TTL, RULES, Problem, check_request, close_database, create_batch, database, delete_old_api_batches, fare_estimates,
+    API_BATCH_TTL, RULES, WEB_BATCH_TTL, Problem, check_request, close_database, create_batch, database, delete_old_batches, fare_estimates,
     get_batch, insert_request, join_code, load_riders, locked_batch, operator_batch_for_token, respond_to_plan,
     run_matching, summarize,
 )
@@ -53,6 +53,7 @@ def current_batch(db):
             flash("The API batch you opened has been removed. Showing this browser's own batch.")
             session["batch"] = own_batch_id()
             return current_batch(db)
+        flash(f"This browser's demo batch was cleared after {WEB_BATCH_TTL.days} days. A fresh sample batch is ready.")
     return get_batch(db, new_batch(db, seeded=True))
 
 
@@ -118,8 +119,8 @@ def submit_request():
         name = check_request(form.get("name", ""), class_end, stop, woman, women_only)
         with db:
             batch = locked_batch(db, session.get("batch"))
-            if not batch:
-                raise Problem("batch_matched", "Matching has already run for this batch. Start a new batch to add requests.")
+            if not batch:  # Cleared by the cleanup of old batches; the redirect gives this browser a fresh one
+                raise Problem("not_found", "Your request was not saved. Please submit it again.")
             rider_id = insert_request(db, batch, name, class_end, stop, woman, women_only)
     except Problem as problem:
         flash(problem.message)
@@ -173,7 +174,7 @@ def open_batch():
     """Show an API-created batch in this dashboard, given its operator token."""
     db = database()
     with db:
-        delete_old_api_batches(db)
+        delete_old_batches(db)
     batch = operator_batch_for_token(db, request.form.get("operator_token", "").strip())
     if not batch:
         flash("That operator token is unknown or its batch has expired.")

@@ -9,7 +9,7 @@ Shared rides home from campus for students (proposed Jeeny feature, hackathon de
 
 ## Layout
 - `app.py` – Flask HTML routes (browser session owns a batch; Matching view shows the batch's student join code and lets an operator paste an API operator token to open that batch instead — resetting never deletes an opened API batch).
-- API-created batches (those with an operator token) are deleted 24 h after creation; cleanup runs whenever a batch is created or opened.
+- API-created batches (those with an operator token) are deleted 24 h after creation and browser batches 3 days after creation; cleanup runs whenever a batch is created or opened. A browser whose batch was cleared gets a fresh sample batch.
 - `api.py` – `/api/v1` JSON API for the Expo app and operators (bearer tokens).
 - `store.py` – SQLite demo batches (`instance/campus.sqlite`), sample fixture, and the booking/matching/confirm/decline actions shared by both.
 - `sharing.py` – destinations, simulated map coordinates, fare rules, CP-SAT grouping, per-car price split.
