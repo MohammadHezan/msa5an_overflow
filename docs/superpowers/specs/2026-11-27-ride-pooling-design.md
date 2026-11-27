@@ -1,5 +1,21 @@
 # Campus Connect ride pooling: design
 
+## Current contract — numbered briefs
+
+Brief 02 supersedes the original single-gate, homebound and proportional-price assumptions in the historical design below.
+
+Requests carry direction, corridor, start/end road km, start/end side offsets, and readiness or arrival deadline. Street walking is capped at 200 m at 1.4 m/s; offsets beyond 200 m add twice the excess to car distance. Inward routes visit pickups by descending km; outward routes visit drops by ascending km, with individual times including turn-ins at 25 km/h.
+
+Cars have at most four riders, one direction/corridor, a ten-minute readiness/deadline gap, compatible mixed/women/men preferences, and in-car km at most min(1.5 × solo km, solo km + 4). Shared riders pay no more than 75% of their individual solo fares.
+
+Street fare is exactly 468 + round(336 × route km) fils. Divide the 468 equally, divide each distance segment among occupants, then largest-remainder round with solo caps. A confirmed quote is a ceiling: any later shortfall is explicit Jeeny cover. Captains get 100 fils per extra rider, separate from student fare.
+
+Regroup uses one CP-SAT objective: total car fares plus 1,500 fils per solo rider. Only hereditary rules prune subsets; savings and detours are evaluated on the full group. Keep a feasible incumbent or the valid greedy partition on timeout. Friends remain together, and closed groups have no strangers.
+
+Use two-minute confirmation holds, ten-minute opt-in waiting, transactional actions, idempotent client request IDs and versioned plan signatures. Go-now pickup eligibility uses the actual street position and driving direction, never an invented downstream pickup.
+
+The simulated judge comparison runs alone/greedy/optimizer on 30 paired seeds at each of 8/16/24/32 students. Per-simulation solver limits must not mutate the shared live-booking configuration.
+
 Status: **approved 2026-11-27, revised the same day to match the app as built.** The Replit app (Flask pages, phone screen, `/api/v1` JSON API) runs on the `pooling/` engine. Research behind each decision: [reports/Campus ride pooling research.md](../../../reports/Campus%20ride%20pooling%20research.md). The API itself is documented in [document.md](../../../document.md), "Proposed API contract" and "As built (B1)".
 
 ## Product in one paragraph

@@ -1,5 +1,19 @@
 # Campus Connect project document
 
+## Current implementation contract — Brief 02
+
+The numbered briefs in `docs/replit-briefs/README.md` supersede the original planning assumptions below. The current demo supports both `to_campus` and `from_campus`, not only rides home.
+
+- Locations are corridor + road km + side offset. Samples stay within ±1 km of a named stop, with 0–400 m offsets. Walking is at most 200 m at 1.4 m/s; excess adds a round-trip car turn-in.
+- Homebound readiness is class end plus walking; campus-bound deadline is class start minus five minutes. Share only within one corridor/direction, ten-minute time gap, four seats, compatible gender preferences and existing detour limits.
+- One street-car fare is 468 + round(336 × route km) integer fils. Start fare is equal; segments are split among occupants. Largest-remainder rounding conserves every fils, and solo caps apply. Shared riders save at least 25%; existing cars and friends groups can be repriced without the strict savings floor.
+- Groups have up to four members and stay together. Closed groups take no strangers. Captains prefer women for women-only cars when available and get a Jeeny-paid 100 fils per extra rider.
+- Holds last two demo-clock minutes. A confirmed share never rises: any shortfall is explicit Jeeny cover. Codes, signatures, retries and immediate SQLite transactions remain in use.
+- Lone riders choose solo now, wait ten minutes, or go now open to sharing. A moving car collects later riders only at actual pickups still ahead; a campus student cannot join a homebound car that has left.
+- Simulation uses 30 paired seeds at each of 8, 16, 24 and 32 riders. All three methods use identical scenarios/rules, reporting cars, km, km saved, match rate, per-rider saving, walk and extra in-car time, with means and ranges.
+
+The older sample prices and fixed gate pickup times below are historical, not acceptance values for street-location matching.
+
 ## Product and first milestone
 
 Campus Connect is a proposed Jeeny feature for shared rides home from campus. A student books a ride before class ends with a name, class end time, drop-off area and an optional women-only preference. After booking closes, Campus Connect groups students heading the same direction at about the same time into as few cars as possible. Each student then reviews a plan with a meeting gate, pickup time, the other riders, the drop-off order, and the price for their own share compared with riding alone. The student confirms or declines. If someone declines, the remaining riders in that car see the updated plan and confirm again.

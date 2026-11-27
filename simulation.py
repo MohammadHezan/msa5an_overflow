@@ -105,22 +105,17 @@ def _metrics(groups, singles):
 def run_simulation():
     """Run 30 paired seeds per wave size; shorten per-solve time without changing constraints."""
     result = {n: {method: [] for method in METHODS} for n in COUNTS}
-    old_seconds = config.SOLVER_SECONDS
-    config.SOLVER_SECONDS = min(old_seconds, 0.15)
-    try:
-        for n in COUNTS:
-            for seed in SEEDS:
-                riders = _scenario(n, seed)
-                singles = [evaluate([r]) for r in riders]
-                plans_by_method = {
-                    "alone": singles,
-                    "greedy": _greedy(riders),
-                    "optimizer": regroup(singles),
-                }
-                for method, plans in plans_by_method.items():
-                    result[n][method].append(_metrics(plans, singles))
-    finally:
-        config.SOLVER_SECONDS = old_seconds
+    for n in COUNTS:
+        for seed in SEEDS:
+            riders = _scenario(n, seed)
+            singles = [evaluate([r]) for r in riders]
+            plans_by_method = {
+                "alone": singles,
+                "greedy": _greedy(riders),
+                "optimizer": regroup(singles, solver_seconds=min(config.SOLVER_SECONDS, 0.15)),
+            }
+            for method, plans in plans_by_method.items():
+                result[n][method].append(_metrics(plans, singles))
     summary = {}
     for n in COUNTS:
         summary[n] = {}

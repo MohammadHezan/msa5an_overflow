@@ -1,5 +1,13 @@
 # Campus Connect
 
+## Current scope and open questions
+
+The numbered briefs supersede the original decision defaults and acceptance examples below. Brief 02 now includes both directions, street pickups, a ten-minute time gap, a 25% savings floor, segment pricing, groups, captains, holds, lone-rider choices and simulation. Old fixed-gate prices are historical.
+
+- In the simulated campus geometry, every homebound pickup starts at km 0. A campus student cannot physically join after a homebound car has departed; morning inward trips demonstrate joining farther along a moving route. Do we want off-campus homebound origin locations in a later brief?
+- The demo uses the brief's fixed 468 + 336/km street tariff in all three lone-rider choices. Night-rate policy for real dispatch remains outside this demo.
+- Email verification in Brief 03 is a demo only, not university identity assurance. Real verification and rider profiles remain future work.
+
 Use this file to agree on the hackathon demo, record what students tell us, and guide Replit Agent as it works in this repository.
 
 Use [document.md](document.md) for the matching and pricing rules, the Expo and backend task split, the proposed API and repeatable scenarios.

@@ -60,7 +60,7 @@ def _greedy(keys, plans, rider_ids) -> list[frozenset[str]]:
 
 
 def regroup(current: Sequence[GroupPlan], together: Iterable[frozenset[str]] = (),
-            closed: Iterable[frozenset[str]] = ()) -> list[GroupPlan]:
+            closed: Iterable[frozenset[str]] = (), solver_seconds: float | None = None) -> list[GroupPlan]:
     """Minimize Σ car fare + SOLO_PENALTY × riders alone, in one objective.
 
     `together`: groups of rider ids (friends) that must share one car. Groups in `closed` take no
@@ -96,7 +96,7 @@ def regroup(current: Sequence[GroupPlan], together: Iterable[frozenset[str]] = (
 
     solver = cp_model.CpSolver()
     solver.parameters.num_search_workers = config.SOLVER_WORKERS
-    solver.parameters.max_time_in_seconds = config.SOLVER_SECONDS
+    solver.parameters.max_time_in_seconds = config.SOLVER_SECONDS if solver_seconds is None else solver_seconds
     status = solver.solve(model)
     if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         chosen = [feasible[key] for key in keys if solver.value(use[key])]

@@ -1,6 +1,16 @@
 # Campus Connect
 
-Shared rides home from campus for students (proposed Jeeny feature, hackathon demo).
+Shared rides to and from campus for students (proposed Jeeny feature, hackathon demo).
+
+## Current brief contract
+- Follow `docs/replit-briefs/README.md` in order, one phase at a time. Skip implemented behavior that passes tests. After each implemented phase run `python -m pytest`, inspect Preview at phone width, commit, and report before starting the next phase.
+- Brief 02 explicitly permits tested engine changes for street geography, both directions and segment pricing. Brief 03 is UI integration only: do not change `pooling/` or pricing rules there.
+- Street locations are simulated: corridor km plus 0–400 m side offset. Riders walk at most 200 m at 1.4 m/s; excess adds a round-trip car turn-in.
+- Homebound requests use class end plus walking time; campus-bound requests use class start minus five minutes. Only the same corridor/direction and times within ten minutes can share. Capacity is four; preferences are mixed, women, or men; shared savings floor is 25%, with the existing detour ceiling.
+- Street fare is 468 + round(336 × route km) fils. Divide the start fare equally and each segment among occupants; use largest-remainder rounding and solo caps. After confirmation, Jeeny covers any increase caused by another rider declining.
+- Friends groups stay together; closed groups take no strangers. Captains receive 100 fils per extra rider, paid by Jeeny. Two-minute holds and ten-minute waiting use the demo clock.
+- Go-now pickups must still be ahead at the student's actual street location; a campus student cannot join after the car has left campus.
+- Afternoon, morning, and 28-student samples are available. Simulation compares alone, greedy, and optimizer using 30 paired seeds for each of 8/16/24/32 students, including mean/range and explicitly simulated charts.
 
 ## Run
 - Workflow **Start application** runs `python app.py` on port 5000.
@@ -21,9 +31,9 @@ Shared rides home from campus for students (proposed Jeeny feature, hackathon de
 - `mobile/` – TypeScript Expo (SDK 58, pnpm) student app: join code → book → plan review → confirm/decline against `/api/v1`. Not run by a Replit workflow; teams run Metro locally (see `mobile/README.md`). `document.md` (rules, task split, proposed JSON API) and `agent.md` (team decisions, interview form, acceptance checklist) are the team planning notes.
 
 ## Rules
-- `pooling/` is the matching and pricing engine, owned by Mohammad. Do not change its rules, numbers or tests. If something there looks wrong, write the question in `agent.md` and stop.
+- `pooling/` is the matching and pricing engine, owned by Mohammad. Outside Brief 02's explicit permission, do not change its rules or numbers. Record open questions in `agent.md`.
 - `sharing.py` is only an adapter from the app to `pooling/`. Keep its functions and their inputs.
-- Fares are the regulated LTRC app tariff: 468 fils + 336 fils per km over the whole route. The car pays one fare. Students split it by distance, and the shares must add up to the car fare exactly. Never add discounts, per-seat prices or rounding to 50 fils.
+- Street fares use the regulated demo tariff above. The car pays one fare; segment shares plus any explicitly recorded Jeeny cover must add up to that fare. Never add discounts, per-seat prices or rounding to 50 fils.
 - Money is integer fils everywhere. The UI formats 1670 as "JOD 1.67".
 - Run `python -m pytest` before every push. Never push with failing tests.
 - `scripts/git_sync.sh` pulls and pushes `origin/main` every 3 minutes; run it from the agent shell (workflows have no GitHub credentials).
