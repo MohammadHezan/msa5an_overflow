@@ -5,3 +5,7 @@ instance/
 .env.*
 !.env.example
 .pytest_cache/
+node_modules/
+.expo/
+dist/
+/generated-artifacts/

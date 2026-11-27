@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/student-app"
+title = "Campus Connect"
+description = "The Campus Connect student app: join a campus ride batch, book a ride, and review and confirm the shared plan using the existing Flask backend."
+version = "1.0.0"
+id = "artifacts/campus-connect"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = ["/student-app", "/artifacts/campus-connect", "/assets", "/node_modules", "/hot", "/symbolicate"]
+localPort = 21619
+
+[services.development]
+run = "pnpm --filter @workspace/campus-connect run dev"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/campus-connect", "run", "build"]
+run = ["pnpm", "--filter", "@workspace/campus-connect", "run", "serve"]
+
+[services.env]
+PORT = "21619"
+BASE_PATH = "/student-app"

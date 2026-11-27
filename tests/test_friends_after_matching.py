@@ -2,6 +2,7 @@
 import pytest
 
 import app as campus
+from tests.test_api import verified_join
 import store
 from sharing import one_car_km
 
@@ -256,7 +257,7 @@ def test_api_books_a_friends_group_after_matching_and_marks_it_ready(tmp_path):
         client.post(f"/api/v1/batches/{made['id']}/matching", headers={"Authorization": f"Bearer {made['operatorToken']}"})
 
         def student(name, stop, friends):
-            token = client.post("/api/v1/demo-sessions/join", json={"joinCode": made["joinCode"]}).get_json()["token"]
+            token = verified_join(client, made["joinCode"], name)  # Booking needs a verified profile
             response = client.post(f"/api/v1/batches/{made['id']}/riders", headers={"Authorization": f"Bearer {token}"},
                                    json={"name": name, "classEnd": "16:05", "stop": stop, "gender": "man",
                                          "preference": "men", "friends": friends,

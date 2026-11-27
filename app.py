@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from flask import Flask, abort, flash, jsonify, redirect, render_template, request, session, url_for
 
 from api import api
+from pooling import config
 from yalla import yalla
 from sharing import CORRIDORS, route_map
 from store import (
@@ -111,7 +112,8 @@ def index():
 
 def student_profile():
     """The student's Jeeny profile (demo): name and gender, plus the trip direction Jeeny knows from the pickup."""
-    return {"name": session.get("yalla_name", "Sara A"), "gender": session.get("student_gender", "woman"),
+    return {"name": session.get("yalla_name", config.DEMO_STUDENT_NAME),
+            "gender": session.get("student_gender", config.DEMO_STUDENT_GENDER),
             "direction": session.get("student_direction", "from_campus")}
 
 

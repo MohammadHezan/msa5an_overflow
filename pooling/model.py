@@ -35,6 +35,11 @@ class Rider:
     end_side_m: int = 0
     ready_at: datetime | None = None  # from_campus; class end plus walk to street
     arrive_by: datetime | None = None  # to_campus; class start minus 5 minutes
+    # Planned-request limits (screens 06-07). Gate wait applies to from_campus street riders.
+    preferred_pickup: datetime | None = None  # a preference only; never changes feasibility
+    max_gate_wait_min: int = config.DEFAULT_MAX_GATE_WAIT_MIN
+    max_extra_ride_min: int = config.DEFAULT_MAX_EXTRA_RIDE_MIN
+    quiet_ride: bool = False  # shown to the captain; never changes grouping
 
 
 @dataclass(frozen=True)
@@ -72,6 +77,25 @@ def gender_ok(riders: Sequence[Rider]) -> bool:
     return all(all(r.gender == g for r in riders) for g in wanted)
 
 
+def gate_wait_ok(riders: Sequence[Rider], pickup: datetime) -> bool:
+    """The car's pickup is at or after every rider's ready time and within their gate-wait limit."""
+    return all(
+        r.ready_at is None or r.ready_at <= pickup <= r.ready_at + timedelta(minutes=r.max_gate_wait_min)
+        for r in riders
+    )
+
+
+def extra_minutes(in_car_km: float, solo_km: float) -> float:
+    """Extra ride time over riding alone, estimated from km at SPEED_KMH."""
+    return max(0.0, in_car_km - solo_km) * 60 / config.SPEED_KMH
+
+
+def extra_ride_ok(riders: Sequence[Rider], in_car: dict[str, float], solo: dict[str, float]) -> bool:
+    return all(
+        extra_minutes(in_car[r.request_id], solo[r.request_id]) <= r.max_extra_ride_min + 1e-9 for r in riders
+    )
+
+
 def basic_ok(riders: Sequence[Rider]) -> tuple[datetime, datetime] | None:
     """The rules that also hold for every sub-group (seats, meeting point, gender, window).
 
@@ -92,6 +116,8 @@ def basic_ok(riders: Sequence[Rider]) -> tuple[datetime, datetime] | None:
             ready = [r.ready_at for r in riders]
             if any(t is None for t in ready) or max(ready) - min(ready) > timedelta(minutes=config.MAX_GAP_MIN):
                 return None
+            if not gate_wait_ok(riders, max(ready)):
+                return None
             return min(ready), max(ready)
         deadlines = [r.arrive_by for r in riders]
         if any(t is None for t in deadlines) or max(deadlines) - min(deadlines) > timedelta(minutes=config.MAX_GAP_MIN):
@@ -110,7 +136,7 @@ def evaluate(riders: Sequence[Rider], strict: bool = True) -> GroupPlan | None:
     """Return the shortest feasible plan for exactly these riders, or None if no order works.
 
     strict=False skips the detour, savings and quote checks (but never the seats, meeting point,
-    gender or window rules). It prices an existing car that lost a rider, or a friends group.
+    gender, window, gate-wait or extra-ride-time rules). It prices an existing car that lost a rider, or a friends group.
     """
     riders = tuple(riders)
     window = basic_ok(riders)
@@ -139,6 +165,8 @@ def evaluate(riders: Sequence[Rider], strict: bool = True) -> GroupPlan | None:
             in_car[rid] > min(solo * config.DETOUR_RATIO, solo + config.DETOUR_EXTRA_KM) + 1e-9
             for rid, solo in solo_km.items()
         ):
+            continue
+        if not extra_ride_ok(order, in_car, solo_km):  # A rider's own limit holds even for friends groups
             continue
         fare = car_fare(km, pickup)
         shares = dict(zip(
@@ -294,6 +322,8 @@ def _evaluate_street(riders: tuple[Rider, ...], strict: bool, window) -> GroupPl
             )
             for r in riders
         }
+    if not extra_ride_ok(riders, in_car, solo):  # A rider's own limit holds even for friends groups
+        return None
     if strict:
         if any(in_car[r.request_id] > min(solo[r.request_id] * config.DETOUR_RATIO,
                                          solo[r.request_id] + config.DETOUR_EXTRA_KM) + 1e-9 for r in riders):

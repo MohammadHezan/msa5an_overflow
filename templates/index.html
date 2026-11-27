@@ -197,6 +197,7 @@
                   <div><dt>Route starts</dt><dd>{{ car.pickup }} · {{ car.direction | replace("_", " ") | title }}</dd></div>
               <div><dt>Car fare</dt><dd>{{ car.car_fare | jod }}</dd></div>
               <div><dt>Extra-stop bonus</dt><dd>{{ sheet.bonus | jod }} <small>paid by Jeeny · not charged to students</small></dd></div>
+              {% if sheet.quiet %}<div><dt>Quiet ride</dt><dd>{{ sheet.quiet | join(", ") }} <small>keep conversation to trip essentials</small></dd></div>{% endif %}
             </dl>
             <ol class="route compact">
               {% for step in sheet.steps %}<li><span><strong>{{ loop.index }}. {{ step.kind|title }} · {{ step.place }}</strong><small>{{ step.time }}{% if step.rider %} · {{ step.rider }}{% endif %}</small></span></li>{% endfor %}

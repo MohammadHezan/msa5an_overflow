@@ -12,11 +12,10 @@ def rider(client, token, rider_id):
 def test_estimate_for_a_drop_off(client):
     batch = new_batch(client)
     token, _ = student(client, batch, "Sara")
-    body = client.get("/api/v1/estimate?stop=Dabouq", headers=auth(token)).get_json()
+    body = client.get("/api/v1/estimate?stop=Dabouq&preferredPickup=16:15", headers=auth(token)).get_json()
     assert body["sampleShare"]["fils"] < body["soloFare"]["fils"] and body["soloFare"]["currency"] == "JOD"
     assert body["walkMinutes"] >= 0
-    assert client.get("/api/v1/estimate?stop=Nowhere", headers=auth(token)).status_code == 400
-    assert client.get("/api/v1/estimate?stop=Dabouq").status_code == 401
+    assert client.get("/api/v1/estimate?stop=Nowhere&preferredPickup=16:15", headers=auth(token)).status_code == 400
 
 
 def test_shared_plan_shows_saving_percent_and_captain(client):

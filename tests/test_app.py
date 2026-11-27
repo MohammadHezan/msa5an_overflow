@@ -1,5 +1,7 @@
 """Flask flow: load sample, match, confirm and decline."""
 
+import math
+
 import pytest
 
 import app as campus
@@ -51,9 +53,15 @@ def test_matching_gives_sara_a_street_pickup_shared_ride(matched):
 
 def test_page_shows_sara_price(matched):
     riders, _ = state(matched)
-    page = matched.get(f"/?rider={riders['Sara']['id']}").get_data(as_text=True)
-    assert f"JOD {riders['Sara']['share'] / 1000:.2f}" in page
-    assert "Walk" in page and "campus street" in page
+    sara = riders["Sara"]
+    page = matched.get(f"/?rider={sara['id']}").get_data(as_text=True)
+    assert f"JOD {sara['share'] / 1000:.2f}" in page
+    # `/?rider=` is Sara's student phone screen; her own street pickup and walk must be shown,
+    # not just the generic "Walk … street" preview from the booking form.
+    assert sara["direction"] == "from_campus"
+    assert f"Car at your campus street at {sara['plan']['rider_times'][sara['id']]}" in page
+    walk_min = math.ceil(sara["plan"]["walk_m"][sara["id"]] / 1.4 / 60)
+    assert f"Walk {walk_min} min to the street" in page
 
 
 def test_confirm_records_the_plan(matched):
