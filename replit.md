@@ -38,3 +38,4 @@ Shared rides to and from campus for students (proposed Jeeny feature, hackathon 
 - Money is integer fils everywhere. The UI formats 1670 as "JOD 1.67".
 - Run `python -m pytest` before every push. Never push with failing tests.
 - `scripts/git_sync.sh` pulls and pushes `origin/main` every 3 minutes; run it from the agent shell (workflows have no GitHub credentials).
+- `yalla.py` + `templates/yalla/` + `static/yalla.css`/`yalla.js` – Brief 04 full-screen Yalla Ride flow at `/yalla` (design exports in `docs/design/campus-connect-screens`, titled "Yalla Ride" instead of "Campus Connect"). Draft request lives in the session; booking, matching, confirm/decline and ride codes use the same `store.py` actions. Email verification is demo-only: the code is shown on screen and only a masked email is kept.

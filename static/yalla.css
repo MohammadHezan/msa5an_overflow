@@ -56,13 +56,13 @@ a.yr-row:hover, label.yr-row:hover { border-color: #D3D3D3; }
 /* 01 home */
 .yr-hero { position: relative; background: #FFF0F7; border-radius: 18px; padding: 20px 20px 22px; overflow: hidden; }
 .yr-hero h2 { margin: 12px 0 18px; font-size: 1.6rem; line-height: 1.25; font-weight: 600; }
-.yr-hero p:not(.yr-eyebrow) { margin: 0; color: #666; font-size: .8rem; max-width: 60%; }
+.yr-hero p:not(.yr-eyebrow) { margin: 0; color: #666; font-size: .8rem; max-width: 64%; }
 .yr-hero img { position: absolute; right: 8px; bottom: 10px; width: 108px; }
 .yr-hero .yr-ico { stroke: #3A3F47; }
 .yr-trips-card { display: flex; flex-direction: column; gap: 4px; padding: 16px; text-decoration: none; color: var(--ink); }
 .yr-trips-card .yr-eyebrow { margin: 0; }
 .yr-trips-card strong { font-size: 1.02rem; font-weight: 500; }
-.yr-trips-card small { color: var(--muted); font-size: .78rem; text-transform: capitalize; }
+.yr-trips-card small { color: var(--muted); font-size: .78rem; }
 .yr-link-row { display: flex; gap: 70px; font-weight: 500; margin-top: 10px; }
 .yr-link-row b { color: var(--green); font-weight: 400; }
 .yr-nav { display: grid; grid-template-columns: repeat(3, 1fr); padding: 10px 24px 20px; border-top: 1px solid #F1F1F1; background: #fff; }

@@ -5,7 +5,7 @@
   {{ ui.intro("Review · 3 of 3", "Ready to find your group?", "This is a request. You confirm the fare later.") }}
   {{ ui.price("Estimated share", "JOD " ~ "%.2f"|format(estimate.shared / 1000) ~ "–" ~ "%.2f"|format(estimate.solo / 1000), "Exact fare shown when a group is found. You never pay more than riding alone.", "Estimate") }}
   {% if draft.direction == "from_campus" %}
-    {{ ui.timeline(university.campus ~ " · " ~ pickup.street, "Pickup · about " ~ (start | ampm) ~ " · walk " ~ pickup.walk_minutes ~ " min", draft.stop, "Your drop-off · about " ~ (end | ampm)) }}
+    {{ ui.timeline(pickup.street, "Pickup · about " ~ (start | ampm) ~ " · walk " ~ pickup.walk_minutes ~ " min", draft.stop, "Your drop-off · about " ~ (end | ampm)) }}
   {% else %}
     {{ ui.timeline(draft.stop ~ " · " ~ pickup.street, "Pickup · about " ~ (start | ampm) ~ " · walk " ~ pickup.walk_minutes ~ " min", university.campus, "Arrive by " ~ (end | ampm)) }}
   {% endif %}

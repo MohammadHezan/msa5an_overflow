@@ -16,7 +16,7 @@
   <a class="yr-card yr-trips-card" href="{{ url_for('yalla.ride') if rider else url_for('yalla.destination') }}">
     <p class="yr-eyebrow">Your campus trips</p>
     <strong>Every shared ride, in one place</strong>
-    <small>{% if rider %}{{ rider.stop }} · {{ rider.status | replace('_', ' ') }}{% else %}Upcoming rides, receipts and savings{% endif %}</small>
+    <small>{% if rider %}{{ rider.stop }} · {{ rider.status | replace('_', ' ') | capitalize }}{% else %}Upcoming rides, receipts and savings{% endif %}</small>
     <span class="yr-link-row">View my trips <b aria-hidden="true">→</b></span>
   </a>
 {% endblock %}

@@ -3,7 +3,7 @@
 {% block body %}
   {{ ui.intro("You’re all set", "Your seat is confirmed", "Your campus ride is in My Trips.") }}
   {% if rider.direction == "from_campus" %}
-    {{ ui.timeline(university.campus ~ " · " ~ street, "Pickup · " ~ (pickup | ampm), rider.stop, "Your drop-off · about " ~ (drop | ampm)) }}
+    {{ ui.timeline(street, "Pickup · " ~ (pickup | ampm), rider.stop, "Your drop-off · about " ~ (drop | ampm)) }}
   {% else %}
     {{ ui.timeline(rider.stop ~ " · " ~ street, "Pickup · " ~ (pickup | ampm), university.campus, "Arrive by " ~ (plan.campus_arrival | ampm)) }}
   {% endif %}
