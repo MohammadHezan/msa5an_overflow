@@ -10,8 +10,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="icon" href="{{ url_for('static', filename='jeeny-icon.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='jeeny.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='yalla.css') }}">
-  <script src="{{ url_for('static', filename='yalla.js') }}" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='yalla.css', v=asset_version) }}">
+  <script src="{{ url_for('static', filename='yalla.js', v=asset_version) }}" defer></script>
 </head>
 <body class="jeeny">
   <div class="stage">

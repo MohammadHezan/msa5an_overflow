@@ -5,6 +5,7 @@ actions as the Jeeny ride list. The draft request lives in the browser session u
 Verification is a demo check only: no email is sent and the code is shown on screen.
 """
 import re
+from pathlib import Path
 import secrets
 from datetime import datetime, timedelta
 
@@ -110,8 +111,14 @@ def current_rider():
     return batch, rider
 
 
+def asset_version():
+    """Changes whenever yalla.css or yalla.js changes, so phones never keep an old copy."""
+    folder = Path(__file__).parent / "static"
+    return int(max((folder / name).stat().st_mtime for name in ("yalla.css", "yalla.js")))
+
+
 def render(template, **context):
-    return render_template(f"yalla/{template}", university=university(), verified=verified(),
+    return render_template(f"yalla/{template}", university=university(), verified=verified(), asset_version=asset_version(),
                            rules=RULES, draft=draft(), **context)
 
 
