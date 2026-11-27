@@ -44,12 +44,14 @@
       </div>
       <div class="side-card">
         <p class="side-label">View the app as</p>
-        <div class="people">
-          <a href="{{ url_for('index') }}" class="person{% if not selected %} on{% endif %}">New student</a>
+        <div class="people{% if scenario_labels %} scenarios{% endif %}">
+          <a href="{{ url_for('index') }}" class="person{% if not selected %} on{% endif %}">New student{% if scenario_labels %}<small>Book a ride</small>{% endif %}</a>
           {% for rider in riders %}
-            <a href="{{ url_for('index', rider=rider.id) }}" class="person{% if selected and rider.id == selected.id %} on{% endif %}">{{ rider.name }}</a>
+            {% set scenario = scenario_labels.get(rider.name) %}
+            <a href="{{ url_for('index', rider=rider.id) }}" class="person{% if selected and rider.id == selected.id %} on{% endif %}"{% if scenario %} title="{{ scenario[1] }}"{% endif %}>{{ rider.name }}{% if scenario %}<small>{{ scenario[0] }}</small>{% endif %}</a>
           {% endfor %}
         </div>
+        {% if selected and scenario_labels.get(selected.name) %}<p class="scenario-note">{{ scenario_labels[selected.name][1] }}</p>{% endif %}
       </div>
       <div class="side-links">
         <a href="{{ url_for('yalla.home') }}">Yalla Ride student screens</a>
@@ -59,6 +61,7 @@
       </div>
       <form action="{{ url_for('reset') }}" method="post" class="side-reset">
         {{ token() }}
+        <button name="mode" value="scenarios" type="submit">Load scenario tour</button>
         <button name="mode" value="seeded" type="submit">Reload sample afternoon</button>
         <button name="mode" value="morning" type="submit">Load morning sample</button>
         <button name="mode" value="busy" type="submit">Load 28 students</button>
@@ -245,6 +248,21 @@
             <p class="sub">The other students were shown an updated plan.</p>
             {% endif %}
             <a class="cta" href="{{ url_for('index') }}">Back to home</a>
+          </section>
+
+        {% elif selected.status == "lobby" %}
+          <section class="sheet">
+            <span class="grab" aria-hidden="true"></span>
+            <div class="searching" aria-hidden="true"><span></span><span></span><span></span></div>
+            <h2>Waiting for your friends</h2>
+            <p class="sub">Share code <strong>{{ selected.group.code }}</strong> with your friends. When they join, or in {{ ((selected.group.lobby_until - now).total_seconds() / 60) | round(0, "ceil") | int }} min, your group gets one car{% if selected.group.open %} (other students going your way may fill free seats){% endif %}.</p>
+            <div class="summary">
+              <div><small>Group code</small><strong>{{ selected.group.code }}</strong></div>
+              <div><small>In the group</small><strong>{{ selected.group.members | length }} of {{ rules.seats }}</strong></div>
+              <div><small>Riding alone</small><strong>{{ selected.solo | jod }}</strong></div>
+            </div>
+            <div class="riders"><span class="stack">{% for m in selected.group.members %}{{ avatar(m, m.id == selected.id) }}{% endfor %}</span><span>{{ selected.group.members | map(attribute="name") | names }}</span></div>
+            {{ clock_button() }}
           </section>
 
         {% elif plan.go %}

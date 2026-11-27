@@ -38,6 +38,10 @@ button, input, select { font: inherit; color: inherit; }
 .person { text-decoration: none; padding: 5px 11px; border-radius: 99px; font-size: .82rem; font-weight: 500; background: rgba(255,255,255,.12); }
 .person:hover { background: rgba(255,255,255,.24); }
 .person.on { background: #fff; color: var(--pink); font-weight: 600; }
+.people.scenarios { display: grid; grid-template-columns: 1fr 1fr; }
+.people.scenarios .person { border-radius: 12px; padding: 6px 10px; line-height: 1.2; }
+.people.scenarios .person small { display: block; font-size: .68rem; font-weight: 400; opacity: .8; }
+.scenario-note { margin: 10px 0 0; font-size: .78rem; line-height: 1.4; opacity: .9; }
 .side-links { display: flex; gap: 16px; margin: 16px 0 10px; font-size: .85rem; font-weight: 600; }
 .side-links a { text-decoration: none; border-bottom: 1px solid rgba(255,255,255,.5); }
 .side-reset { display: flex; gap: 8px; }

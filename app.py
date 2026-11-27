@@ -18,6 +18,7 @@ from store import (
     verify_ride_code,
 )
 from simulation import run_simulation
+import scenarios
 
 load_dotenv(Path(__file__).with_name(".env"), override=False)
 
@@ -107,6 +108,7 @@ def index():
         captains=captain_sheets(riders, cars) if active == "captains" else None, now=clock(batch),
         simulation=run_simulation() if active == "simulation" else None,
         student_verified=session.get("student_verified", True), profile=student_profile(),
+        scenario_labels=scenarios.LABELS if batch["sample"] == "scenarios" else {},
     )
 
 
@@ -290,13 +292,16 @@ def return_to_own_batch():
 @app.post("/reset")
 def reset():
     action = request.form.get("mode")
-    if action not in {"seeded", "empty", "busy", "morning"}:
+    if action not in {"seeded", "empty", "busy", "morning", "scenarios"}:
         abort(400)
-    new_batch(database(), seeded={"seeded": True, "empty": False, "busy": "busy", "morning": "morning"}[action])
+    new_batch(database(), seeded={"seeded": True, "empty": False, "busy": "busy", "morning": "morning", "scenarios": "scenarios"}[action])
     flash({"seeded": "Sample afternoon loaded: ten students leaving campus.",
            "busy": "Busy afternoon loaded: 28 students leaving campus around 16:00.",
            "morning": "Sample morning loaded: students share rides toward campus.",
+           "scenarios": "Scenario tour loaded: pick a student on the left to see their situation.",
            "empty": "A new empty batch is ready."}[action])
+    if action == "scenarios":
+        return redirect(url_for("index"))
     return redirect(url_for("index", view="book" if action == "empty" else "match"))
 
 
