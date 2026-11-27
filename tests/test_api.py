@@ -1,8 +1,13 @@
 """JSON API: batches, join codes, booking retries, matching, and confirm/decline on the same batch as the dashboard."""
 
+import json
+import re
+from datetime import datetime, timedelta
+
 import pytest
 
 import app as campus
+import student_verification
 
 
 @pytest.fixture
@@ -264,3 +269,220 @@ def test_join_code_for_deleted_batch_fails_fast_and_releases_the_lock(client):
         assert raised.value.code == "not_found"
     other = new_batch(client)  # another connection can still write
     assert other["joinCode"]
+
+
+def _verification_code(caplog):
+    codes = re.findall(r"SIMULATED student verification for \S+: code (\d{6}) \(no email sent\)", caplog.text)
+    assert codes, caplog.text
+    return codes[-1]
+
+
+def _university(client, token, name):
+    response = client.get("/api/v1/universities", headers=auth(token))
+    assert response.status_code == 200
+    return next(row for row in response.get_json()["universities"] if row["name"] == name)
+
+
+def test_universities_require_bearer_and_return_screen_fields(client):
+    batch = new_batch(client)
+    token = join(client, batch["joinCode"])
+    assert client.get("/api/v1/universities").status_code == 401
+
+    results = client.get("/api/v1/universities", headers=auth(token)).get_json()["universities"]
+    assert results == [
+        {"id": row["id"], "name": row["name"], "city": row["city"], "campus": row["campus"],
+         "gate": row["gate"], "available": row["available"]}
+        for row in results
+    ]
+    assert {row["name"]: row["available"] for row in results} == {
+        "Al-Balqa Applied University": True,
+        "University of Jordan": False,
+        "Yarmouk University": False,
+    }
+    assert _university(client, token, "University of Jordan")["campus"] == "Amman campus"
+
+
+def test_verification_start_rejects_wrong_domain_and_unavailable_campus(client):
+    batch = new_batch(client)
+    token = join(client, batch["joinCode"])
+    available = _university(client, token, "Al-Balqa Applied University")
+    unavailable = _university(client, token, "University of Jordan")
+
+    wrong_domain = client.post("/api/v1/verification/start", headers=auth(token), json={
+        "universityId": available["id"], "email": "lina@ju.edu.jo", "firstName": "Lina",
+    })
+    assert wrong_domain.status_code == 400
+    assert wrong_domain.get_json()["error"]["code"] == "email_not_university"
+
+    closed = client.post("/api/v1/verification/start", headers=auth(token), json={
+        "universityId": unavailable["id"], "email": "lina@ju.edu.jo", "firstName": "Lina",
+    })
+    assert closed.status_code == 409
+    assert closed.get_json()["error"]["code"] == "campus_unavailable"
+    with campus.app.app_context():
+        db = campus.database()
+        assert db.execute("SELECT COUNT(*) FROM students").fetchone()[0] == 0
+        assert db.execute("SELECT COUNT(*) FROM verification_challenges").fetchone()[0] == 0
+
+
+def test_verification_start_masks_email_logs_demo_code_and_uses_amman_expiry(client, caplog, monkeypatch):
+    batch = new_batch(client)
+    token = join(client, batch["joinCode"])
+    school = _university(client, token, "Al-Balqa Applied University")
+    at = datetime(2026, 11, 27, 12, 0, tzinfo=student_verification.now().tzinfo)
+    monkeypatch.setattr(student_verification, "now", lambda: at)
+    monkeypatch.setattr(student_verification.secrets, "randbelow", lambda _limit: 123456)
+    email = "lina.haddad@bau.edu.jo"
+
+    response = client.post("/api/v1/verification/start", headers=auth(token), json={
+        "universityId": school["id"], "email": email, "firstName": "Lina Haddad",
+    })
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["maskedEmail"] == "l***@bau.edu.jo"
+    assert body["delivery"] == "console_demo"
+    assert body["expiresAt"] == (at + timedelta(minutes=5)).isoformat()
+    assert body["resendAvailableAt"] == (at + timedelta(seconds=30)).isoformat()
+    assert body["expiresAt"].endswith("+03:00")
+    assert "code" not in body and email not in json.dumps(body) and "Haddad" not in json.dumps(body)
+    assert _verification_code(caplog) == "123456"
+    assert email in caplog.text and "no email sent" in caplog.text
+
+
+def test_verification_resend_is_throttled_and_replaces_previous_code(client, caplog, monkeypatch):
+    batch = new_batch(client)
+    token = join(client, batch["joinCode"])
+    school = _university(client, token, "Al-Balqa Applied University")
+    at = datetime(2026, 11, 27, 12, 0, tzinfo=student_verification.now().tzinfo)
+    monkeypatch.setattr(student_verification, "now", lambda: at)
+    start = client.post("/api/v1/verification/start", headers=auth(token), json={
+        "universityId": school["id"], "email": "rama@bau.edu.jo", "firstName": "Rama",
+    })
+    assert start.status_code == 200
+    old_code = _verification_code(caplog)
+
+    too_soon = client.post("/api/v1/verification/resend", headers=auth(token))
+    assert too_soon.status_code == 429
+    assert too_soon.get_json()["error"]["code"] == "verification_resend_too_soon"
+
+    monkeypatch.setattr(student_verification, "now", lambda: at + timedelta(seconds=31))
+    caplog.clear()
+    resent = client.post("/api/v1/verification/resend", headers=auth(token))
+    assert resent.status_code == 200
+    body = resent.get_json()
+    new_code = _verification_code(caplog)
+    assert new_code != old_code
+    assert body["maskedEmail"] == "r***@bau.edu.jo"
+    assert body["message"] == "New code sent" and body["delivery"] == "console_demo"
+    assert "rama@bau.edu.jo" not in json.dumps(body) and new_code not in json.dumps(body)
+
+    old_attempt = client.post("/api/v1/verification/confirm", headers=auth(token), json={"code": old_code})
+    assert old_attempt.status_code == 400
+    assert old_attempt.get_json()["error"]["code"] == "verification_code_invalid"
+    verified = client.post("/api/v1/verification/confirm", headers=auth(token), json={"code": new_code})
+    assert verified.status_code == 200
+    assert verified.get_json()["student"]["firstName"] == "Rama"
+
+
+def test_verification_code_expiry_and_lockout_on_sixth_attempt(client, caplog, monkeypatch):
+    batch = new_batch(client)
+    token = join(client, batch["joinCode"])
+    school = _university(client, token, "Al-Balqa Applied University")
+    at = datetime(2026, 11, 27, 12, 0, tzinfo=student_verification.now().tzinfo)
+    monkeypatch.setattr(student_verification, "now", lambda: at)
+    start = client.post("/api/v1/verification/start", headers=auth(token), json={
+        "universityId": school["id"], "email": "huda@bau.edu.jo", "firstName": "Huda",
+    })
+    assert start.status_code == 200
+    correct_code = _verification_code(caplog)
+
+    monkeypatch.setattr(student_verification, "now", lambda: at + timedelta(minutes=5))
+    expired = client.post("/api/v1/verification/confirm", headers=auth(token), json={"code": correct_code})
+    assert expired.status_code == 410
+    assert expired.get_json()["error"]["code"] == "verification_code_expired"
+
+    # A fresh phone session has its own challenge, so the expiry check above cannot affect lockout.
+    other_token = join(client, batch["joinCode"])
+    monkeypatch.setattr(student_verification, "now", lambda: at)
+    other_start = client.post("/api/v1/verification/start", headers=auth(other_token), json={
+        "universityId": school["id"], "email": "dana@bau.edu.jo", "firstName": "Dana",
+    })
+    assert other_start.status_code == 200
+    actual = int(_verification_code(caplog))
+    wrong_code = f"{(actual + 1) % 10**6:06d}"
+
+    for _ in range(5):
+        wrong = client.post("/api/v1/verification/confirm", headers=auth(other_token), json={"code": wrong_code})
+        assert wrong.status_code == 400
+        assert wrong.get_json()["error"]["code"] == "verification_code_invalid"
+    locked = client.post("/api/v1/verification/confirm", headers=auth(other_token), json={"code": wrong_code})
+    assert locked.status_code == 429
+    assert locked.get_json()["error"]["code"] == "verification_locked"
+
+
+def test_successful_verification_issues_student_token_and_limits_other_rider_details(client, caplog):
+    batch = new_batch(client)
+    school = None
+    verified_tokens = []
+    for email, first_name in (("lina@bau.edu.jo", "Lina Haddad"), ("rama@bau.edu.jo", "Rama Saleh")):
+        phone_token = join(client, batch["joinCode"])
+        school = school or _university(client, phone_token, "Al-Balqa Applied University")
+        started = client.post("/api/v1/verification/start", headers=auth(phone_token), json={
+            "universityId": school["id"], "email": email, "firstName": first_name,
+        })
+        assert started.status_code == 200
+        code = _verification_code(caplog)
+        caplog.clear()
+        result = client.post("/api/v1/verification/confirm", headers=auth(phone_token), json={"code": code})
+        assert result.status_code == 200
+        body = result.get_json()
+        assert body["tokenType"] == "Bearer" and body["token"]
+        assert body["nextScreen"] == "05"
+        assert body["student"]["firstName"] == first_name.split()[0]
+        assert body["student"]["verified"] is True
+        assert body["student"]["verifiedAt"].endswith("+03:00")
+        assert "email" not in body["student"] and "phone" not in json.dumps(body).lower()
+        me = client.get("/api/v1/me", headers=auth(body["token"]))
+        assert me.status_code == 200 and me.get_json()["verified"] is True
+        verified_tokens.append(body["token"])
+
+    rider_ids = []
+    for student_token, name, stop, request_id in (
+        (verified_tokens[0], "Lina Haddad", "Dabouq", "lina-request-0001"),
+        (verified_tokens[1], "Rama Saleh", "Al Bayader", "rama-request-0001"),
+    ):
+        booked = client.post(f"/api/v1/batches/{batch['id']}/riders", headers=auth(student_token), json={
+            "name": name, "classEnd": "16:00", "stop": stop, "woman": True, "womenOnly": True,
+            "clientRequestId": request_id,
+        })
+        assert booked.status_code == 201
+        rider_ids.append(booked.get_json()["id"])
+    assert match(client, batch).status_code == 200
+    own = client.get(f"/api/v1/riders/{rider_ids[0]}", headers=auth(verified_tokens[0]))
+    assert own.status_code == 200
+    view = own.get_json()
+    serialized = json.dumps(view)
+    assert "Rama" in view["plan"]["riders"]
+    assert "Rama Saleh" not in serialized
+    assert "rama@bau.edu.jo" not in serialized and "lina@bau.edu.jo" not in serialized
+    assert "phone" not in serialized.lower()
+    assert any(drop["rider"] == "Rama" and drop["stop"] == "Al Bayader" for drop in view["plan"]["dropOffs"])
+
+
+def test_unavailable_campus_notify_request_is_saved_and_returns_toast_message(client):
+    batch = new_batch(client)
+    token = join(client, batch["joinCode"])
+    school = _university(client, token, "University of Jordan")
+    response = client.post(f"/api/v1/universities/{school['id']}/notify", headers=auth(token))
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["notificationRequested"] is True
+    assert body["message"] == "We'll keep you posted"
+    assert body["university"]["id"] == school["id"] and body["university"]["available"] is False
+    repeated = client.post(f"/api/v1/universities/{school['id']}/notify", headers=auth(token))
+    assert repeated.status_code == 200
+    with campus.app.app_context():
+        db = campus.database()
+        assert db.execute(
+            "SELECT COUNT(*) FROM university_notifications WHERE university_id = ?", (school["id"],)
+        ).fetchone()[0] == 1
