@@ -26,7 +26,9 @@ while true; do
       fi
     fi
     if [ ! -e .git/MERGE_HEAD ] && [ "$(git rev-list --count origin/main..HEAD)" -gt 0 ]; then
-      if git push -q origin HEAD:main; then
+      if ! python -m pytest -q >/tmp/git_sync_pytest.log 2>&1; then
+        echo "[$ts] Tests fail; not pushing. See /tmp/git_sync_pytest.log."
+      elif git push -q origin HEAD:main; then
         echo "[$ts] Pushed $(git log -1 --format=%h) to GitHub."
       else
         echo "[$ts] Push failed."
