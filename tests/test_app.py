@@ -51,7 +51,7 @@ def test_matching_gives_sara_a_street_pickup_shared_ride(matched):
 
 def test_page_shows_sara_price(matched):
     riders, _ = state(matched)
-    page = matched.get(f"/?view=trips&rider={riders['Sara']['id']}").get_data(as_text=True)
+    page = matched.get(f"/?rider={riders['Sara']['id']}").get_data(as_text=True)
     assert f"JOD {riders['Sara']['share'] / 1000:.2f}" in page
     assert "Walk" in page and "campus street" in page
 
