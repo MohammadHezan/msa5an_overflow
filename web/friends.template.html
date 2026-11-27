@@ -1,0 +1,368 @@
+<title>Campus Connect Friends</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: explainer column + a live phone running the friends flow; on a phone the app fills the screen. */
+:root {
+  --pink: #EC008C; --pink-ink: #B80070; --tile: #FDF3F9; --tile-2: #FFE3F2;
+  --ink: #101419; --body: #424242; --muted: #777A82; --line: #E7E7E7; --pale: #F4F2F3;
+  --paper: #FFFFFF; --page: #F7F4F6; --frame: #101419; --ok: #1E8E4E; --ok-tile: #DDF3E5;
+  --warn-tile: #FFF4D6; --warn-ink: #7A5A00; --toast: #101419; --toast-ink: #FFFFFF;
+  --font: "Poppins", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --shadow: 0 1px 4px rgba(16, 20, 25, .12);
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --pink: #FF3FAE; --pink-ink: #FF7CC6; --tile: #2A1622; --tile-2: #3A1A2D;
+  --ink: #F4F1F3; --body: #D0CBCE; --muted: #9C979B; --line: #33302F; --pale: #1F1D1F;
+  --paper: #161415; --page: #0E0C0D; --frame: #2C292B; --ok: #5BD08C; --ok-tile: #183424;
+  --warn-tile: #33290F; --warn-ink: #F2CF6B; --toast: #F4F1F3; --toast-ink: #101419;
+  --shadow: 0 1px 4px rgba(0, 0, 0, .5); color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --pink: #FF3FAE; --pink-ink: #FF7CC6; --tile: #2A1622; --tile-2: #3A1A2D;
+  --ink: #F4F1F3; --body: #D0CBCE; --muted: #9C979B; --line: #33302F; --pale: #1F1D1F;
+  --paper: #161415; --page: #0E0C0D; --frame: #2C292B; --ok: #5BD08C; --ok-tile: #183424;
+  --warn-tile: #33290F; --warn-ink: #F2CF6B; --toast: #F4F1F3; --toast-ink: #101419;
+  --shadow: 0 1px 4px rgba(0, 0, 0, .5); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--page); color: var(--body); font-family: var(--font); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 32px; }
+button { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible + span, a:focus-visible { outline: 3px solid var(--pink); outline-offset: 2px; }
+.wrap { max-width: 1040px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) 410px; gap: 48px; align-items: start; }
+
+/* Explainer */
+.story { display: flex; flex-direction: column; gap: 22px; padding-top: 12px; min-width: 0; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--ink); font-size: .95rem; }
+.brand b { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--pink); color: #fff; font-size: .9rem; }
+.story h1 { margin: 0; font-size: clamp(1.9rem, 4vw, 2.7rem); line-height: 1.12; color: var(--ink); font-weight: 600; text-wrap: balance; letter-spacing: -.01em; }
+.story h1 em { font-style: normal; color: var(--pink); }
+.lede { margin: 0; max-width: 58ch; font-size: 1.02rem; }
+.rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; max-width: 60ch; }
+.rules li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; align-items: start; }
+.rules .k { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--tile); color: var(--pink); font-weight: 600; font-size: .8rem; }
+.rules strong { color: var(--ink); font-weight: 500; display: block; }
+.rules small { color: var(--muted); font-size: .86rem; }
+.log { border-top: 1px solid var(--line); padding-top: 16px; max-width: 60ch; }
+.log h2 { margin: 0 0 8px; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.log ol { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: .88rem; }
+.source { font-size: .8rem; color: var(--muted); max-width: 60ch; margin: 0; }
+
+/* Phone */
+.phone { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); width: 410px; height: min(860px, calc(100vh - 48px)); min-height: 640px;
+  border: 10px solid var(--frame); border-radius: 46px; background: var(--paper); overflow: hidden; box-shadow: 0 30px 60px -30px rgba(16, 20, 25, .45);
+  display: flex; flex-direction: column; }
+.status { display: flex; justify-content: space-between; padding: 12px 26px 4px; font-size: .78rem; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.bar { display: flex; align-items: center; justify-content: space-between; padding: 6px 18px 10px; }
+.bar h3 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--ink); }
+.iconbtn { width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--line); background: var(--paper); display: grid; place-items: center; cursor: pointer; box-shadow: var(--shadow); }
+.iconbtn[disabled] { opacity: .35; cursor: default; }
+.iconbtn svg { width: 18px; height: 18px; stroke: var(--ink); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.screen { flex: 1; overflow-y: auto; padding: 4px 20px 20px; display: flex; flex-direction: column; gap: 12px; }
+.foot { padding: 12px 20px 22px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; background: var(--paper); }
+.eyebrow { margin: 0; font-size: .68rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--pink); }
+.title { margin: 0; font-size: 1.45rem; line-height: 1.25; font-weight: 600; color: var(--ink); text-wrap: balance; }
+.sub { margin: 0; color: var(--muted); font-size: .86rem; }
+.card { border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; background: var(--paper); display: flex; flex-direction: column; gap: 10px; }
+.card-head { display: flex; gap: 12px; align-items: flex-start; }
+.card-head svg { width: 22px; height: 22px; stroke: var(--ink); fill: none; stroke-width: 1.7; flex: 0 0 22px; margin-top: 2px; }
+.card-head strong { display: block; color: var(--ink); font-weight: 500; }
+.card-head small { color: var(--muted); font-size: .76rem; }
+.seg { display: flex; gap: 8px; border: 0; padding: 0; margin: 0; }
+.seg label { flex: 1; position: relative; }
+.seg input { position: absolute; opacity: 0; }
+.seg span { display: block; text-align: center; padding: 9px 6px; border: 1px solid var(--line); border-radius: 999px; font-size: .8rem; cursor: pointer; color: var(--body); }
+.seg input:checked + span { border-color: var(--pink); color: var(--pink); background: var(--tile); font-weight: 500; }
+.toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: .84rem; cursor: pointer; }
+.toggle input { position: absolute; opacity: 0; }
+.toggle i { width: 44px; height: 26px; border-radius: 99px; background: var(--line); position: relative; flex: 0 0 44px; transition: background .2s; }
+.toggle i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--paper); box-shadow: var(--shadow); transition: transform .2s; }
+.toggle input:checked + i { background: var(--pink); }
+.toggle input:checked + i::after { transform: translateX(18px); }
+.toggle input:focus-visible + i { outline: 3px solid var(--pink); outline-offset: 2px; }
+.note { margin: 0; font-size: .76rem; color: var(--muted); }
+.cta { width: 100%; border: 0; border-radius: 14px; padding: 15px; background: var(--pink); color: #fff; font-weight: 600; font-size: .95rem; cursor: pointer; }
+.cta:hover { filter: brightness(1.05); }
+.link { border: 0; background: none; padding: 4px 0; color: var(--pink); font-size: .84rem; font-weight: 500; cursor: pointer; text-align: left; }
+.link.muted { color: var(--muted); font-weight: 400; }
+.demo { display: flex; flex-direction: column; align-items: flex-start; gap: 0; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 12px; }
+.demo small { font-size: .66rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.codecard { background: var(--tile); border-radius: 20px; padding: 20px 22px; display: flex; flex-direction: column; gap: 6px; }
+.codecard small { color: var(--pink); font-size: .66rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.codecard strong { font-size: 2.4rem; font-weight: 600; color: var(--ink); letter-spacing: .03em; line-height: 1.1; }
+.codecard span { font-size: .8rem; color: var(--body); }
+.people { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.people li { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+.av { flex: 0 0 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--tile); color: var(--pink); font-weight: 600; font-size: .85rem; }
+.av.empty { background: var(--pale); color: var(--muted); }
+.people .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.people .who strong { font-weight: 500; color: var(--ink); }
+.people .who small { color: var(--muted); font-size: .75rem; }
+.people em { font-style: normal; font-size: .74rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.people li.free { opacity: .6; }
+.people li.pop { animation: pop .45s ease-out; }
+@keyframes pop { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+.row { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.row svg { width: 20px; height: 20px; stroke: var(--ink); fill: none; stroke-width: 1.7; flex: 0 0 20px; }
+.row div { display: flex; flex-direction: column; min-width: 0; }
+.row small { color: var(--muted); font-size: .72rem; }
+.row strong { color: var(--ink); font-weight: 500; font-size: .9rem; }
+.price { background: var(--tile); border-radius: 18px; padding: 16px 18px; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; }
+.price small { color: var(--body); font-size: .8rem; }
+.price strong { grid-column: 1; font-size: 2rem; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.2; }
+.price span { grid-column: 1; font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.badge { grid-column: 2; grid-row: 1; justify-self: end; font-size: .72rem; font-weight: 600; padding: 3px 10px; border-radius: 99px; background: var(--ok-tile); color: var(--ok); }
+.chip { align-self: flex-start; font-size: .74rem; font-weight: 500; padding: 4px 10px; border-radius: 99px; background: var(--pale); color: var(--body); }
+.chip.pink { background: var(--tile); color: var(--pink-ink); }
+.warn { margin: 0; background: var(--warn-tile); color: var(--warn-ink); border-radius: 12px; padding: 10px 12px; font-size: .78rem; }
+.split { display: flex; flex-direction: column; gap: 8px; }
+.split .line { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; font-size: .8rem; }
+.split .line b { font-weight: 500; color: var(--ink); }
+.split .line span { font-variant-numeric: tabular-nums; color: var(--ink); }
+.split .track { grid-column: 1 / -1; height: 6px; border-radius: 99px; background: var(--pale); overflow: hidden; }
+.split .track i { display: block; height: 100%; border-radius: inherit; background: var(--pink); }
+.split .track i.solo { background: var(--line); }
+.legs { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: .78rem; color: var(--body); font-variant-numeric: tabular-nums; }
+.toast { position: absolute; left: 50%; top: 92px; transform: translateX(-50%); background: var(--toast); color: var(--toast-ink); padding: 10px 16px; border-radius: 12px; font-size: .8rem; font-weight: 500; box-shadow: var(--shadow); max-width: 330px; text-align: center; z-index: 5; }
+.phone-wrap { position: relative; }
+.boarding { background: var(--tile); border-radius: 20px; padding: 22px; text-align: center; display: flex; flex-direction: column; gap: 4px; }
+.boarding small { color: var(--pink); font-size: .66rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.boarding strong { font-size: 2.6rem; font-weight: 600; color: var(--ink); letter-spacing: .04em; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+@media (max-width: 900px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .phone-wrap { order: -1; }
+  .phone { position: relative; top: 0; width: 100%; max-width: 430px; margin: 0 auto; height: auto; min-height: 0; }
+  .screen { overflow: visible; }
+}
+@media (max-width: 480px) {
+  body { padding-block: 12px; }
+  .phone { border-width: 0; border-radius: 22px; box-shadow: var(--shadow); }
+  .status { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .people li.pop { animation: none; } .toggle i, .toggle i::after { transition: none; } }
+</style>
+
+<div class="wrap">
+  <section class="story" aria-labelledby="h">
+    <p class="brand"><b>J</b> Jeeny · Campus Connect</p>
+    <h1 id="h">Friends ride in <em>one car</em>, even after today’s cars are planned.</h1>
+    <p class="lede">Up to four students book together with a group code. Each of them pays only for the kilometres they ride, and together they pay exactly one regulated car fare. Try it on the phone: start a group, add friends, then find your car.</p>
+    <ul class="rules">
+      <li><span class="k">1</span><span><strong>Ride options follow your gender</strong><small>A man sees Anyone or Men only. A woman sees Anyone or Women only.</small></span></li>
+      <li><span class="k">2</span><span><strong>The group’s option is its creator’s</strong><small>A men-only group refuses women, and a women-only group refuses men.</small></span></li>
+      <li><span class="k">3</span><span><strong>Friends are never split</strong><small>The group gets its car when the creator taps “find our car”, when four have joined, or after <span data-lobby>10</span> minutes.</small></span></li>
+      <li><span class="k">4</span><span><strong>Open or closed</strong><small>An open group may take free seats in a car that is already planned, only if every rule still passes. A closed group always gets a car of its own.</small></span></li>
+    </ul>
+    <div class="log" aria-live="polite"><h2>What just happened</h2><ol id="log"></ol></div>
+    <p class="source">Prices come from the Campus Connect matching engine on a sample afternoon at Cedar Campus (made-up students and places), priced with the Jordan smart-app day tariff: JOD 0.468 start plus JOD 0.336 per km, split by the kilometres each student rides.</p>
+  </section>
+
+  <div class="phone-wrap">
+    <div class="phone" role="region" aria-label="Campus Connect app">
+      <div class="status"><span>16:02</span><span>Jeeny</span></div>
+      <div class="bar">
+        <button class="iconbtn" id="back" type="button" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <h3>Campus Connect</h3>
+        <button class="iconbtn" id="restart" type="button" aria-label="Start over"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v5h5"/></svg></button>
+      </div>
+      <div class="screen" id="screen"></div>
+      <div class="foot" id="foot"></div>
+    </div>
+    <p class="toast" id="toast" role="status" hidden></p>
+  </div>
+</div>
+
+<script>
+const DATA = /*DATA*/null;
+const ICON = {
+  people: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6"/><circle cx="17" cy="9" r="2.4"/><path d="M15.8 14.2c2.3.2 3.9 1.7 4.4 4.3"/></svg>',
+  users: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c.8-3.6 3.6-5.4 7-5.4s6.2 1.8 7 5.4"/></svg>',
+  pin: '<svg viewBox="0 0 24 24"><path d="M12 21s-6.5-6.1-6.5-11a6.5 6.5 0 0 1 13 0c0 4.9-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>',
+  clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+  car: '<svg viewBox="0 0 24 24"><path d="M4 16v-4l2-5h12l2 5v4"/><path d="M3 16h18v2H3z"/><circle cx="7.5" cy="16.5" r="1.5"/><circle cx="16.5" cy="16.5" r="1.5"/></svg>',
+  check: '<svg viewBox="0 0 24 24" style="width:20px;height:20px;stroke:var(--ok);fill:none;stroke-width:2"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.6 2.5L16 9.5"/></svg>',
+};
+const state = {};
+const $ = (id) => document.getElementById(id);
+const jod = (fils) => "JOD " + (fils / 1000).toFixed(2);
+const ampm = (hhmm) => { const [h, m] = hhmm.slice(0, 5).split(":").map(Number); return `${(h - 1) % 12 + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const first = (name) => name.split(" ")[0];
+
+function reset(gender) {
+  Object.assign(state, { screen: "plan", gender: gender || state.gender || "man", option: "mixed", open: false,
+    code: "GR-" + (10 + Math.floor(Math.random() * 89)), size: 1, history: [], logged: false });
+  $("log").innerHTML = "";
+  log(`${me()} opens Campus Connect. Today’s cars are already planned.`);
+  render();
+}
+function me() { return DATA.profiles[state.gender].name; }
+function only() { return DATA.profiles[state.gender].only; }
+function optionName(o) { return o === "mixed" ? "Anyone" : o === "men" ? "Men only" : "Women only"; }
+function log(text) { const li = document.createElement("li"); li.textContent = text; $("log").appendChild(li); }
+function toast(text) { const t = $("toast"); t.textContent = text; t.hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.hidden = true; }, 2600); }
+function go(screen) { state.history.push(state.screen); state.screen = screen; render(); $("screen").scrollTop = 0; }
+function caseNow() { return DATA.cases[`${state.gender}|${state.option}|${state.open ? "open" : "closed"}|${state.size}`]; }
+
+function render() {
+  $("back").disabled = state.history.length === 0;
+  ({ plan: renderPlan, lobby: renderLobby, car: renderCar, done: renderDone })[state.screen]();
+}
+
+function renderPlan() {
+  const g = state.gender;
+  $("screen").innerHTML = `
+    <p class="eyebrow">Ride preferences</p>
+    <h2 class="title">Make the ride yours</h2>
+    <p class="sub">From Cedar Campus to ${esc(DATA.userStop)} · class ends ${ampm(DATA.classEnd)}</p>
+    <div class="card">
+      <div class="card-head">${ICON.users}<span><strong>${esc(me())}</strong><small>Demo profile · ride options follow your gender</small></span></div>
+      <fieldset class="seg"><legend class="sr">I am</legend>
+        <label><input type="radio" name="gender" value="man" id="g-man" ${g === "man" ? "checked" : ""}><span>I am a man</span></label>
+        <label><input type="radio" name="gender" value="woman" id="g-woman" ${g === "woman" ? "checked" : ""}><span>I am a woman</span></label>
+      </fieldset>
+    </div>
+    <div class="card">
+      <div class="card-head">${ICON.people}<span><strong>Ride with</strong><small>The captain may be any gender.</small></span></div>
+      <fieldset class="seg"><legend class="sr">Ride with</legend>
+        <label><input type="radio" name="option" value="mixed" id="o-mixed" ${state.option === "mixed" ? "checked" : ""}><span>Anyone</span></label>
+        <label><input type="radio" name="option" value="${only()}" id="o-only" ${state.option !== "mixed" ? "checked" : ""}><span>${optionName(only())}</span></label>
+      </fieldset>
+      ${state.option !== "mixed" ? '<p class="note">Matching may take longer.</p>' : ""}
+    </div>
+    <div class="card">
+      <div class="card-head">${ICON.users}<span><strong>Book with friends</strong><small>Friends in a group always ride in one car.</small></span></div>
+      <fieldset class="seg"><legend class="sr">Book with friends</legend>
+        <label><input type="radio" name="friends" value="start" id="f-start" checked><span>Start a group</span></label>
+      </fieldset>
+      <label class="toggle"><span>Let other students fill empty seats</span><input type="checkbox" id="open" ${state.open ? "checked" : ""}><i aria-hidden="true"></i></label>
+      <p class="note">Today’s cars are already planned. Your friends join with your code, then you all get one car together.</p>
+    </div>`;
+  $("foot").innerHTML = `<button class="cta" id="start" type="button">Start my group</button>`;
+  document.querySelectorAll('input[name="gender"]').forEach((el) => el.addEventListener("change", () => {
+    state.gender = el.value; state.option = "mixed";
+    log(`Profile switched: ${me()} sees Anyone or ${optionName(only())}.`); render();
+  }));
+  document.querySelectorAll('input[name="option"]').forEach((el) => el.addEventListener("change", () => { state.option = el.value; render(); }));
+  $("open").addEventListener("change", (e) => { state.open = e.target.checked; });
+  $("start").addEventListener("click", () => {
+    log(`${me()} starts group ${state.code}: ${optionName(state.option)}, ${state.open ? "open to other students" : "friends only"}.`);
+    go("lobby");
+  });
+}
+
+function renderLobby() {
+  const friends = DATA.friends[state.gender].slice(0, state.size - 1);
+  const free = DATA.seats - state.size;
+  const lastNew = state.justJoined;
+  state.justJoined = null;
+  const other = state.gender === "man" ? "woman" : "man";
+  $("screen").innerHTML = `
+    <p class="eyebrow">Friends group · ${state.size} of ${DATA.seats}</p>
+    <h2 class="title">Waiting for your friends</h2>
+    <p class="sub">Everyone in this group rides in one car. Each of you pays for your own km.</p>
+    <div class="codecard"><small>Your group code</small><strong>${state.code}</strong><span>Friends enter it under “Join a group” on their own phone.</span></div>
+    <button class="link" id="copy" type="button">Copy code</button>
+    <ul class="people">
+      <li><span class="av">${esc(me()[0])}</span><span class="who"><strong>You</strong><small>Started the group · ${esc(DATA.userStop)}</small></span><em>Joined</em>${ICON.check}</li>
+      ${friends.map((n, i) => `<li class="${n === lastNew ? "pop" : ""}"><span class="av">${esc(n[0])}</span><span class="who"><strong>${esc(n)}</strong><small>Joined · ${esc(DATA.friendStops[i])}</small></span><em>Joined</em>${ICON.check}</li>`).join("")}
+      ${Array.from({ length: free }, () => `<li class="free"><span class="av empty">+</span><span class="who"><strong>Free seat</strong><small>${state.open ? "A friend, or another student" : "Only friends with the code"}</small></span></li>`).join("")}
+    </ul>
+    <div class="row">${ICON.people}<div><small>Ride with</small><strong>${optionName(state.option)} · ${state.open ? "open to other students" : "friends only"}</strong></div></div>
+    <div class="row">${ICON.clock}<div><small>We find your car</small><strong>in ${DATA.lobbyMinutes} min, or when you tap below</strong></div></div>
+    <div class="demo"><small>Demo controls</small>
+      <button class="link muted" id="join" type="button">+ A friend joins with ${state.code}</button>
+      ${state.option !== "mixed" ? `<button class="link muted" id="refuse" type="button">+ A ${other} tries to join</button>` : ""}
+    </div>`;
+  $("foot").innerHTML = `<button class="cta" id="ready" type="button">We’re all here, find our car</button>
+    <button class="link muted" id="leave" type="button">Leave the group</button>`;
+  $("copy").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(state.code); toast("Group code copied"); } catch (e) { toast(`Your code is ${state.code}`); }
+  });
+  $("join").addEventListener("click", () => {
+    const name = DATA.friends[state.gender][state.size - 1];
+    state.size += 1; state.justJoined = name;
+    log(`${name} joins ${state.code} from ${DATA.friendStops[state.size - 2]}.`);
+    if (state.size === DATA.seats) { log("The group is full, so it gets its car at once."); toast("Group full · finding your car"); go("car"); return; }
+    toast(`${first(name)} joined with ${state.code}`); render();
+  });
+  const refuse = $("refuse");
+  if (refuse) refuse.addEventListener("click", () => {
+    const msg = DATA.refusals[state.gender];
+    log(`A ${other} tries to join: “${msg}”`); toast(msg);
+  });
+  $("ready").addEventListener("click", () => { log(`${me()} taps “find our car”.`); go("car"); });
+  $("leave").addEventListener("click", () => { log(`${me()} leaves the group.`); reset(); });
+}
+
+function renderCar() {
+  const c = caseNow();
+  const mine = c.members.find((m) => m.you);
+  const saving = Math.round((mine.solo - mine.share) * 100 / mine.solo);
+  const alone = c.members.length === 1;
+  const strangers = c.members.filter((m) => !m.friend && !m.you);
+  const title = alone ? "Just you for now" : strangers.length ? "You joined a planned car" : "One car for your friends";
+  const sub = alone ? "No friend joined, so this is a private ride at the normal fare. Others can still share on the way."
+    : strangers.length ? "Your open group took free seats in a car that was already planned. Every rule still passes." : "Review the details before you confirm.";
+  const maxShare = Math.max(...c.members.map((m) => m.solo));
+  if (!state.logged) {
+    state.logged = true;
+    log(alone ? `Nobody joined: ${me()} rides alone for ${jod(mine.share)}.`
+      : `The group gets ${strangers.length ? "free seats in a planned car" : "its own car"}: car fare ${jod(c.carFare)}, ${me()} pays ${jod(mine.share)} instead of ${jod(mine.solo)}.`);
+  }
+  $("screen").innerHTML = `
+    <p class="eyebrow">${alone ? "Your ride" : "Your group is ready"}</p>
+    <h2 class="title">${title}</h2>
+    <p class="sub">${sub}</p>
+    ${c.only || c.captain ? `<span class="chip ${c.only ? "pink" : ""}">${c.only ? optionName(c.only) + " car · " : ""}Captain ${esc(c.captain ? c.captain.name : "assigned soon")}</span>` : ""}
+    <div class="price"><small>Your share</small>${saving > 0 ? `<em class="badge">Save ${saving}%</em>` : ""}<strong>${jod(mine.share)}</strong><span>${jod(mine.solo)} riding alone</span></div>
+    <div class="row">${ICON.pin}<div><small>Meet on Cedar Campus street · walk ${Math.max(1, Math.ceil(c.walkM / 84))} min</small><strong>Today · ${ampm(c.pickup)}</strong></div></div>
+    ${alone ? "" : `<p class="warn">Your seat is held for 2 minutes. Confirm before then or it goes back to the others.</p>`}
+    <ul class="people">
+      ${c.members.map((m, i) => `<li><span class="av ${m.friend || m.you ? "" : "empty"}">${esc(m.name[0])}</span><span class="who"><strong>${m.you ? "You" : esc(m.name)}</strong><small>${esc(m.stop)} · ${m.you ? "your own drop-off" : m.friend ? "Friends · " + state.code : "Student"}</small></span><em>Stop ${i + 1}</em></li>`).join("")}
+    </ul>
+    <div class="card">
+      <div class="card-head">${ICON.car}<span><strong>How the fare is split</strong><small>One car fare of ${jod(c.carFare)} for ${c.routeKm} km. The start fare is shared equally; each km is shared by whoever is on board.</small></span></div>
+      <ul class="legs">${c.breakdown.map((b) => `<li>Your ${b.km.toFixed(1)} km ${b.riders > 1 ? `shared by ${b.riders}` : "alone in the car"}</li>`).join("")}</ul>
+      <div class="split">
+        ${c.members.map((m) => `<div class="line"><b>${m.you ? "You" : esc(first(m.name))}</b><span>${jod(m.share)} <small style="color:var(--muted)">of ${jod(m.solo)}</small></span>
+          <div class="track" aria-hidden="true"><i style="width:${(m.share / maxShare * 100).toFixed(1)}%"></i></div></div>`).join("")}
+      </div>
+      <p class="note">Shares add up to exactly ${jod(c.members.reduce((s, m) => s + m.share, 0))}, the car fare.</p>
+    </div>`;
+  $("foot").innerHTML = `<button class="cta" id="confirm" type="button">${alone ? "Ride alone" : "Confirm my seat"} · ${jod(mine.share)}</button>
+    <button class="link muted" id="again" type="button">Try another group</button>`;
+  $("confirm").addEventListener("click", () => { log(`${me()} confirms the seat.`); go("done"); });
+  $("again").addEventListener("click", () => reset());
+}
+
+function renderDone() {
+  const c = caseNow();
+  const mine = c.members.find((m) => m.you);
+  $("screen").innerHTML = `
+    <p class="eyebrow">Seat confirmed</p>
+    <h2 class="title">See you on Cedar Campus street</h2>
+    <p class="sub">Pickup at ${ampm(c.pickup)}. Show your boarding code to Captain ${esc(c.captain ? c.captain.name : "")}.</p>
+    <div class="boarding"><small>Your boarding code</small><strong>CC-${String(4000 + (mine.share % 997)).slice(-4)}</strong><span class="note">Each student has a separate code.</span></div>
+    <div class="row">${ICON.car}<div><small>Captain ${esc(c.captain ? c.captain.name : "")} · 4.9</small><strong>White sedan · 14-27663</strong></div></div>
+    <div class="row">${ICON.people}<div><small>In this car</small><strong>${c.members.map((m) => m.you ? "You" : first(m.name)).join(", ")}</strong></div></div>
+    <p class="note">You pay ${jod(mine.share)}. If a friend cancels, your confirmed price never goes up.</p>`;
+  $("foot").innerHTML = `<button class="cta" id="again2" type="button">Try another group</button>`;
+  $("again2").addEventListener("click", () => reset());
+}
+
+$("back").addEventListener("click", () => {
+  if (!state.history.length) return;
+  const prev = state.history.pop();
+  if (prev === "plan") { state.size = 1; state.logged = false; }
+  if (prev === "lobby") { state.logged = false; if (state.size >= DATA.seats) state.size = DATA.seats - 1; }
+  state.screen = prev; render();
+});
+$("restart").addEventListener("click", () => reset());
+document.querySelectorAll("[data-lobby]").forEach((el) => { el.textContent = DATA.lobbyMinutes; });
+reset("man");
+</script>
