@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from flask import current_app, g
 
 import go_now
+import scenarios
 from pooling import config
 from pooling.codes import new_code
 from pooling.model import PREFERENCES
@@ -111,7 +112,7 @@ RIDER_COLUMNS = {  # Columns added after the first release, with their definitio
 }
 RIDE_OPTION_KEYS = ("ride_date", "ready_time", "preferred_pickup", "quiet_ride", "max_gate_wait_min",
                     "max_extra_ride_min", "payment_method")
-BATCH_COLUMNS = {"created_at": "TEXT", "clock_offset": "INTEGER NOT NULL DEFAULT 0", "clock_start": "TEXT"}
+BATCH_COLUMNS = {"created_at": "TEXT", "clock_offset": "INTEGER NOT NULL DEFAULT 0", "clock_start": "TEXT", "sample": "TEXT"}
 
 
 class Problem(Exception):
@@ -132,7 +133,7 @@ def database():
         g.db.executescript("""
             CREATE TABLE IF NOT EXISTS batches (
                 id TEXT PRIMARY KEY, trip_date TEXT NOT NULL, matched INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT, clock_offset INTEGER NOT NULL DEFAULT 0, clock_start TEXT
+                created_at TEXT, clock_offset INTEGER NOT NULL DEFAULT 0, clock_start TEXT, sample TEXT
             );
             CREATE TABLE IF NOT EXISTS riders (
                 id INTEGER PRIMARY KEY, batch TEXT NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
@@ -337,23 +338,27 @@ def delete_old_batches(db):
     ).rowcount
 
 
-SAMPLES = {"seeded": FIXTURE, "busy": BUSY_WAVE, "morning": MORNING_WAVE, "empty": ()}
+SAMPLES = {"seeded": FIXTURE, "busy": BUSY_WAVE, "morning": MORNING_WAVE, "scenarios": scenarios.BASE_WAVE, "empty": ()}
 
 
 def create_batch(db, seeded, replaces=None):
     """New batch for tomorrow in Amman. Deletes `replaces` (a previous batch id) and expired batches in the same transaction.
 
-    `seeded`: True/"seeded" for the sample afternoon, "busy" for 28 students leaving together, False/"empty" for none.
+    `seeded`: True/"seeded" for the sample afternoon, "busy" for 28 students leaving together, "morning" for the
+    morning sample, "scenarios" for the scenario tour (one situation per student), False/"empty" for none.
     """
-    rows = SAMPLES[{True: "seeded", False: "empty"}.get(seeded, seeded)]
+    sample = {True: "seeded", False: "empty"}.get(seeded, seeded)
+    rows = SAMPLES[sample]
     batch = secrets.token_hex(16)
     trip_date = now().date() + timedelta(days=1)
     with db:
         delete_old_batches(db)
-        db.execute("INSERT INTO batches (id, trip_date, created_at, clock_start) VALUES (?, ?, ?, ?)",
-                   (batch, trip_date.isoformat(), utc_stamp(), now().isoformat()))
+        db.execute("INSERT INTO batches (id, trip_date, created_at, clock_start, sample) VALUES (?, ?, ?, ?, ?)",
+                   (batch, trip_date.isoformat(), utc_stamp(), now().isoformat(), sample))
         for row in rows:
             add_rider(db, batch, *row)
+        if sample == "scenarios":
+            scenarios.stage(db, batch)
         if replaces:
             db.execute("DELETE FROM batches WHERE id = ?", (replaces,))
     return batch
