@@ -305,11 +305,12 @@ def _evaluate_street(riders: tuple[Rider, ...], strict: bool, window) -> GroupPl
     arrivals = {}
     if from_campus:
         for r in riders:
-            arrivals[r.request_id] = start_time + timedelta(hours=drop[r.request_id] / config.SPEED_KMH)
+            arrivals[r.request_id] = start_time + timedelta(hours=in_car[r.request_id] / config.SPEED_KMH)
     else:
-        max_km = max(board.values(), default=0)
         for r in riders:
-            arrivals[r.request_id] = start_time + timedelta(hours=(max_km - board[r.request_id]) / config.SPEED_KMH)
+            arrivals[r.request_id] = start_time + timedelta(
+                hours=(route_km - in_car[r.request_id]) / config.SPEED_KMH
+            )
     return GroupPlan(
         riders=ordered, route_km=route_km, car_fare=fare, shares=shares, solo_km=solo,
         solo_fare=solo_fares, in_car_km=in_car, pickup_time=start_time, arrival=arrivals,

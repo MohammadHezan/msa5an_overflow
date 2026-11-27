@@ -78,6 +78,18 @@ def test_captain_sheet_shows_bonus_paid_by_jeeny_not_students(client):
     assert "paid by Jeeny" in page and "JOD 0.20" in page
 
 
+def test_captain_bonus_counts_riders_not_distinct_neighborhoods(empty):
+    for name in ("Demo one", "Demo two", "Demo three"):
+        book(empty, name, "Dabouq")
+    post(empty, "/match")
+    riders, cars = state(empty)
+    sheets = store.captain_sheets(list(riders.values()), cars)
+    assert len(sheets) == 1 and len(sheets[0]["stops"]) == 1
+    assert sheets[0]["bonus"] == 200
+    assert all(step["time"] for step in sheets[0]["steps"])
+    assert sum(cars[0]["shares"].values()) == cars[0]["car_fare"]
+
+
 # ---------- Friends ----------
 
 def group_code(client, name):
