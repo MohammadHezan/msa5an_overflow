@@ -1,6 +1,6 @@
 # Campus Connect ride pooling: design (draft)
 
-Status: **in progress.** Sections 2 and later are still being agreed. Research behind each decision: [reports/Campus ride pooling research.md](../../../reports/Campus%20ride%20pooling%20research.md).
+Status: **approved 2026-11-27.** Research behind each decision: [reports/Campus ride pooling research.md](../../../reports/Campus%20ride%20pooling%20research.md).
 
 ## Product in one paragraph
 
@@ -39,6 +39,7 @@ The night window is a setting. Check: a 12 km daytime trip costs at least JOD 4.
 | `pooling/matcher.py` | Real-time insertion into open groups, detour check, women-only filter, max 4 riders |
 | `pooling/regroup.py` | CP-SAT regroup of open groups at lock time (same lexicographic pattern as `allocation.py`) |
 | `pooling/codes.py` | Unique ride code for each rider when the group locks |
+| `pooling/config.py` | Every tunable limit: tariff, night window, detour, savings, window overlap, stop merge radius, lock lead time, speed |
 
 ### The API (Flask routes in `app.py`, state in SQLite)
 
@@ -140,7 +141,7 @@ Response `201`:
   "pickup_time": "2026-11-28T16:15:00+03:00",
   "drop_position": 2,
   "estimated_arrival": "2026-11-28T16:42:00+03:00",
-  "fare": {"your_share_fils": 1620, "solo_fare_fils": 4500, "saved_pct": 64, "car_fare_fils": 4850},
+  "fare": {"your_share_fils": 1913, "solo_fare_fils": 4500, "saved_pct": 57, "car_fare_fils": 5710},
   "ride_code": null
 }
 ```
@@ -158,16 +159,16 @@ Both return the same shape as the create response, with `status` set to `confirm
   "id": "grp-3", "status": "open", "women_only": true,
   "meeting_point": {"id": "ahu-main-gate", "name": "Main gate"},
   "pickup_time": "2026-11-28T16:15:00+03:00",
-  "car_fare_fils": 4850, "route_km": 14.2,
+  "car_fare_fils": 5710, "route_km": 15.6,
   "riders": [
-    {"first_name": "Lina", "stop": "Tabarbour",  "drop_position": 1, "share_fils": 1210, "status": "confirmed"},
-    {"first_name": "Sara", "stop": "Sweileh",    "drop_position": 2, "share_fils": 1620, "status": "provisional"},
-    {"first_name": "Noor", "stop": "Al Jubeiha", "drop_position": 3, "share_fils": 2020, "status": "confirmed"}
+    {"first_name": "Lina", "stop": "Tabarbour",  "drop_position": 1, "share_fils": 1429, "status": "confirmed"},
+    {"first_name": "Sara", "stop": "Sweileh",    "drop_position": 2, "share_fils": 1913, "status": "provisional"},
+    {"first_name": "Noor", "stop": "Al Jubeiha", "drop_position": 3, "share_fils": 2368, "status": "confirmed"}
   ]
 }
 ```
 
-The shares always add up to `car_fare_fils`.
+The shares always add up to `car_fare_fils`. In this example the solo distances are 8.96, 12.0 and 14.85 km (Sara's 12 km gives her JOD 4.50 solo fare). The route is 15.6 km, so the car fare is 468 + 336 × 15.6 = 5710 fils, and each rider saves about 57%.
 
 ### `POST /api/v1/rides/lock`
 
@@ -176,7 +177,7 @@ Body: `{"campus_id": "ahu"}`. With no `window`, it locks all of that campus's op
 ```json
 {
   "locked_groups": [
-    {"id": "grp-3", "riders": [{"first_name": "Sara", "ride_code": "CC-4821", "share_fils": 1620}]}
+    {"id": "grp-3", "riders": [{"first_name": "Sara", "ride_code": "CC-4821", "share_fils": 1913}]}
   ],
   "unmatched": [{"request_id": "req-15", "first_name": "Omar", "solo_fare_fils": 3900}]
 }
@@ -212,7 +213,7 @@ Every error uses one shape, so the UI needs one error handler:
 | 409 | `duplicate_request` | Student already has an active request in an overlapping window |
 | 409 | `group_locked` | Confirm or decline after lock |
 
-## Section 4: demo scenario and testing (proposed, awaiting approval)
+## Section 4: demo scenario and testing (approved)
 
 ### Demo seed: "4 p.m. at the main gate"
 
@@ -250,6 +251,3 @@ Stops and coordinates are placeholders until they are checked on a map. The numb
 
 The current credit-allocation demo (`allocation.py`, the existing routes and templates) stays as it is. The new `/api/v1/rides/` routes and the `pooling/` package sit beside it. Retiring the old demo is a separate decision for later.
 
-## Still to decide
-- The demo seed scenario and the numbers it must reproduce
-- Testing plan
