@@ -99,8 +99,11 @@ def can_join(members, newcomer, corridor: str, car_km: float, departed: datetime
             return None
         stop_name = newcomer["stop"] + " street"
     else:
-        stop_name, board_km = pickup_point(corridor, car_km)
-        if stop_name is None or newcomer["km"] <= board_km:
+        # Use the request's actual pickup point, never relocate a campus student
+        # to an arbitrary stop farther down the road after the car has left.
+        board_km = float(newcomer.get("start_km") or 0.0)
+        stop_name = CORRIDORS[corridor]["gate"] if board_km == 0 else newcomer["stop"] + " street"
+        if board_km < car_km or newcomer["km"] <= board_km:
             return None
 
     def rider(r):

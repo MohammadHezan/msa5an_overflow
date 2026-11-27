@@ -290,14 +290,23 @@ def test_c_to_campus_allows_only_a_street_pickup_still_ahead(empty):
 def test_c_someone_joins_on_the_way_both_pay_less(alone):
     client, zaid = alone
     post(client, f"/riders/{zaid['id']}/go")
-    post(client, "/clock", minutes="5")  # About 2 km out: the next point ahead is Sweileh (5 km)
+    # At the instant of departure, a second campus student can still board.
     book(client, "Ali", "Dabouq")
     riders, cars = state(client)
     car = riders["Zaid"]["plan"]
     assert riders["Ali"]["car"] == riders["Zaid"]["car"] and riders["Ali"]["status"] == "on_the_way"
-    assert car["boards"][riders["Ali"]["id"]] == "Sweileh"
+    assert car["boards"][riders["Ali"]["id"]] == "Main gate"
     assert riders["Zaid"]["share"] < riders["Zaid"]["solo"] and riders["Ali"]["share"] < riders["Ali"]["solo"]
     assert sum(car["shares"].values()) == car["car_fare"]
+
+
+def test_c_does_not_move_a_campus_student_to_a_street_ahead(alone):
+    client, zaid = alone
+    post(client, f"/riders/{zaid['id']}/go")
+    post(client, "/clock", minutes="5")
+    book(client, "Campus late", "Wadi As-Seer")
+    riders, _ = state(client)
+    assert riders["Campus late"]["car"] != riders["Zaid"]["car"]
 
 
 def test_c_rider_whose_stop_is_behind_the_car_cannot_join(alone):
