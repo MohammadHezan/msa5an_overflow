@@ -139,7 +139,19 @@
   const verificationPanel = document.getElementById("verification-form");
   const openVerification = document.getElementById("open-verification");
   if (openVerification && verificationPanel) {
-    openVerification.addEventListener("click", () => { verificationPanel.hidden = false; document.getElementById("verification-email").focus(); });
+    const showVerification = () => { verificationPanel.hidden = false; document.getElementById("verification-email").focus(); };
+    openVerification.addEventListener("click", (event) => { event.stopPropagation(); showVerification(); });
+    const campusRow = document.getElementById("campus-row");
+    campusRow.addEventListener("click", (event) => {
+      if (event.target.closest("button")) return;
+      showVerification();
+    });
+    campusRow.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        showVerification();
+      }
+    });
     document.getElementById("verification-back").addEventListener("click", () => { verificationPanel.hidden = true; openVerification.focus(); });
     document.getElementById("verify-submit").addEventListener("click", async () => {
       const email = document.getElementById("verification-email");
