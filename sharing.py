@@ -70,6 +70,29 @@ def _rider(r):
     The window starts when the student reaches the gate. Its length makes two windows overlap
     by at least MIN_WINDOW_MIN exactly when their class ends are within MAX_GAP minutes.
     """
+    direction = r.get("direction", "from_campus")
+    if r.get("corridor") is not None and r.get("start_km") is not None and r.get("end_km") is not None:
+        def local_time(value):
+            return _at(to_minutes(value)) if value else None
+
+        ready_at = local_time(r.get("ready_at"))
+        if ready_at is None and direction == "from_campus":
+            walk_seconds = min(int(r.get("start_side_m", 0)), config.MAX_WALK_M) / config.WALK_SPEED_MPS
+            ready_at = _at(to_minutes(r["class_end"])) + timedelta(seconds=walk_seconds)
+        arrive_by = local_time(r.get("arrive_by"))
+        if arrive_by is None and direction == "to_campus":
+            arrive_by = _at(to_minutes(r["class_start"])) - timedelta(minutes=5)
+        # The engine stores a valid legacy window too, for older callers and tests.
+        moment = ready_at or arrive_by
+        return Rider(
+            request_id=str(r["id"]), first_name=r["name"], gender=r["gender"], preference=r["preference"],
+            campus_id=DEMO_CAMPUS, meeting_point_id=CORRIDORS[r["corridor"]]["gate"],
+            stop_id=r["stop"], leave_after=moment,
+            leave_before=moment + timedelta(minutes=MAX_GAP + config.MIN_WINDOW_MIN),
+            direction=direction, corridor=r["corridor"], start_km=float(r["start_km"]),
+            start_side_m=int(r.get("start_side_m") or 0), end_km=float(r["end_km"]),
+            end_side_m=int(r.get("end_side_m") or 0), ready_at=ready_at, arrive_by=arrive_by,
+        )
     ready = to_minutes(r["class_end"]) + WALK
     return Rider(
         request_id=str(r["id"]), first_name=r["name"], gender=r["gender"], preference=r["preference"],
@@ -122,12 +145,15 @@ def group_problem(members):
     """Why these friends cannot share one car (gate, class-end gap, seats or ride option), or None."""
     if len(members) > SEATS:
         return f"A group has at most {SEATS} students."
-    gates = {CORRIDORS[STOPS[m["stop"]]["corridor"]]["gate"] for m in members}
-    if len(gates) > 1:
-        return "Everyone in a group leaves from the same gate."
-    ends = [to_minutes(m["class_end"]) for m in members]
-    if max(ends) - min(ends) > MAX_GAP:
-        return f"Everyone's class must end within {MAX_GAP} minutes of each other."
+    if len({m.get("direction", "from_campus") for m in members}) > 1:
+        return "Everyone in a friends group must travel in the same direction."
+    corridors = {STOPS[m["stop"]]["corridor"] for m in members}
+    if len(corridors) > 1:
+        return "Everyone in a friends group must be on the same corridor."
+    field = "class_start" if members[0].get("direction") == "to_campus" else "class_end"
+    values = [to_minutes(m[field]) for m in members]
+    if max(values) - min(values) > MAX_GAP:
+        return f"Everyone's times must be within {MAX_GAP} minutes of each other."
     if evaluate([_rider(m) for m in members], strict=False) is None:
         return "Someone in the group asked for a women-only or men-only car that the others can't join."
     return None

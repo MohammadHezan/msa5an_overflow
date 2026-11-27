@@ -31,18 +31,18 @@ SEAT_HOLD = timedelta(minutes=2)  # After matching, a student in a shared car ha
 WAIT_FOR_MATCH = timedelta(minutes=10)  # Option B for a student left alone
 EXTRA_STOP_BONUS = 100  # Fils per drop-off after the first, paid to the captain by Jeeny (not by students)
 
-# name, class ends, drop-off, gender, ride option ("mixed" | "women" | "men")
+# name, class end, neighborhood, gender, preference, direction, class start
 FIXTURE = (
-    ("Sara", "16:00", "Dabouq", "woman", "women"),
-    ("Rama", "15:55", "Al Bayader", "woman", "women"),
-    ("Huda", "16:00", "Wadi As-Seer", "woman", "women"),
-    ("Kareem", "16:05", "Khalda", "man", "mixed"),
-    ("Omar", "16:10", "Shafa Badran", "man", "mixed"),
-    ("Yazan", "16:20", "Abu Nseir", "man", "mixed"),
-    ("Lina", "16:15", "Al Jubeiha", "woman", "mixed"),
-    ("Leen", "13:00", "Um Al Summaq", "woman", "women"),
-    ("Dana", "13:10", "Abdoun", "woman", "mixed"),
-    ("Zaid", "18:00", "Marka", "man", "mixed"),
+    ("Sara", "16:00", "Dabouq", "woman", "women", "from_campus", None),
+    ("Rama", "15:55", "Al Bayader", "woman", "women", "from_campus", None),
+    ("Huda", "16:00", "Wadi As-Seer", "woman", "women", "from_campus", None),
+    ("Kareem", "16:05", "Khalda", "man", "mixed", "from_campus", None),
+    ("Omar", "16:10", "Shafa Badran", "man", "mixed", "from_campus", None),
+    ("Yazan", "16:20", "Abu Nseir", "man", "mixed", "from_campus", None),
+    ("Lina", "16:15", "Al Jubeiha", "woman", "mixed", "from_campus", None),
+    ("Leen", "13:00", "Um Al Summaq", "woman", "women", "from_campus", None),
+    ("Dana", "13:10", "Abdoun", "woman", "mixed", "from_campus", None),
+    ("Zaid", "18:00", "Marka", "man", "mixed", "from_campus", None),
 )
 
 
@@ -60,7 +60,8 @@ def _busy_wave():
                 preference = "women"
             elif gender == "man" and i % 7 == 3:
                 preference = "men"
-            rows.append((name, rng.choice(["15:55", "16:00", "16:00", "16:05"]), rng.choice(stops), gender, preference))
+            rows.append((name, rng.choice(["15:55", "16:00", "16:00", "16:05"]), rng.choice(stops),
+                         gender, preference, "from_campus", None))
     return tuple(rows)
 
 
@@ -77,6 +78,9 @@ RIDER_COLUMNS = {  # Columns added after the first release, with their definitio
     "ride_code": "TEXT", "gender": "TEXT", "preference": "TEXT NOT NULL DEFAULT 'mixed'", "friend_group": "TEXT",
     "hold_until": "TEXT", "choice": "TEXT", "wait_until": "TEXT", "board_km": "REAL",
     "released": "INTEGER NOT NULL DEFAULT 0",
+    "direction": "TEXT NOT NULL DEFAULT 'from_campus'", "class_start": "TEXT", "corridor": "TEXT",
+    "start_km": "REAL", "start_side_m": "INTEGER NOT NULL DEFAULT 0",
+    "end_km": "REAL", "end_side_m": "INTEGER NOT NULL DEFAULT 0",
 }
 BATCH_COLUMNS = {"created_at": "TEXT", "clock_offset": "INTEGER NOT NULL DEFAULT 0", "clock_start": "TEXT"}
 
@@ -107,7 +111,9 @@ def database():
                 gender TEXT, preference TEXT NOT NULL DEFAULT 'mixed',
                 car INTEGER, declined INTEGER NOT NULL DEFAULT 0, confirmed_plan TEXT, ride_code TEXT,
                 friend_group TEXT, hold_until TEXT, choice TEXT, wait_until TEXT, board_km REAL,
-                released INTEGER NOT NULL DEFAULT 0,
+                released INTEGER NOT NULL DEFAULT 0, direction TEXT NOT NULL DEFAULT 'from_campus',
+                class_start TEXT, corridor TEXT, start_km REAL, start_side_m INTEGER NOT NULL DEFAULT 0,
+                end_km REAL, end_side_m INTEGER NOT NULL DEFAULT 0,
                 UNIQUE(batch, student_key)
             );
             CREATE TABLE IF NOT EXISTS join_codes (
@@ -183,11 +189,28 @@ def _at(stamp):
     return datetime.fromisoformat(stamp) if stamp else None
 
 
-def add_rider(db, batch, name, class_end, stop, gender, preference, friend_group=None):
+def _street_location(name, stop, direction):
+    """Repeatable simulated location within ±1 km of a preset stop and 0–400 m from its road."""
+    seed = int.from_bytes(hashlib.sha256(name.casefold().encode()).digest()[:8], "big")
+    rng = random.Random(seed)
+    place = STOPS[stop]
+    km = max(0.2, place["km"] + rng.uniform(-1, 1))
+    side = rng.randint(0, 400)
+    campus_side = rng.randint(0, 400)
+    if direction == "from_campus":
+        return place["corridor"], 0.0, campus_side, km, side
+    return place["corridor"], km, side, 0.0, campus_side
+
+
+def add_rider(db, batch, name, class_end, stop, gender, preference, direction="from_campus",
+              class_start=None, friend_group=None):
+    corridor, start_km, start_side_m, end_km, end_side_m = _street_location(name, stop, direction)
     return db.execute(
-        "INSERT INTO riders (batch, name, student_key, class_end, stop, gender, preference, friend_group) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (batch, name, name.casefold(), class_end, stop, gender, preference, friend_group),
+        "INSERT INTO riders (batch, name, student_key, class_end, class_start, stop, gender, preference, "
+        "friend_group, direction, corridor, start_km, start_side_m, end_km, end_side_m) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (batch, name, name.casefold(), class_end, class_start, stop, gender, preference, friend_group,
+         direction, corridor, start_km, start_side_m, end_km, end_side_m),
     ).lastrowid
 
 
@@ -340,14 +363,20 @@ def summarize(riders, cars):
     }
 
 
-def check_request(name, class_end, stop, gender, preference):
-    """Validate one ride request. Returns the cleaned name."""
+def check_request(name, class_end, stop, gender, preference, direction="from_campus", class_start=None):
+    """Validate a homebound or campus-bound request. Returns the cleaned name."""
     name = " ".join(name.split())
-    try:
-        valid_time = datetime.strptime(class_end, "%H:%M").strftime("%H:%M") == class_end and "08:00" <= class_end <= "21:00"
-    except ValueError:
-        valid_time = False
-    if not 1 <= len(name) <= 40 or stop not in STOPS or not valid_time or gender not in ("woman", "man") \
+    def valid_time(value, earliest="06:00", latest="23:00"):
+        try:
+            return datetime.strptime(value or "", "%H:%M").strftime("%H:%M") == value and earliest <= value <= latest
+        except ValueError:
+            return False
+
+    valid_schedule = (
+        direction == "from_campus" and valid_time(class_end, "08:00", "21:00")
+        or direction == "to_campus" and valid_time(class_start, "07:00", "23:00")
+    )
+    if not 1 <= len(name) <= 40 or stop not in STOPS or not valid_schedule or direction not in ("to_campus", "from_campus") or gender not in ("woman", "man") \
             or preference not in PREFERENCES:
         raise Problem("invalid_input", "Enter a name, a drop-off, and a class end time between 08:00 and 21:00.", 400)
     if preference == "women" and gender != "woman":
@@ -370,7 +399,8 @@ def _new_group_code(db, batch_id):
     return secrets.choice(free)
 
 
-def insert_request(db, batch, name, class_end, stop, gender, preference, friends=None):
+def insert_request(db, batch, name, class_end, stop, gender, preference, friends=None,
+                   direction="from_campus", class_start=None):
     """Save a checked request. Call inside a locked_batch transaction.
 
     friends: None (just me), {"mode": "start", "open": bool} or {"mode": "join", "code": "GR-48"}.
@@ -394,11 +424,13 @@ def insert_request(db, batch, name, class_end, stop, gender, preference, friends
             "SELECT * FROM riders WHERE batch = ? AND friend_group = ?", (batch["id"], code))]
         if len(members) >= SEATS:
             raise Problem("group_full", f"That group already has {SEATS} students.")
-        newcomer = {"id": 0, "name": name, "class_end": class_end, "stop": stop, "gender": gender, "preference": preference}
+        newcomer = {"id": 0, "name": name, "class_end": class_end, "class_start": class_start,
+                    "stop": stop, "gender": gender, "preference": preference, "direction": direction}
         problem = group_problem(members + [newcomer])
         if problem:
             raise Problem("group_mismatch", problem)
-    rider_id = add_rider(db, batch["id"], name, class_end, stop, gender, preference, code)
+    rider_id = add_rider(db, batch["id"], name, class_end, stop, gender, preference,
+                         direction, class_start, friend_group=code)
     if batch["matched"]:
         place_late_request(db, batch, rider_id)
     return rider_id

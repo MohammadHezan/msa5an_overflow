@@ -25,6 +25,16 @@ class Rider:
     quoted_share: int | None = None  # set once confirmed; later groupings may never charge more
     gender: str | None = None  # "woman" or "man"
     preference: str = "mixed"  # "mixed" | "women" | "men"
+    # Optional street geometry. When provided, `corridor` and `direction` replace the
+    # single fixed gate/drop-off model above. Km values are measured outward from campus.
+    direction: str = "from_campus"  # "from_campus" | "to_campus"
+    corridor: str | None = None
+    start_km: float | None = None
+    start_side_m: int = 0
+    end_km: float | None = None
+    end_side_m: int = 0
+    ready_at: datetime | None = None  # from_campus; class end plus walk to street
+    arrive_by: datetime | None = None  # to_campus; class start minus 5 minutes
 
 
 @dataclass(frozen=True)
@@ -38,6 +48,9 @@ class GroupPlan:
     in_car_km: dict[str, float]
     pickup_time: datetime
     arrival: dict[str, datetime]
+    board_km: dict[str, float] | None = None
+    drop_km: dict[str, float] | None = None
+    walk_m: dict[str, int] | None = None
 
     @property
     def ids(self) -> frozenset[str]:
@@ -67,6 +80,18 @@ def basic_ok(riders: Sequence[Rider]) -> tuple[datetime, datetime] | None:
     if not 1 <= len(riders) <= config.MAX_RIDERS:
         return None
     first = riders[0]
+    if first.corridor is not None:
+        if any(r.direction != first.direction or r.corridor != first.corridor for r in riders):
+            return None
+        if first.direction == "from_campus":
+            ready = [r.ready_at for r in riders]
+            if any(t is None for t in ready) or max(ready) - min(ready) > timedelta(minutes=config.MAX_GAP_MIN):
+                return None
+            return min(ready), max(ready)
+        deadlines = [r.arrive_by for r in riders]
+        if any(t is None for t in deadlines) or max(deadlines) - min(deadlines) > timedelta(minutes=config.MAX_GAP_MIN):
+            return None
+        return min(deadlines), max(deadlines)
     if any((r.campus_id, r.meeting_point_id) != (first.campus_id, first.meeting_point_id) for r in riders):
         return None
     if not gender_ok(riders):
@@ -87,6 +112,8 @@ def evaluate(riders: Sequence[Rider], strict: bool = True) -> GroupPlan | None:
     if window is None:
         return None
     first = riders[0]
+    if first.corridor is not None:
+        return _evaluate_street(riders, strict, window)
     pickup = window[0]
 
     origin = CAMPUSES[first.campus_id].meeting_points[first.meeting_point_id]
@@ -131,3 +158,140 @@ def evaluate(riders: Sequence[Rider], strict: bool = True) -> GroupPlan | None:
             arrival={rid: pickup + timedelta(minutes=minutes_for(k)) for rid, k in in_car.items()},
         )
     return best
+
+
+def _walk_distance(side_m: int) -> int:
+    return min(max(0, int(side_m)), config.MAX_WALK_M)
+
+
+def _turn_km(side_m: int) -> float:
+    return 2 * max(0, int(side_m) - config.MAX_WALK_M) / 1000
+
+
+def _street_shares(total: int, rider_ids: list[str], segments: list[tuple[float, tuple[str, ...]]],
+                   caps: dict[str, int]) -> dict[str, int]:
+    """Split start fare equally and each road segment equally among its occupants.
+
+    Segment lengths include the captain's short turn-ins. A capped largest-remainder pass
+    keeps every share at or below the corresponding solo fare while conserving every fils.
+    """
+    if not rider_ids:
+        return {}
+    raw = {rid: total / len(rider_ids) * 0 for rid in rider_ids}
+    start = min(total, config.START_DAY)
+    for rid in rider_ids:
+        raw[rid] = start / len(rider_ids)
+    km_total = sum(length for length, _ in segments)
+    variable = max(0, total - start)
+    rate = variable / km_total if km_total else 0
+    for length, occupants in segments:
+        if not occupants:
+            continue
+        amount = length * rate / len(occupants)
+        for rid in occupants:
+            raw[rid] += amount
+    # Largest-remainder allocation subject to solo-fare caps.
+    exact = {rid: raw[rid] for rid in rider_ids}
+    shares = {rid: min(caps[rid], int(exact[rid])) for rid in rider_ids}
+    remainder = total - sum(shares.values())
+    while remainder > 0:
+        eligible = [rid for rid in rider_ids if shares[rid] < caps[rid]]
+        if not eligible:
+            # Mathematically impossible for valid inputs (car fare <= summed solo fares).
+            return {}
+        rid = max(eligible, key=lambda item: (exact[item] - int(exact[item]), -rider_ids.index(item)))
+        shares[rid] += 1
+        remainder -= 1
+    return shares
+
+
+def _evaluate_street(riders: tuple[Rider, ...], strict: bool, window) -> GroupPlan | None:
+    """Evaluate one direction along a simulated corridor with street pickups and drop-offs."""
+        from_campus = riders[0].direction == "from_campus"
+    if riders[0].direction not in ("from_campus", "to_campus"):
+        return None
+    first = riders[0]
+    if from_campus:
+        board = {r.request_id: 0.0 for r in riders}
+        drop = {r.request_id: float(r.end_km) for r in riders}
+        solo = {r.request_id: abs(drop[r.request_id]) + _turn_km(r.start_side_m) + _turn_km(r.end_side_m)
+                for r in riders}
+        # A single car starts from the campus edge and reaches each destination once.
+        ordered = tuple(sorted(riders, key=lambda r: (drop[r.request_id], r.request_id)))
+        route_events = [(r.request_id, drop[r.request_id], _turn_km(r.end_side_m)) for r in ordered]
+        route_km = max((drop[r.request_id] for r in riders), default=0.0) + sum(
+            _turn_km(r.start_side_m) + _turn_km(r.end_side_m) for r in riders
+        )
+        end_time = max(r.ready_at for r in riders)
+        start_time = end_time
+        # All passengers board at campus; each segment is shared by riders not yet dropped.
+        marks = sorted({0.0, *(drop[r.request_id] for r in riders)})
+        segments = []
+        for lo, hi in zip(marks, marks[1:]):
+            onboard = tuple(r.request_id for r in riders if drop[r.request_id] >= hi)
+            if hi > lo and onboard:
+                segments.append((hi - lo, onboard))
+        for rid, km, turn in route_events:
+            if turn:
+                segments.append((turn, tuple(r.request_id for r in riders if drop[r.request_id] >= km)))
+        # Campus side turn-in is a shared first segment.
+        campus_turn = sum(_turn_km(r.start_side_m) for r in riders)
+        if campus_turn:
+            segments.insert(0, (campus_turn, tuple(r.request_id for r in riders)))
+    else:
+        board = {r.request_id: float(r.start_km) for r in riders}
+        drop = {r.request_id: 0.0 for r in riders}
+        solo = {r.request_id: abs(board[r.request_id]) + _turn_km(r.start_side_m) + _turn_km(r.end_side_m)
+                for r in riders}
+        ordered = tuple(sorted(riders, key=lambda r: (-board[r.request_id], r.request_id)))
+        route_km = max(board.values(), default=0.0) + sum(
+            _turn_km(r.start_side_m) + _turn_km(r.end_side_m) for r in riders
+        )
+        marks = sorted({0.0, *board.values()}, reverse=True)
+        segments = []
+        for hi, lo in zip(marks, marks[1:]):
+            onboard = tuple(r.request_id for r in riders if board[r.request_id] >= hi)
+            if hi > lo and onboard:
+                segments.append((hi - lo, onboard))
+        for r in ordered:
+            turn = _turn_km(r.start_side_m)
+            if turn:
+                segments.append((turn, tuple(x.request_id for x in ordered if board[x.request_id] >= board[r.request_id])))
+        campus_turn = sum(_turn_km(r.end_side_m) for r in riders)
+        if campus_turn:
+            segments.append((campus_turn, tuple(r.request_id for r in riders)))
+        deadline = min(r.arrive_by for r in riders)
+        start_time = deadline - timedelta(hours=route_km / config.SPEED_KMH)
+        end_time = start_time + timedelta(hours=route_km / config.SPEED_KMH)
+
+    # The tariff is fixed to the approved day rate for this demo.
+    fare = config.START_DAY + round(config.PER_KM_DAY * route_km)
+    solo_fares = {r.request_id: config.START_DAY + round(config.PER_KM_DAY * solo[r.request_id]) for r in riders}
+    rider_ids = [r.request_id for r in riders]
+    shares = _street_shares(fare, rider_ids, segments, solo_fares)
+    if not shares:
+        return None
+    in_car = {r.request_id: (abs(drop[r.request_id] - board[r.request_id]) +
+                             _turn_km(r.start_side_m) + _turn_km(r.end_side_m)) for r in riders}
+    if strict:
+        if any(in_car[r.request_id] > min(solo[r.request_id] * config.DETOUR_RATIO,
+                                         solo[r.request_id] + config.DETOUR_EXTRA_KM) + 1e-9 for r in riders):
+            return None
+        if len(riders) > 1 and any(shares[rid] > (1 - config.MIN_SAVING) * solo_fares[rid] for rid in shares):
+            return None
+        if any(r.quoted_share is not None and shares[r.request_id] > r.quoted_share for r in riders):
+            return None
+    arrivals = {}
+    if from_campus:
+        for r in riders:
+            arrivals[r.request_id] = start_time + timedelta(hours=drop[r.request_id] / config.SPEED_KMH)
+    else:
+        max_km = max(board.values(), default=0)
+        for r in riders:
+            arrivals[r.request_id] = start_time + timedelta(hours=(max_km - board[r.request_id]) / config.SPEED_KMH)
+    return GroupPlan(
+        riders=ordered, route_km=route_km, car_fare=fare, shares=shares, solo_km=solo,
+        solo_fare=solo_fares, in_car_km=in_car, pickup_time=start_time, arrival=arrivals,
+        board_km=board, drop_km=drop,
+        walk_m={r.request_id: _walk_distance(r.start_side_m) for r in riders},
+    )
