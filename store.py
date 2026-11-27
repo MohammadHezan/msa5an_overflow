@@ -720,7 +720,7 @@ def captain_sheets(riders, cars):
             "plan": plan, "captain": plan["captain"], "stops": stops,
             "steps": steps,
             "codes": [(m["name"], by_id[m["id"]]["ride_code"]) for m in plan["members"]],
-            "bonus": EXTRA_STOP_BONUS * (len(stops) - 1),
+            "bonus": EXTRA_STOP_BONUS * (len(plan["members"]) - 1),
         })
     return sheets
 
