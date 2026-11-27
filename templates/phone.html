@@ -286,17 +286,19 @@
             <span class="grab" aria-hidden="true"></span>
             {% if selected.status in ("confirmed",) %}
               <div class="booked">✓ Booked</div>
-              <h2>See you at the {{ plan.gate | lower }} at {{ plan.pickup }}</h2>
+              <h2>{% if selected.direction == "to_campus" %}Pickup near {{ selected.stop }} at {{ plan.rider_times[selected.id] }}{% else %}Car at your campus street at {{ plan.rider_times[selected.id] }}{% endif %}</h2>
             {% if selected.ride_code %}
               <div class="ride-code-card">
                 <small>Show this to your driver</small>
                 <strong>{{ selected.ride_code }}</strong>
-                <span>The driver checks it at the {{ plan.gate | lower }} before you get in.</span>
+                <span>The driver checks it when you get in.</span>
               </div>
             {% endif %}
             {% else %}
               <p class="eyebrow">Your shared ride</p>
-              <h2>Meet at the {{ plan.gate | lower }} at {{ plan.pickup }}</h2>
+              <h2>{% if selected.direction == "to_campus" %}Pickup near {{ selected.stop }} at {{ plan.rider_times[selected.id] }}{% else %}Car at your campus street at {{ plan.rider_times[selected.id] }}{% endif %}</h2>
+              <p class="street-meta">{{ selected.stop }} corridor · {{ selected.km | round(1) }} km · Walk {{ (plan.walk_m[selected.id] / 1.4 / 60) | round(0, "ceil") | int }} min to the street</p>
+              {% if selected.direction == "to_campus" %}<p class="street-meta">Arrive at campus by {{ selected.class_start }}.</p>{% endif %}
               {% if selected.hold_until %}<p class="warn">Your seat is held for {{ ((selected.hold_until - now).total_seconds() / 60) | round(0, "ceil") | int }} more min. Confirm before then or it goes back to the others.</p>{% endif %}
             {% endif %}
             <div class="riders">
@@ -309,24 +311,27 @@
               <div class="saved">You save {{ (selected.solo - selected.share) | jod }}</div>
             </div>
             <ol class="stops">
-              <li class="pick"><span class="pin"></span><span><strong>{{ plan.gate }}</strong><small>Pickup {{ plan.pickup }} · everyone gets in together</small></span></li>
+              {% if selected.direction == "from_campus" %}
+                <li class="pick"><span class="pin"></span><span><strong>Campus street</strong><small>Walk {{ (plan.walk_m[selected.id] / 1.4 / 60) | round(0, "ceil") | int }} min · car starts {{ plan.pickup }}</small></span></li>
+              {% endif %}
               {% for m in plan.members %}
                 <li{% if m.id == selected.id %} class="me"{% endif %}>
                   <span class="pin">{{ loop.index }}</span>
-                  <span><strong>{{ m.stop }}</strong><small>{{ m.name }}{% if m.id == selected.id %} (you){% endif %} · {{ m.km }} km</small></span>
+                  <span><strong>{{ m.stop }}{% if selected.direction == "to_campus" %} street{% endif %}</strong><small>{% if selected.direction == "to_campus" %}Pickup {{ plan.rider_times[m.id] }}{% else %}{{ m.name }}{% if m.id == selected.id %} (you){% endif %} · {{ m.km | round(1) }} km{% endif %}</small></span>
                   <span class="amt">{{ plan.shares[m.id] | jod }}</span>
                 </li>
               {% endfor %}
+              {% if selected.direction == "to_campus" %}<li class="pick"><span class="pin"></span><span><strong>{{ plan.gate }}</strong><small>Arrive by {{ selected.class_start }}</small></span></li>{% endif %}
             </ol>
             {% set total_km = plan.members | sum(attribute="km") %}
             <details class="how" open>
               <summary>How your share is worked out</summary>
               <ol>
                 <li><span>Car fare <small>JOD {{ "%.3f" | format(rules.base / 1000) }} + JOD {{ "%.3f" | format(rules.per_km / 1000) }} × {{ "%g" | format(plan.route_km) }} route km</small></span><b>{{ plan.car_fare | jod }}</b></li>
-                <li><span>Your part <small>your {{ "%g" | format(selected.km) }} km of everyone's {{ "%g" | format(total_km) }} km × {{ plan.car_fare | jod }}</small></span><b>{{ selected.share | jod }}</b></li>
+                <li><span>Your part <small>{% if plan.street %}{% for part in plan.segment_breakdown[selected.id] %}{{ part.km }} km shared by {{ part.riders }}{% if not loop.last %}; {% endif %}{% endfor %}{% else %}your {{ "%g" | format(selected.km) }} km of everyone's {{ "%g" | format(total_km) }} km × {{ plan.car_fare | jod }}{% endif %}</small></span><b>{{ selected.share | jod }}</b></li>
                 <li><span>Shares add up to the car fare <small>{% for m in plan.members %}{{ "%.2f" | format(plan.shares[m.id] / 1000) }}{% if not loop.last %} + {% endif %}{% endfor %} = {{ "%.2f" | format(plan.shares.values() | sum / 1000) }}</small></span><b>✓</b></li>
               </ol>
-              <p>One regular Jeeny ride at the regulated LTRC app fare, split by how far each student rides.</p>
+              <p>One regulated Jeeny fare. The start fare is split equally; each street-distance segment is split among the riders aboard.</p>
             </details>
             {% if selected.status == "changed" %}<p class="warn">Someone left this car, so your plan changed. Review it and confirm again.</p>{% endif %}
             {% if selected.status in ("review", "changed") %}

@@ -316,6 +316,10 @@ def load_riders(db, batch, at=None):
             "LEFT JOIN friend_groups ON friend_groups.batch = riders.batch AND friend_groups.code = riders.friend_group "
             "WHERE riders.batch = ? ORDER BY class_end, id", (batch["id"],))
     ]
+    for rider in riders:
+        if rider["start_km"] is not None and rider["end_km"] is not None:
+            solo_plan = plan_car([rider])
+            rider["solo"] = solo_plan["shares"][rider["id"]]
     car_rows = {row["car"]: row for row in db.execute(
         "SELECT cars.*, captains.name AS captain_name, captains.gender AS captain_gender FROM cars "
         "LEFT JOIN captains ON captains.id = cars.captain WHERE batch = ?", (batch["id"],))}
@@ -442,8 +446,11 @@ def insert_request(db, batch, name, class_end, stop, gender, preference, friends
             "SELECT * FROM riders WHERE batch = ? AND friend_group = ?", (batch["id"], code))]
         if len(members) >= SEATS:
             raise Problem("group_full", f"That group already has {SEATS} students.")
+        corridor, start_km, start_side_m, end_km, end_side_m = _street_location(name, stop, direction)
         newcomer = {"id": 0, "name": name, "class_end": class_end, "class_start": class_start,
-                    "stop": stop, "gender": gender, "preference": preference, "direction": direction}
+                    "stop": stop, "gender": gender, "preference": preference, "direction": direction,
+                    "corridor": corridor, "start_km": start_km, "start_side_m": start_side_m,
+                    "end_km": end_km, "end_side_m": end_side_m}
         problem = group_problem(members + [newcomer])
         if problem:
             raise Problem("group_mismatch", problem)
