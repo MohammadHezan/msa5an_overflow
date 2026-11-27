@@ -36,7 +36,7 @@ def main():
                         f"http://127.0.0.1:{server.server_port}",
                         f"http://127.0.0.1:{offline.getsockname()[1]}",
                     ],
-                    cwd=ROOT / "mobile",
+                    cwd=ROOT / "artifacts" / "campus-connect",
                     timeout=90,
                     check=False,
                 )

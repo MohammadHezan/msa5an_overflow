@@ -67,7 +67,7 @@ export function JoinScreen() {
           <Banner
             tone="error"
             title="Backend not configured"
-            message="Set EXPO_PUBLIC_API_URL in mobile/.env to the backend's HTTPS origin, then restart Metro."
+            message="Set EXPO_PUBLIC_API_URL in artifacts/campus-connect/.env to the backend's HTTPS origin, then restart the mobile preview."
             testID="config-missing"
           />
         ) : health === 'down' ? (

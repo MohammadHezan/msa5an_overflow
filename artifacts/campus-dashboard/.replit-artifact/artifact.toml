@@ -1,0 +1,24 @@
+kind = "web"
+previewPath = "/"
+title = "Campus Connect Dashboard"
+description = "The existing Flask operator dashboard and /api/v1 backend, preserved on port 5000 alongside the student phone preview."
+version = "1.0.0"
+id = "artifacts/campus-dashboard"
+router = "path"
+
+[[services]]
+name = "web"
+ensurePreviewReachable = "/api/v1/health"
+paths = ["/"]
+localPort = 5000
+
+[services.development]
+run = "cd ../.. && python app.py"
+
+[services.production]
+build = ["sh", "-c", "cd ../.. && python -m pip install -r requirements.txt"]
+run = ["sh", "-c", "cd ../.. && python app.py"]
+
+[services.env]
+PORT = "5000"
+BASE_PATH = "/"

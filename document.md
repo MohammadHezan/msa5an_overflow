@@ -100,7 +100,7 @@ The fixture produces five cars:
 | Operations | The Matching view runs matching for the batch and the Trips view lists every car. | Keep the dashboard on Replit. Connect it to the same batch and rules as the Expo app. |
 | Rules | `sharing.py` holds corridors, stops, fare rules, CP-SAT grouping and the per-car price split. | Reuse it unchanged from both the HTML routes and the JSON API. |
 
-Keep one repository. `mobile/` will be a separate Expo project with its own dependencies. Keep the Flask files at the repo root during the first integration so the Replit Run command stays usable.
+Keep one repository. The first integration used a standalone `mobile/` Expo project. For Replit-hosted phone previews, that same app now lives in `artifacts/campus-connect/` in a pnpm workspace. Flask files and data remain at the repo root; the separate dashboard artifact runs them on port 5000.
 
 ## Task ownership and build order
 
@@ -170,11 +170,11 @@ For additional scenarios, generate requests from a recorded random seed. Vary th
 | --- | --- | --- |
 | Backend root `.env` | `PORT` | Flask port. The Replit config currently maps port 5000. |
 | Backend root `.env` or Replit Secrets | `SESSION_SECRET` | Signs Flask browser sessions. Set a unique value for your deployment. The actual local file is ignored by Git. |
-| `mobile/.env` | `EXPO_PUBLIC_API_URL` | Public HTTPS origin used by the Expo app, with no API path. Copy `mobile/.env.example`. |
+| `artifacts/campus-connect/.env` (optional) | `EXPO_PUBLIC_API_URL` | Explicit backend HTTPS origin, with no API path. Unset on Replit to use its automatically supplied backend domain. |
 
 **Current backend.** Copy [the backend template](.env.example) to `.env` on a new checkout. Run `python -m pip install -r requirements.txt` and then `python app.py`, or click **Run** in Replit. The app loads `.env` at startup and existing process variables take precedence. Configure backend secrets via Replit Secrets. [Replit Secrets](https://docs.replit.com/core-concepts/project-editor/app-setup/secrets)
 
-**Expo app (M1).** `mobile/` is a TypeScript Expo SDK 58 project (pnpm). Run `pnpm install` there, copy `mobile/.env.example` to `mobile/.env` with the backend's HTTPS origin, and start Metro with `pnpm start`; open it in Expo Go on the phone. The join screen calls `/api/v1/health` first and shows whether the origin is reachable. A phone's `localhost` points to the phone. See [mobile/README.md](mobile/README.md) for the screens, retry rules and error handling. [Expo setup](https://docs.expo.dev/get-started/create-a-project/) · [React Native networking](https://reactnative.dev/docs/network.html)
+**Expo app (M1).** The TypeScript Expo SDK 58 app moved from `mobile/` to `artifacts/campus-connect/`. Click **Run** in Replit, select **Campus Connect**, and scan the URL-bar menu's Expo Go QR code. The managed startup supplies the public backend domain automatically; no local Metro server or `.env` copy is needed. The join screen calls `/api/v1/health` first and shows whether the origin is reachable. An explicit `EXPO_PUBLIC_API_URL` overrides automatic configuration; a phone's `localhost` points to the phone. See [the student app guide](artifacts/campus-connect/README.md) for local development, screens, retries and errors. [Expo setup](https://docs.expo.dev/get-started/create-a-project/) · [React Native networking](https://reactnative.dev/docs/network.html)
 
 **Client settings are visible.** Expo embeds `EXPO_PUBLIC_*` values in the bundle. Keep server secrets out of them. [Expo environment variables](https://docs.expo.dev/guides/environment-variables/)
 

@@ -102,10 +102,12 @@ export class ApiError extends Error {
   }
 }
 
-/** The configured backend origin without a trailing slash, or null when EXPO_PUBLIC_API_URL is unset. */
+/** Explicit origin wins; Replit's managed preview supplies the backend domain. */
 export function configuredApiUrl(): string | null {
   const raw = (process.env.EXPO_PUBLIC_API_URL ?? '').trim().replace(/\/+$/, '');
-  return raw.length > 0 ? raw : null;
+  if (raw) return raw;
+  const domain = (process.env.EXPO_PUBLIC_DOMAIN ?? '').trim();
+  return domain ? `https://${domain}` : null;
 }
 
 type RequestOptions = { method?: 'GET' | 'POST'; token?: string | null; body?: unknown };

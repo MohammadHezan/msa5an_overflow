@@ -1,3 +1,3 @@
-- [Expo app is standalone](mobile-app-setup.md) — mobile/ is deliberately not a Replit artifact; don't convert it unless asked.
+- [Flask and Expo previews](mobile-app-setup.md) — keep the dashboard and native preview in separate artifacts to avoid phone manifest routing conflicts.
 - [Ordered brief workflow](brief-workflow.md) — numbered briefs run one phase at a time, with tests, phone Preview, commit, and a report before the next phase.
 - [Yalla Ride product rules](product-rules.md) — profile supplies name/gender/direction; fare = total car fare split per km ridden.
