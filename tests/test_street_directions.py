@@ -101,3 +101,28 @@ def test_time_gap_uses_ready_at_and_arrive_by():
         street("a", "to_campus", 8, 0, arrive_by=at("08:00")),
         street("b", "to_campus", 9, 0, arrive_by=at("08:11")),
     ]) is None
+
+
+def test_other_riders_turn_ins_count_toward_street_detour():
+    riders = [
+        street("short", "from_campus", 0, 1, ready_at=at("16:00")),
+        *(street(str(i), "from_campus", 0, 8, ready_at=at("16:00"), start_side=400)
+          for i in range(3)),
+    ]
+    relaxed = evaluate(riders, strict=False)
+    assert relaxed.in_car_km["short"] > relaxed.solo_km["short"] * 1.5
+    assert evaluate(riders) is None
+
+
+def test_street_cars_enforce_preferences_seats_and_individual_savings():
+    from dataclasses import replace
+
+    woman = street("woman", "from_campus", 0, 8, ready_at=at("16:00"),
+                   gender="woman", preference="women")
+    man = replace(woman, request_id="man", gender="man", preference="mixed")
+    assert evaluate([woman, man]) is None
+    women = [replace(woman, request_id=str(i)) for i in range(4)]
+    plan = evaluate(women)
+    assert plan is not None
+    assert all(plan.shares[rid] <= .75 * plan.solo_fare[rid] for rid in plan.shares)
+    assert evaluate([*women, replace(woman, request_id="fifth")]) is None
