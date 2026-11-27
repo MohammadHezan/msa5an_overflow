@@ -513,11 +513,13 @@ def choose(db, batch, rider_id, choice):
     rider = next((r for r in riders if r["id"] == rider_id), None)
     if not rider:
         raise Problem("not_found", "No such rider in this batch.", 404)
-    if choice == "wait" and rider["status"] == "no_match":
+    alone = rider["plan"] is not None and not rider["plan"]["shared"] and not rider["plan"].get("go")
+    if choice == "wait" and alone and rider["status"] in ("no_match", "changed"):
         db.execute("UPDATE riders SET choice = 'wait', wait_until = ? WHERE id = ?",
                    ((clock(batch) + WAIT_FOR_MATCH).isoformat(), rider_id))
-    elif choice == "go" and rider["status"] in ("no_match", "waiting_match"):
-        db.execute("UPDATE riders SET choice = 'go', wait_until = NULL, board_km = 0 WHERE id = ?", (rider_id,))
+    elif choice == "go" and alone and rider["status"] in ("no_match", "changed", "waiting_match"):
+        db.execute("UPDATE riders SET choice = 'go', wait_until = NULL, board_km = 0, confirmed_plan = NULL WHERE id = ?",
+                   (rider_id,))
         db.execute("INSERT INTO cars (batch, car, mode, departed_at) VALUES (?, ?, 'go', ?) "
                    "ON CONFLICT(batch, car) DO UPDATE SET mode = 'go', departed_at = excluded.departed_at",
                    (batch["id"], rider["car"], clock(batch).isoformat()))

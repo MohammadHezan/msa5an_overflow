@@ -16,11 +16,13 @@
       "waiting": ("waiting", "Waiting for matching"), "review": ("waiting", "Review plan"),
       "changed": ("waiting", "Plan changed"), "confirmed": ("success", "Confirmed"),
       "no_match": ("neutral", "No match yet"), "solo_confirmed": ("neutral", "Riding alone"),
-      "declined": ("neutral", "Declined")} %}
+      "declined": ("neutral", "Declined"), "waiting_match": ("waiting", "Waiting for a match"),
+      "on_the_way": ("success", "On the way"), "arrived": ("success", "Arrived")} %}
     <span class="status {{ labels[rider.status][0] }}">{{ labels[rider.status][1] }}</span>
   {% endmacro %}
   {% macro tags(rider) %}
-    {% if rider.women_only %}<span class="tag women">Women only</span>{% endif %}
+    {% if rider.preference == "women" %}<span class="tag women">Women only</span>{% elif rider.preference == "men" %}<span class="tag men">Men only</span>{% endif %}
+    {% if rider.friend_group %}<span class="tag group">{{ rider.friend_group }}{% if not rider.group_open %} · closed{% endif %}</span>{% endif %}
   {% endmacro %}
   {% macro ride_map(plan, you=none) %}
     {% set m = route_map(plan.gate, plan.members | map(attribute="stop") | list) %}
@@ -55,11 +57,11 @@
     <section class="hero">
       <div>
         <p class="location">AMMAN CAMPUS <span>·</span> {{ date_label }}</p>
-        <h1>{{ {"book": "One pickup. One car. A smaller fare.", "match": "Group students going the same way.", "trips": "Every car leaving campus."}[active] }}</h1>
+        <h1>{{ {"match": "Group students going the same way.", "trips": "Every car leaving campus.", "captains": "One captain per car."}[active] }}</h1>
         <p>{{ {
-          "book": "Book your ride home before class ends. We match you with students leaving at the same time in the same direction, and show your share before you confirm.",
-          "match": "Students are grouped by direction and class end time, up to " ~ rules.seats ~ " per car. Women-only requests are only matched with women students.",
-          "trips": "Meeting points, pickup times and each student's share, compared with riding alone."
+          "match": "Students are grouped by direction and class end time, up to " ~ rules.seats ~ " per car. Women-only and men-only requests are only matched with students of that gender.",
+          "trips": "Meeting points, pickup times and each student's share, compared with riding alone.",
+          "captains": "What each simulated captain sees: the stops in order, the ride codes to check, and the fare."
         }[active] }}</p>
       </div>
       <span class="demo-label"><span aria-hidden="true"></span> Proposed Jeeny feature · demo</span>
@@ -73,111 +75,7 @@
     {% endif %}
     {% for message in get_flashed_messages() %}<p class="notice" role="status">{{ message }}</p>{% endfor %}
 
-    {% if active == "book" %}
-      <div class="layout">
-        <section class="panel">
-          {% if selected and batch.matched %}
-            {% set plan = selected.plan %}
-            <p class="eyebrow">{{ selected.name }}'s ride home</p>
-            {% if selected.status == "declined" %}
-              <h2>{{ selected.name }} declined this ride</h2>
-              <p>The other students in the car were shown an updated plan.</p>
-            {% elif plan.shared %}
-              <h2>Meet at the {{ plan.gate | lower }} at {{ plan.pickup }}</h2>
-              <p>Share one car with {{ plan.members | rejectattr("id", "equalto", selected.id) | map(attribute="name") | names }}.
-                {% if plan.women_only %}Everyone in this car is a woman student.{% endif %}</p>
-              <div class="fare-card">
-                <div><span>Your share</span><strong>{{ selected.share | jod }}</strong></div>
-                <div><span>Riding alone</span><s>{{ selected.solo | jod }}</s></div>
-                <div class="save"><span>You save</span><strong>{{ (selected.solo - selected.share) | jod }}</strong></div>
-              </div>
-              {{ ride_map(plan, selected.id) }}
-              <ol class="route">
-                <li class="pickup"><strong>{{ plan.gate }}</strong><small>Pickup {{ plan.pickup }} · everyone gets in together</small></li>
-                {% for member in plan.members %}
-                  <li{% if member.id == selected.id %} class="you"{% endif %}>
-                    <span><strong>{{ member.stop }}</strong><small>{{ member.name }}{% if member.id == selected.id %} (you){% endif %} · {{ member.km }} km</small></span>
-                    <span class="price">{{ plan.shares[member.id] | jod }}</span>
-                  </li>
-                {% endfor %}
-              </ol>
-              <p class="hint">The car fare of {{ plan.car_fare | jod }} is split by how far each student rides, so students who get out earlier pay less.</p>
-            {% else %}
-              <h2>No one is leaving your way yet</h2>
-              <p>No student heading toward {{ selected.stop }} finishes within {{ rules.gap }} minutes of {{ selected.class_end }}{% if selected.women_only %} with women-only matching{% endif %}. You can still book this ride alone.</p>
-              <div class="fare-card">
-                <div><span>Ride alone from the {{ plan.gate | lower }}</span><strong>{{ selected.solo | jod }}</strong></div>
-                <div><span>Pickup</span><strong>{{ plan.pickup }}</strong></div>
-              </div>
-              {{ ride_map(plan, selected.id) }}
-            {% endif %}
-            {% if selected.status in ("review", "changed", "no_match") %}
-              {% if selected.status == "changed" %}<p class="notice">Someone left this car, so the plan changed. Review it and confirm again.</p>{% endif %}
-              <div class="actions">
-                <form action="{{ url_for('respond', rider_id=selected.id, action='confirm') }}" method="post">{{ token() }}
-                  <input type="hidden" name="plan" value="{{ selected.signature }}">
-                  <button class="primary" type="submit">{{ "Confirm for " ~ (selected.share | jod) if plan.shared else "Book alone for " ~ (selected.solo | jod) }} <span aria-hidden="true">↗</span></button>
-                </form>
-                <form action="{{ url_for('respond', rider_id=selected.id, action='decline') }}" method="post">{{ token() }}
-                  <button class="secondary" type="submit">{{ "Decline" if plan.shared else "Not now" }}</button>
-                </form>
-              </div>
-            {% elif selected.status in ("confirmed", "solo_confirmed") %}
-              <p class="notice success-note">Confirmed. Be at the {{ plan.gate | lower }} by {{ plan.pickup }}.</p>
-            {% endif %}
-          {% elif batch.matched %}
-            <h2>Matching is done for this batch</h2>
-            <p>Pick a student on the right to see their plan, or start a new batch to book again.</p>
-          {% else %}
-            {% if selected %}<div class="notice">{{ selected.name }}'s request is saved. Their plan will appear after matching runs.</div>{% endif %}
-            <h2>Book your ride home</h2>
-            <form action="{{ url_for('submit_request') }}" method="post" id="trip-form">
-              {{ token() }}
-              <label>Your name <input name="name" maxlength="40" placeholder="e.g. Sara" required></label>
-              <div class="fields">
-                <label>Class ends at <input type="time" name="class_end" value="16:00" min="08:00" max="21:00" required></label>
-                <label>Drop-off
-                  <select name="stop" required>
-                    {% for direction, corridor in corridors.items() %}
-                      <optgroup label="{{ direction }} · {{ corridor.gate }}">
-                        {% for stop in corridor.stops %}<option value="{{ stop }}"{% if stop == "Dabouq" %} selected{% endif %}>{{ stop }}</option>{% endfor %}
-                      </optgroup>
-                    {% endfor %}
-                  </select>
-                </label>
-              </div>
-              <div class="estimate">
-                <div><span>Riding alone</span><strong id="solo">—</strong></div>
-                <div><span>Shared with 2 others, about</span><strong id="shared">—</strong></div>
-              </div>
-              <script type="application/json" id="estimates">{{ estimates | tojson }}</script>
-              <fieldset>
-                <legend>Who you ride with</legend>
-                <label class="check"><input type="checkbox" name="woman" value="yes" id="woman"> I'm a woman student</label>
-                <label class="check"><input type="checkbox" name="women_only" value="yes" id="women-only" disabled> Only match me with women students</label>
-              </fieldset>
-              <button class="primary" type="submit">Find students going my way <span aria-hidden="true">↗</span></button>
-            </form>
-          {% endif %}
-        </section>
-        <aside class="panel">
-          <div class="panel-heading"><h2>Students leaving campus</h2><span class="count">{{ riders | length }}</span></div>
-          <p class="hint">Open any student to see the app from their side.</p>
-          {% if not riders %}<p>No requests yet. Add one with the form.</p>{% endif %}
-          <ul class="trip-list">
-            {% for rider in riders %}
-              <li>
-                <a href="{{ url_for('index', rider=rider.id) }}"{% if selected and rider.id == selected.id %} aria-current="true"{% endif %}>
-                  <span><strong>{{ rider.name }}</strong> {{ tags(rider) }}<small>Class ends {{ rider.class_end }} · {{ rider.stop }}</small></span>
-                  {{ status(rider) }}
-                </a>
-              </li>
-            {% endfor %}
-          </ul>
-        </aside>
-      </div>
-
-    {% elif active == "match" %}
+    {% if active == "match" %}
     {% if batch.matched %}
     {% set saved_pct = ((summary.solo_total - summary.paid_total) * 100 / summary.solo_total) | round | int if summary.solo_total else 0 %}
     <dl class="totals" aria-label="Matching totals">
@@ -195,7 +93,9 @@
             <li><strong>Same direction.</strong> Students heading the same way share one car and meet at that direction's gate.</li>
             <li><strong>Same time.</strong> Classes in one car end within {{ rules.gap }} minutes of each other. Pickup is {{ rules.walk }} minutes after the last class ends.</li>
             <li><strong>Up to {{ rules.seats }} students per car</strong>, using as few cars as possible.</li>
-            <li><strong>Women only.</strong> Students who ask for it are only matched with women students.</li>
+            <li><strong>Who you ride with.</strong> Each student picks Anyone, Women only or Men only. A women-only request only shares with women students, a men-only request only with men; Anyone accepts everyone.</li>
+            <li><strong>Friends ride together.</strong> A friends group (code like GR-48, up to {{ rules.seats }}) always gets one car. If they close empty seats, no one else joins.</li>
+            <li><strong>Seat hold.</strong> After matching, each student has {{ rules.hold_minutes }} minutes to confirm a shared seat. Otherwise the seat is released and the car re-planned.</li>
             <li><strong>Fair split.</strong> Each car is one regular Jeeny ride at the regulated app fare: JOD {{ "%.3f" | format(rules.base / 1000) }} + JOD {{ "%.3f" | format(rules.per_km / 1000) }}/km over the whole route. Each student pays in proportion to their own distance, the shares add up to exactly that fare, and a student only shares a car if they save at least {{ rules.min_saving }}% compared with riding alone.</li>
           </ul>
           {% if batch.matched %}
@@ -233,6 +133,37 @@
         </aside>
       </div>
 
+    {% elif active == "captains" %}
+      {% if not batch.matched %}
+      <section class="panel"><h2>No cars yet</h2><p>Captains are assigned after matching.</p>
+        <a class="primary" href="{{ url_for('index', view='match') }}">Open matching <span aria-hidden="true">↗</span></a></section>
+      {% else %}
+      <div class="cars">
+        {% for sheet in captains %}
+          {% set car = sheet.plan %}
+          <section class="panel car captain-sheet">
+            <div class="car-head">
+              <div><p class="eyebrow">Car {{ car.id + 1 }} · {{ car.corridor }}</p>
+                <h2>{% if sheet.captain %}Captain {{ sheet.captain.name }}{% else %}No captain free{% endif %}</h2></div>
+              {% if car.only == "women" %}<span class="tag women">Women only</span>{% elif car.only == "men" %}<span class="tag men">Men only</span>{% endif %}
+            </div>
+            {% if car.only == "women" and sheet.captain and sheet.captain.gender != "woman" %}<p class="hint">No woman captain was free, so the nearest free captain took this car.</p>{% endif %}
+            <dl class="sheet-facts">
+              <div><dt>Pickup</dt><dd>{{ car.gate }} · {{ car.pickup }}{% if car.go %} (left, on the way){% endif %}</dd></div>
+              <div><dt>Car fare</dt><dd>{{ car.car_fare | jod }}</dd></div>
+              <div><dt>Extra-stop bonus</dt><dd>{{ sheet.bonus | jod }} <small>paid by Jeeny · not charged to students</small></dd></div>
+            </dl>
+            <ol class="route compact">
+              {% for stop in sheet.stops %}<li><span><strong>{{ loop.index }}. {{ stop }}</strong></span></li>{% endfor %}
+            </ol>
+            <p class="hint">Codes to check:
+              {% for name, code in sheet.codes %}{{ name }} {% if code %}<code class="ride-code">{{ code }}</code>{% else %}<small>(not confirmed)</small>{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}</p>
+          </section>
+        {% endfor %}
+      </div>
+      <p class="hint">Bonus = {{ rules.stop_bonus }} fils × (drop-offs − 1). Jeeny pays it to the captain; it is not part of any student's share.</p>
+      {% endif %}
+
     {% elif not batch.matched %}
       <section class="panel">
         <h2>No cars yet</h2>
@@ -266,12 +197,16 @@
           {% endif %}
         {% endif %}
       </form>
+      <form action="{{ url_for('move_clock') }}" method="post" class="clock-row">{{ token() }}
+        <span class="hint">Demo clock {{ now.strftime("%H:%M") }} · seat holds, waiting and cars on the way follow it</span>
+        <button class="secondary" type="submit">Move clock +5 min</button>
+      </form>
       <div class="cars">
         {% for car in cars %}
           <section class="panel car{% if not car.shared %} solo{% endif %}">
             <div class="car-head">
-              <div><p class="eyebrow">{{ car.corridor }} · {{ car.gate }}</p><h2>Pickup {{ car.pickup }}</h2></div>
-              {% if car.women_only %}<span class="tag women">Women only</span>{% elif not car.shared %}<span class="tag">No match</span>{% endif %}
+              <div><p class="eyebrow">{{ car.corridor }} · {{ car.gate }}{% if car.captain %} · Captain {{ car.captain.name }}{% endif %}</p><h2>Pickup {{ car.pickup }}</h2></div>
+              {% if car.go %}<span class="tag">On the way · open to share</span>{% elif car.only == "women" %}<span class="tag women">Women only</span>{% elif car.only == "men" %}<span class="tag men">Men only</span>{% elif not car.shared %}<span class="tag">No match</span>{% endif %}
             </div>
             {{ ride_map(car) }}
             <ol class="route compact">
@@ -294,6 +229,7 @@
         {{ token() }}
         <button class="secondary" name="mode" value="empty" type="submit">Start empty batch</button>
         <button class="secondary" name="mode" value="seeded" type="submit">Load sample afternoon</button>
+        <button class="secondary" name="mode" value="busy" type="submit">Load 28 students</button>
       </form>
     </footer>
   </main>

@@ -12,7 +12,7 @@ from werkzeug.exceptions import HTTPException
 from sharing import CORRIDORS
 from store import (
     AMMAN, RULES, Problem, batch_for_join_code, bind_token, check_request, create_batch, database, fare_estimates,
-    find_token, get_batch, insert_request, issue_token, join_code, load_riders, locked_batch, now,
+    find_token, get_batch, insert_request, legacy_options, refresh, issue_token, join_code, load_riders, locked_batch, now,
     respond_to_plan, run_matching, summarize, verify_ride_code,
 )
 
@@ -115,14 +115,18 @@ def rider_json(batch, rider):
     body = {
         "id": rider["id"], "name": rider["name"], "status": rider["status"],
         "batchId": batch["id"], "tripDate": batch["trip_date"], "timezone": "Asia/Amman", "matched": bool(batch["matched"]),
-        "request": {"classEnd": rider["class_end"], "stop": rider["stop"], "woman": bool(rider["woman"]),
-                    "womenOnly": bool(rider["women_only"])},
+        "request": {"classEnd": rider["class_end"], "stop": rider["stop"], "gender": rider["gender"],
+                    "preference": rider["preference"], "friendGroup": rider["friend_group"],
+                    # Older clients read these two flags
+                    "woman": rider["gender"] == "woman", "womenOnly": rider["preference"] == "women"},
         "soloFare": money(rider["solo"]), "rideCode": rider["ride_code"], "plan": None,
+        "holdUntil": rider["hold_until"].isoformat() if rider["hold_until"] else None,
+        "waitUntil": rider["wait_until"].isoformat() if rider["wait_until"] else None,
     }
     if plan:
         body["plan"] = {
-            "shared": plan["shared"], "womenOnly": plan.get("women_only", False),
-            "corridor": plan["corridor"], "gate": plan["gate"],
+            "shared": plan["shared"], "womenOnly": plan.get("women_only", False), "only": plan.get("only"),
+            "corridor": plan["corridor"], "gate": plan["gate"], "goNow": bool(plan.get("go")),
             "pickupTime": plan["pickup"], "pickupAt": pickup_at(batch["trip_date"], plan["pickup"]),
             "riders": [first_name(m["name"]) for m in plan["members"] if m["id"] != rider["id"]],
             "dropOffs": [
@@ -145,7 +149,8 @@ def batch_json(db, batch):
         "joinCode": code, "joinCodeExpiresAt": expires.isoformat(),
         "riders": [
             {"id": r["id"], "name": r["name"], "classEnd": r["class_end"], "stop": r["stop"], "corridor": r["corridor"],
-             "woman": bool(r["woman"]), "womenOnly": bool(r["women_only"]), "status": r["status"],
+             "gender": r["gender"], "preference": r["preference"], "friendGroup": r["friend_group"],
+             "woman": r["gender"] == "woman", "womenOnly": r["preference"] == "women", "status": r["status"],
              "car": r["car"] if r["plan"] else None, "share": money(r["share"]) if r["plan"] else None,
              "soloFare": money(r["solo"]), "rideCode": r["ride_code"]}
             for r in riders
@@ -153,7 +158,9 @@ def batch_json(db, batch):
         "cars": [
             {"id": plan["members"][0]["car"], "corridor": plan["corridor"], "gate": plan["gate"],
              "pickupTime": plan["pickup"], "pickupAt": pickup_at(batch["trip_date"], plan["pickup"]),
-             "shared": plan["shared"], "womenOnly": plan.get("women_only", False), "carFare": money(plan["car_fare"]),
+             "shared": plan["shared"], "womenOnly": plan.get("women_only", False), "only": plan.get("only"),
+             "carFare": money(plan["car_fare"]),
+             "captain": plan["captain"]["name"] if plan.get("captain") else None,
              "riders": [
                  {"id": m["id"], "name": m["name"], "stop": m["stop"], "status": by_id[m["id"]]["status"],
                   "share": money(plan["shares"][m["id"]]), "soloFare": money(m["solo"])}
@@ -170,7 +177,7 @@ def batch_json(db, batch):
 
 
 def load_rider(db, batch_id, rider_id):
-    batch = get_batch(db, batch_id)
+    batch = refresh(db, batch_id)
     riders, _ = load_riders(db, batch)
     return batch, next(r for r in riders if r["id"] == rider_id)
 
@@ -240,7 +247,7 @@ def stops():
 @api.get("/batches/<batch_id>")
 def batch_detail(batch_id):
     db = database()
-    return jsonify(batch_json(db, operator_batch(db, batch_id)))
+    return jsonify(batch_json(db, refresh(db, operator_batch(db, batch_id)["id"])))
 
 
 @api.post("/batches/<batch_id>/verify-code")
@@ -268,8 +275,11 @@ def book(batch_id):
     if not CLIENT_REQUEST_ID.fullmatch(client_request_id):
         raise Problem("invalid_input", "`clientRequestId` must be 8–64 letters, digits, `-` or `_`.", 400)
     class_end, stop = field(body, "classEnd", str), field(body, "stop", str)
-    woman, women_only = field(body, "woman", bool, False), field(body, "womenOnly", bool, False)
-    name = check_request(field(body, "name", str), class_end, stop, woman, women_only)
+    if "gender" in body or "preference" in body:
+        gender, preference = field(body, "gender", str), field(body, "preference", str, "mixed")
+    else:  # Older clients send woman/womenOnly flags
+        gender, preference = legacy_options(field(body, "woman", bool, False), field(body, "womenOnly", bool, False))
+    name = check_request(field(body, "name", str), class_end, stop, gender, preference)
 
     with db:
         batch = locked_batch(db, batch_id)
@@ -280,12 +290,12 @@ def book(batch_id):
             if token["client_request_id"] != client_request_id:
                 raise Problem("already_booked", "This student session already booked a ride.")
             saved = db.execute("SELECT * FROM riders WHERE id = ?", (token["rider"],)).fetchone()
-            if (saved["name"], saved["class_end"], saved["stop"], bool(saved["woman"]), bool(saved["women_only"])) \
-                    != (name, class_end, stop, woman, women_only):
+            if (saved["name"], saved["class_end"], saved["stop"], saved["gender"], saved["preference"]) \
+                    != (name, class_end, stop, gender, preference):
                 raise Problem("request_conflict", "This clientRequestId was already used with different details.")
             rider_id, status = saved["id"], 200
         else:
-            rider_id, status = insert_request(db, batch, name, class_end, stop, woman, women_only), 201
+            rider_id, status = insert_request(db, batch, name, class_end, stop, gender, preference), 201
             bind_token(db, token["token_hash"], rider_id, client_request_id)
     return jsonify(rider_json(*load_rider(db, batch_id, rider_id))), status
 

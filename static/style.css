@@ -185,3 +185,12 @@ img.mark { object-fit: cover; }
 .totals { margin: 0 0 18px; }
 .totals div { background: var(--paper); border: 1px solid var(--line); }
 .totals .hl { border-color: #F6C2DF; }
+
+.tag.men { background: #e3ecf6; color: #284f7a; }
+.tag.group { background: #eef3e6; color: #3f5a1f; }
+.clock-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; }
+.sheet-facts { display: grid; gap: 6px; margin: 12px 0; }
+.sheet-facts div { display: flex; justify-content: space-between; gap: 12px; }
+.sheet-facts dt { color: var(--muted); }
+.sheet-facts dd { margin: 0; text-align: right; font-weight: 600; }
+.sheet-facts small { display: block; font-weight: 400; color: var(--muted); }

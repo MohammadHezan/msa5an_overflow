@@ -68,8 +68,8 @@ def test_health_and_stops(client):
     assert west["gate"] == "Main gate"
     assert dabouq == {"name": "Dabouq", "km": 12, "soloFare": {"fils": 4500, "currency": "JOD"},
                       "sampleShare": {"fils": 1500, "currency": "JOD"}}
-    assert body["rules"]["seatsPerCar"] == 4 and body["rules"]["maxClassEndGapMinutes"] == 20
-    assert body["rules"]["baseFare"]["fils"] == 468 and body["rules"]["minSavingPercent"] == 20
+    assert body["rules"]["seatsPerCar"] == 4 and body["rules"]["maxClassEndGapMinutes"] == 10
+    assert body["rules"]["baseFare"]["fils"] == 468 and body["rules"]["minSavingPercent"] == 25
 
 
 def test_booking_returns_waiting_and_retry_returns_same_rider(client):
@@ -144,8 +144,9 @@ def test_matching_closes_batch_and_repeat_returns_saved_cars(client, west_car):
     batch, _ = west_car
     again = match(client, batch).get_json()
     assert again["ranNow"] is False and len(again["batch"]["cars"]) == 1
+    # After matching, a late request is placed at once (here: alone, with the lone-rider choices)
     late = book(client, batch, join(client, batch["joinCode"]), "Lina", request_id="late-request-1")
-    assert late.status_code == 409 and late.get_json()["error"]["code"] == "batch_matched"
+    assert late.status_code == 201 and late.get_json()["status"] == "no_match"
 
 
 def test_stale_confirm_returns_plan_changed_then_decline_marks_changed(client, west_car):

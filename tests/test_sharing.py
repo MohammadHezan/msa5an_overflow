@@ -1,18 +1,22 @@
-"""Rules the pitch depends on: grouping, women-only matching and fair price splits."""
+"""Rules the pitch depends on: grouping, ride options (anyone / women only / men only) and fair price splits."""
 import itertools
 
 import pytest
 
-from sharing import SEATS, STOPS, compatible, group_riders, plan_car, solo_fare
+from pooling.model import evaluate
+from sharing import SEATS, STOPS, _rider, compatible, group_riders, plan_car, solo_fare
 
 from store import FIXTURE
 
 
 def make_riders(rows):
-    return [
-        {"id": i + 1, "name": name, "class_end": end, "stop": stop, "woman": woman, "women_only": women_only}
-        for i, (name, end, stop, woman, women_only) in enumerate(rows)
-    ]
+    """Rows of (name, class end, stop, gender, preference). The old (woman, women_only) booleans still work."""
+    riders = []
+    for i, (name, end, stop, gender, preference) in enumerate(rows):
+        if isinstance(gender, bool):
+            gender, preference = ("woman" if gender else "man"), ("women" if preference else "mixed")
+        riders.append({"id": i + 1, "name": name, "class_end": end, "stop": stop, "gender": gender, "preference": preference})
+    return riders
 
 
 @pytest.fixture
@@ -63,8 +67,10 @@ def test_cars_respect_seats_corridor_time_and_women_only(sample):
     riders = {r["id"]: r for r in sample}
     for car in group_riders(sample):
         assert len(car) <= SEATS
+        # The whole car meets every rule (a pair inside it may miss the savings floor on its own)
+        assert evaluate([_rider(riders[i]) for i in car]) is not None
         for a, b in itertools.combinations(car, 2):
-            assert compatible(riders[a], riders[b])
+            assert STOPS[riders[a]["stop"]]["corridor"] == STOPS[riders[b]["stop"]]["corridor"]
 
 
 def test_women_only_rider_never_grouped_with_a_man():
@@ -130,9 +136,9 @@ def test_solo_rider_pays_solo_fare():
 def test_pickup_waits_for_last_class_and_rounds_to_five_minutes():
     car = plan_car(make_riders([
         ("A", "16:00", "Khalda", False, False),
-        ("B", "16:12", "Dabouq", False, False),
+        ("B", "16:08", "Dabouq", False, False),
     ]))
-    assert car["pickup"] == "16:30"
+    assert car["pickup"] == "16:25"  # 16:08 + 15 min walk, rounded up to 5 minutes
     assert [r["name"] for r in car["members"]] == ["A", "B"]  # nearest drop-off first
 
 
@@ -142,3 +148,36 @@ def test_mixed_car_is_not_labelled_women_only():
         ("Omar", "16:10", "Shafa Badran", False, False),
     ]))
     assert car["women_only"] is False
+
+
+def test_mixed_woman_can_join_a_women_only_car():
+    riders = make_riders([
+        ("Sara", "16:00", "Dabouq", "woman", "women"),
+        ("Noor", "16:00", "Dabouq", "woman", "mixed"),
+    ])
+    assert cars_by_name(riders, group_riders(riders)) == [["Noor", "Sara"]]
+    assert plan_car(riders)["only"] == "women"
+
+
+def test_man_never_joins_a_women_car_and_woman_never_joins_a_men_car():
+    riders = make_riders([
+        ("Sara", "16:00", "Dabouq", "woman", "women"),
+        ("Ali", "16:00", "Dabouq", "man", "mixed"),
+        ("Omar", "16:00", "Khalda", "man", "men"),
+        ("Lina", "16:00", "Khalda", "woman", "mixed"),
+    ])
+    for car in cars_by_name(riders, group_riders(riders)):
+        assert not ("Sara" in car and ("Ali" in car or "Omar" in car))
+        assert not ("Omar" in car and ("Lina" in car or "Sara" in car))
+
+
+def test_men_only_car_is_labelled():
+    riders = make_riders([("Omar", "16:00", "Khalda", "man", "men"), ("Ali", "16:00", "Dabouq", "man", "mixed")])
+    assert len(group_riders(riders)) == 1
+    assert plan_car(riders)["only"] == "men"
+
+
+def test_mixed_riders_of_both_genders_share():
+    riders = make_riders([("Lina", "16:00", "Khalda", "woman", "mixed"), ("Ali", "16:00", "Dabouq", "man", "mixed")])
+    assert len(group_riders(riders)) == 1
+    assert plan_car(riders)["only"] is None

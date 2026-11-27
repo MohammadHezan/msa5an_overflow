@@ -2,8 +2,11 @@ const form = document.querySelector("#trip-form");
 
 if (form) {
   const estimates = JSON.parse(document.querySelector("#estimates").textContent);
-  const woman = document.querySelector("#woman");
-  const womenOnly = document.querySelector("#women-only");
+  const prefWomen = document.querySelector("#pref-women");
+  const prefMen = document.querySelector("#pref-men");
+  const slowNote = document.querySelector("#slow-note");
+  const friendsStart = document.querySelector("#friends-start");
+  const friendsJoin = document.querySelector("#friends-join");
   const confirm = document.querySelector("#confirm");
   const note = document.querySelector("#demo-note");
   const jod = (fils) => `JOD ${(fils / 1000).toFixed(2)}`;
@@ -20,8 +23,18 @@ if (form) {
     for (const el of form.querySelectorAll("[data-price]")) {
       el.textContent = jod(Math.round((estimate.solo * factors[el.dataset.price]) / 10) * 10);
     }
-    womenOnly.disabled = !woman.checked;
-    if (!woman.checked) womenOnly.checked = false;
+    // Women-only is for women students, men-only for men students
+    const gender = form.elements.gender.value;
+    prefWomen.disabled = gender !== "woman";
+    prefMen.disabled = gender !== "man";
+    if (form.elements.preference.value === "women" && gender !== "woman") form.elements.preference.value = "mixed";
+    if (form.elements.preference.value === "men" && gender !== "man") form.elements.preference.value = "mixed";
+    slowNote.hidden = form.elements.preference.value === "mixed";
+    if (friendsStart) {
+      friendsStart.hidden = form.elements.friends.value !== "start";
+      friendsJoin.hidden = form.elements.friends.value !== "join";
+      form.elements.group_code.required = form.elements.friends.value === "join";
+    }
     const ride = selected();
     confirm.textContent = `Confirm ${ride.closest(".ride").querySelector(".ride-name").firstChild.textContent.trim()}`;
     note.textContent = "";

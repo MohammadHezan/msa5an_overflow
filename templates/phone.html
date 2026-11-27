@@ -14,8 +14,15 @@
 </head>
 <body class="jeeny">
   {% macro token() %}<input type="hidden" name="csrf" value="{{ session.csrf }}">{% endmacro %}
-  {% macro avatar(rider, you=false) %}<span class="avatar{% if you %} you{% endif %}{% if rider.woman %} w{% endif %}" title="{{ rider.name }}">{{ rider.name[0] }}</span>{% endmacro %}
+  {% macro avatar(rider, you=false) %}<span class="avatar{% if you %} you{% endif %}{% if rider.gender == "woman" %} w{% endif %}" title="{{ rider.name }}">{{ rider.name[0] }}</span>{% endmacro %}
   {% set plan = selected.plan if selected and batch.matched else none %}
+  {% set only_names = {"women": "Women only", "men": "Men only"} %}
+  {% macro clock_button() %}
+    <form action="{{ url_for('move_clock') }}" method="post" class="clock-form">{{ token() }}
+      <input type="hidden" name="back" value="{{ request.full_path }}">
+      <button class="ghost-btn" type="submit">Demo clock {{ now.strftime("%H:%M") }} · move +5 min ›</button>
+    </form>
+  {% endmacro %}
 
   <div class="stage">
     <aside class="side">
@@ -34,10 +41,12 @@
       <div class="side-links">
         <a href="{{ url_for('index', view='match') }}">Operator: matching</a>
         <a href="{{ url_for('index', view='trips') }}">Operator: all cars</a>
+        <a href="{{ url_for('index', view='captains') }}">Captains</a>
       </div>
       <form action="{{ url_for('reset') }}" method="post" class="side-reset">
         {{ token() }}
         <button name="mode" value="seeded" type="submit">Reload sample afternoon</button>
+        <button name="mode" value="busy" type="submit">Load 28 students</button>
         <button name="mode" value="empty" type="submit">Start empty</button>
       </form>
       <p class="fine">Demo · simulated map, distances and fares · no real rides or payments</p>
@@ -134,16 +143,9 @@
           </section>
 
         {% elif not selected %}
-          {% if batch.matched %}
-          <section class="sheet tall">
-            <span class="grab" aria-hidden="true"></span>
-              <h2>Booking is closed</h2>
-              <p class="sub">Today's cars are already matched. Pick a student on the left, or start a new batch.</p>
-          </section>
-          {% else %}
           <form action="{{ url_for('submit_request') }}" method="post" id="trip-form" class="sheet rides">
             {{ token() }}
-            <p class="rides-note">Prices shown are estimates and may vary</p>
+            <p class="rides-note">{% if batch.matched %}Cars are already matched: we'll add you to a car on its way or a student waiting for a match.{% else %}Prices shown are estimates and may vary{% endif %}</p>
             <div class="ride-list">
               <label class="ride">
                 <input type="radio" name="ride" value="campus" id="ride-campus" checked>
@@ -165,8 +167,31 @@
                   <label class="box"><small>Your name</small><input name="name" maxlength="40" placeholder="Sara" required></label>
                   <label class="box"><small>Class ends</small><input type="time" name="class_end" value="16:00" min="08:00" max="21:00" required></label>
                 </div>
-                <label class="toggle"><span>I'm a woman student</span><input type="checkbox" name="woman" value="yes" id="woman"><i></i></label>
-                <label class="toggle"><span>Ride with women students only</span><input type="checkbox" name="women_only" value="yes" id="women-only" disabled><i></i></label>
+                <fieldset class="choice">
+                  <legend>I am</legend>
+                  <label><input type="radio" name="gender" value="woman" checked><span>A woman student</span></label>
+                  <label><input type="radio" name="gender" value="man"><span>A man student</span></label>
+                </fieldset>
+                <fieldset class="choice three">
+                  <legend>Ride with</legend>
+                  <label><input type="radio" name="preference" value="mixed" checked><span>Anyone</span></label>
+                  <label><input type="radio" name="preference" value="women" id="pref-women"><span>Women only</span></label>
+                  <label><input type="radio" name="preference" value="men" id="pref-men" disabled><span>Men only</span></label>
+                </fieldset>
+                <p class="slow-note" id="slow-note" hidden>Matching may take longer.</p>
+                {% if not batch.matched %}
+                <fieldset class="choice three">
+                  <legend>Book with friends</legend>
+                  <label><input type="radio" name="friends" value="" checked><span>Just me</span></label>
+                  <label><input type="radio" name="friends" value="start"><span>Start a group</span></label>
+                  <label><input type="radio" name="friends" value="join"><span>Join a group</span></label>
+                </fieldset>
+                <div class="friends-start" id="friends-start" hidden>
+                  <label class="toggle"><span>Let others fill empty seats</span><input type="checkbox" name="group_open" value="yes" checked><i></i></label>
+                  <p class="details-note">You'll get a code like GR-48 to share. Up to {{ rules.seats }} friends, same gate, classes ending within {{ rules.gap }} minutes. Each friend pays for their own km.</p>
+                </div>
+                <label class="box wide" id="friends-join" hidden><small>Group code</small><input name="group_code" maxlength="10" placeholder="GR-48" autocapitalize="characters"></label>
+                {% endif %}
                 <p class="details-note">One pickup at the gate. You'll see your exact share before you confirm.</p>
               </div>
               {% for key, label, eta in [("economy", "Economy", "2 min"), ("taxi", "Taxi", "1 min"), ("comfort", "Jeeny Comfort", "7 min"), ("box", "Box", "4 min")] %}
@@ -185,7 +210,6 @@
               <button class="cta" type="submit" id="confirm">Confirm Campus Connect</button>
             </div>
           </form>
-          {% endif %}
 
         {% elif not batch.matched %}
           <section class="sheet">
@@ -196,7 +220,8 @@
             <div class="summary">
               <div><small>Drop-off</small><strong>{{ selected.stop }}</strong></div>
               <div><small>Riding alone</small><strong>{{ selected.solo | jod }}</strong></div>
-              {% if selected.women_only %}<div><small>Riders</small><strong>Women only</strong></div>{% endif %}
+              {% if selected.preference in only_names %}<div><small>Riders</small><strong>{{ only_names[selected.preference] }}</strong></div>{% endif %}
+              {% if selected.friend_group %}<div><small>Friends group</small><strong>{{ selected.friend_group }}</strong></div>{% endif %}
             </div>
             <a class="ghost" href="{{ url_for('index', view='match') }}">Demo: run matching as the operator ›</a>
           </section>
@@ -204,9 +229,50 @@
         {% elif selected.status == "declined" %}
           <section class="sheet">
             <span class="grab" aria-hidden="true"></span>
+            {% if selected.released %}
+            <h2>Your seat was released</h2>
+            <p class="sub">You didn't confirm within {{ rules.hold_minutes }} minutes, so the seat went back to the others and their plan was updated.</p>
+            {% else %}
             <h2>You left this ride</h2>
             <p class="sub">The other students were shown an updated plan.</p>
+            {% endif %}
             <a class="cta" href="{{ url_for('index') }}">Back to home</a>
+          </section>
+
+        {% elif plan.go %}
+          <section class="sheet tall">
+            <span class="grab" aria-hidden="true"></span>
+            {% if plan.arrived %}
+              <div class="booked">✓ Ride ended</div>
+              <h2>Final price {{ selected.share | jod }}</h2>
+            {% else %}
+              <div class="booked">On the way · open to share</div>
+              <h2>{% if selected.board_km %}Pickup at {{ plan.boards[selected.id] }}{% else %}You left the {{ plan.gate | lower }} at {{ plan.pickup }}{% endif %}</h2>
+              <p class="sub">You pay at most {{ selected.solo | jod }}. Less if someone joins.</p>
+            {% endif %}
+            {% if selected.ride_code %}
+              <div class="ride-code-card"><small>Show this to your driver</small><strong>{{ selected.ride_code }}</strong></div>
+            {% endif %}
+            <div class="progress" role="img" aria-label="Car has driven {{ plan.position_km }} of {{ plan.route_km }} km">
+              <span style="width: {{ (plan.position_km * 100 / plan.route_km) | round | int if plan.route_km else 100 }}%"></span>
+            </div>
+            <p class="sub">Car at {{ plan.position_km }} of {{ "%g" | format(plan.route_km) }} km · {{ plan.members | length }} {{ "student" if plan.members | length == 1 else "students" }} in this car</p>
+            <div class="price-card">
+              <div><small>{{ "Final price" if plan.arrived else "Your price so far" }}</small><strong>{{ selected.share | jod }}</strong></div>
+              <div class="was"><small>Alone</small><s>{{ selected.solo | jod }}</s></div>
+              {% if selected.share < selected.solo %}<div class="saved">You save {{ (selected.solo - selected.share) | jod }}</div>{% endif %}
+            </div>
+            <ol class="stops">
+              {% for m in plan.members %}
+                <li{% if m.id == selected.id %} class="me"{% endif %}>
+                  <span class="pin">{{ loop.index }}</span>
+                  <span><strong>{{ m.stop }}</strong><small>{{ m.name }}{% if m.id == selected.id %} (you){% endif %} · gets in at {{ plan.boards[m.id] }}</small></span>
+                  <span class="amt">{{ plan.shares[m.id] | jod }}</span>
+                </li>
+              {% endfor %}
+            </ol>
+            <p class="details-note">The {{ "%.3f" | format(rules.base / 1000) }} JOD start fare is split equally; each km is split among the students in the car on that km. The price is final when the ride ends.</p>
+            {{ clock_button() }}
           </section>
 
         {% elif plan.shared %}
@@ -225,10 +291,11 @@
             {% else %}
               <p class="eyebrow">Your shared ride</p>
               <h2>Meet at the {{ plan.gate | lower }} at {{ plan.pickup }}</h2>
+              {% if selected.hold_until %}<p class="warn">Seat held until {{ selected.hold_until.strftime("%H:%M") }}. Confirm within {{ rules.hold_minutes }} minutes or the seat goes to someone else.</p>{% endif %}
             {% endif %}
             <div class="riders">
               <span class="stack">{% for m in plan.members %}{{ avatar(m, m.id == selected.id) }}{% endfor %}</span>
-              <span>With {{ plan.members | rejectattr("id", "equalto", selected.id) | map(attribute="name") | names }}{% if plan.women_only %} · <b class="w-tag">Women only</b>{% endif %}</span>
+              <span>With {{ plan.members | rejectattr("id", "equalto", selected.id) | map(attribute="name") | names }}{% if plan.only %} · <b class="w-tag">{{ only_names[plan.only] }}</b>{% endif %}{% if plan.captain %} · Captain {{ plan.captain.name }}{% endif %}</span>
             </div>
             <div class="price-card">
               <div><small>Your share</small><strong>{{ selected.share | jod }}</strong></div>
@@ -283,22 +350,30 @@
                 <span>The driver checks it at the {{ plan.gate | lower }} before you get in.</span>
               </div>
             {% endif %}
+            {% elif selected.status == "waiting_match" %}
+              <div class="searching" aria-hidden="true"><span></span><span></span><span></span></div>
+              <h2>Waiting for a match</h2>
+              <p class="sub">We'll put you in a car with the next student going toward {{ selected.stop }}. Waiting until {{ selected.wait_until.strftime("%H:%M") }}.</p>
             {% else %}
               <h2>No one's going your way yet</h2>
-              <p class="sub">No student heading toward {{ selected.stop }} finishes within {{ rules.gap }} minutes of {{ selected.class_end }}{% if selected.women_only %} with women-only matching{% endif %}.</p>
+              <p class="sub">{% if selected.wait_expired %}No one going your way booked in {{ rules.wait_minutes }} minutes.{% else %}No student heading toward {{ selected.stop }} finishes within {{ rules.gap }} minutes of {{ selected.class_end }}{% if selected.preference in only_names %} with {{ only_names[selected.preference] | lower }} matching{% endif %}.{% endif %} Pick how you want to go.</p>
             {% endif %}
-            <ul class="options single">
-              <li class="opt on">
-                <span class="opt-ico" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M8 30l4-10c1-2 2-3 4-3h16c2 0 3 1 4 3l4 10v7H8z"/><circle cx="15" cy="35" r="3.5" class="f"/><circle cx="33" cy="35" r="3.5" class="f"/></svg></span>
-                <span class="opt-name">Economy<small>{{ plan.gate }} · {{ plan.pickup }}</small></span>
-                <span class="opt-price">{{ selected.solo | jod }}</span>
-              </li>
-            </ul>
-            {% if selected.status in ("no_match", "changed") %}
-              <form action="{{ url_for('respond', rider_id=selected.id, action='confirm') }}" method="post">{{ token() }}
-                <input type="hidden" name="plan" value="{{ selected.signature }}">
-                <button class="cta" type="submit">Book Economy for {{ selected.solo | jod }}</button>
-              </form>
+            {% if selected.status in ("no_match", "changed", "waiting_match") %}
+              <div class="lone-choices">
+                <form action="{{ url_for('respond', rider_id=selected.id, action='confirm') }}" method="post" class="lone">{{ token() }}
+                  <input type="hidden" name="plan" value="{{ selected.signature }}">
+                  <button type="submit"><b>A</b><span><strong>Ride alone now</strong><small>Economy from the {{ plan.gate | lower }} at {{ plan.pickup }}</small></span><em>{{ selected.solo | jod }}</em></button>
+                </form>
+                {% if selected.status != "waiting_match" %}
+                <form action="{{ url_for('respond', rider_id=selected.id, action='wait') }}" method="post" class="lone">{{ token() }}
+                  <button type="submit"><b>B</b><span><strong>Wait for a match</strong><small>Up to {{ rules.wait_minutes }} minutes. You'll share if someone going your way books.</small></span><em>Less</em></button>
+                </form>
+                {% endif %}
+                <form action="{{ url_for('respond', rider_id=selected.id, action='go') }}" method="post" class="lone">{{ token() }}
+                  <button type="submit"><b>C</b><span><strong>Go now, open to share</strong><small>You pay at most {{ selected.solo | jod }}. Less if someone joins.</small></span><em>≤ {{ selected.solo | jod }}</em></button>
+                </form>
+              </div>
+              {% if selected.status == "waiting_match" %}{{ clock_button() }}{% endif %}
               <form action="{{ url_for('respond', rider_id=selected.id, action='decline') }}" method="post">{{ token() }}
                 <button class="link-btn" type="submit">Not now</button>
               </form>
