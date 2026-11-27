@@ -6,14 +6,19 @@ Access uses bearer tokens: an operator token from creating a batch, or a student
 import re
 from datetime import date, datetime, time
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from werkzeug.exceptions import HTTPException
 
 from sharing import CORRIDORS
+from pooling import config
 from store import (
     AMMAN, RULES, Problem, batch_for_join_code, bind_token, check_request, create_batch, database, fare_estimates,
     find_token, get_batch, insert_request, legacy_options, refresh, issue_token, join_code, load_riders, locked_batch, now,
     respond_to_plan, run_matching, summarize, verify_ride_code,
+)
+from student_verification import (
+    confirm_verification, public_student, request_notification, resend_verification,
+    search_universities, start_verification,
 )
 
 api = Blueprint("api", __name__, url_prefix="/api/v1")
@@ -82,6 +87,85 @@ def find_token_row(db, token_hash):
 
 def forbidden():
     return Problem("forbidden", "This token does not grant access to that resource.", 403)
+
+
+def student_session(db):
+    token = bearer(db)
+    if token["role"] != "student":
+        raise forbidden()
+    if not get_batch(db, token["batch"]):
+        raise Problem("unauthorized", "This demo session expired. Join the demo again.", 401)
+    return token
+
+
+def log_verification(delivery):
+    if delivery:
+        email, code = delivery
+        current_app.logger.warning("SIMULATED student verification for %s: code %s (no email sent)", email, code)
+
+
+@api.get("/universities")
+def universities():
+    db = database()
+    bearer(db)
+    return jsonify(universities=search_universities(db, request.args.get("search", "")))
+
+
+@api.get("/me")
+def student_profile():
+    db = database()
+    token = student_session(db)
+    student = public_student(db, token["student_id"])
+    verified = bool(student and student["verified"])
+    return jsonify(student=student, verified=verified, nextScreen="05" if verified else "02")
+
+
+@api.post("/verification/start")
+def verification_start():
+    db = database()
+    token, body = student_session(db), json_body()
+    university_id = field(body, "universityId", int)
+    email = field(body, "email", str)
+    first = field(body, "firstName", str) if "firstName" in body else None
+    with db:
+        locked_batch(db, token["batch"])
+        delivery, result = start_verification(db, token, university_id, email, first)
+    log_verification(delivery)
+    return jsonify(result)
+
+
+@api.post("/verification/resend")
+def verification_resend():
+    db = database()
+    token = student_session(db)
+    with db:
+        locked_batch(db, token["batch"])
+        delivery, result = resend_verification(db, token)
+    log_verification(delivery)
+    return jsonify(result)
+
+
+@api.post("/verification/confirm")
+def verification_confirm():
+    db = database()
+    token = student_session(db)
+    code = field(json_body(), "code", str)
+    with db:
+        locked_batch(db, token["batch"])
+        result = confirm_verification(db, token, code)
+    if isinstance(result, Problem):
+        raise result  # Failed-attempt increments were committed, not rolled back by the error.
+    return jsonify(result)
+
+
+@api.post("/universities/<int:university_id>/notify")
+def university_notify(university_id):
+    db = database()
+    token = student_session(db)
+    with db:
+        locked_batch(db, token["batch"])
+        result = request_notification(db, token, university_id)
+    return jsonify(result)
 
 
 def operator_batch(db, batch_id):
@@ -232,9 +316,13 @@ def join():
     if not batch_id:
         raise Problem("join_code_invalid", "That join code is unknown or has expired.", 404)
     batch = get_batch(db, batch_id)
+    identity = student_session(db) if request.headers.get("Authorization") else None
+    student = public_student(db, identity["student_id"]) if identity else None
+    verified = bool(student and student["verified"])
     return jsonify({
-        "token": issue_token(db, batch_id, "student"), "tokenType": "Bearer",
+        "token": issue_token(db, batch_id, "student", student_id=student["id"] if verified else None), "tokenType": "Bearer",
         "batchId": batch_id, "tripDate": batch["trip_date"], "timezone": "Asia/Amman", "matched": bool(batch["matched"]),
+        "verified": verified, "student": student if verified else None, "nextScreen": "05" if verified else "02",
     }), 201
 
 
