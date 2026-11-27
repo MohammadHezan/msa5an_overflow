@@ -57,11 +57,12 @@
     <section class="hero">
       <div>
         <p class="location">AMMAN CAMPUS <span>·</span> {{ date_label }}</p>
-        <h1>{{ {"match": "Group students going the same way.", "trips": "Every car leaving campus.", "captains": "One captain per car."}[active] }}</h1>
+        <h1>{{ {"match": "Group students going the same way.", "trips": "Every car leaving campus.", "captains": "One captain per car.", "simulation": "Compare simulated ride plans."}[active] }}</h1>
         <p>{{ {
           "match": "Students are grouped by direction and class end time, up to " ~ rules.seats ~ " per car. Women-only and men-only requests are only matched with students of that gender.",
           "trips": "Meeting points, pickup times and each student's share, compared with riding alone.",
-          "captains": "What each simulated captain sees: the stops in order, the ride codes to check, and the fare."
+          "captains": "What each simulated captain sees: the street pickups, ride codes to check, and fare.",
+          "simulation": "Thirty paired random seeds compare the optimizer with first-come grouping and everyone riding alone."
         }[active] }}</p>
       </div>
       <span class="demo-label"><span aria-hidden="true"></span> Proposed Jeeny feature · demo</span>
@@ -75,7 +76,51 @@
     {% endif %}
     {% for message in get_flashed_messages() %}<p class="notice" role="status">{{ message }}</p>{% endfor %}
 
-    {% if active == "match" %}
+    {% if active == "simulation" %}
+      <section class="simulation-intro panel">
+        <strong>Simulated results only</strong>
+        <p>For each wave size, the same {{ simulation.seeds }} generated scenarios are tested by every method. These estimates use simulated corridors, street offsets, directions, timing and preferences—not live demand or actual street routing.</p>
+      </section>
+      {% for metric, title, unit in [("km_saved_pct", "Kilometres saved vs riding alone", "%"), ("matched_pct", "Riders matched", "%")] %}
+      {% set chart_max = [simulation.summary[32]["greedy"][metric]["max"], simulation.summary[32]["optimizer"][metric]["max"], 1] | max %}
+      <section class="panel sim-chart">
+        <div class="panel-heading"><h2>{{ title }}</h2><span class="hint">Mean · {{ unit }}</span></div>
+        {% for n in simulation.counts %}
+          <div class="chart-wave">
+            <strong>{{ n }} students</strong>
+            {% for method in ["greedy", "optimizer"] %}
+              {% set value = simulation.summary[n][method][metric].mean %}
+              <div class="bar-row">
+                <span>{{ "First-come" if method == "greedy" else "Optimizer" }}</span>
+                <span class="bar-track"><i class="{{ method }}" style="width: {{ (value * 100 / chart_max) | round(1) }}%"></i></span>
+                <b>{{ value | round(1) }}{{ unit }}</b>
+              </div>
+            {% endfor %}
+          </div>
+        {% endfor %}
+        <div class="chart-legend"><span><i class="greedy"></i> First-come grouping</span><span><i class="optimizer"></i> Optimizer</span></div>
+      </section>
+      {% endfor %}
+      <section class="panel sim-results">
+        <h2>Mean and range across {{ simulation.seeds }} seeds</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Students</th><th>Method</th><th>Cars</th><th>Car km</th><th>Km saved</th><th>Matched</th><th>Saving / rider</th><th>Walk</th><th>Extra ride</th></tr></thead>
+          <tbody>
+            {% for n in simulation.counts %}
+              {% for method in ["alone", "greedy", "optimizer"] %}
+                {% set row = simulation.summary[n][method] %}
+                <tr>
+                  <td>{{ n }}</td><td>{{ {"alone": "Riding alone", "greedy": "First-come", "optimizer": "Optimizer"}[method] }}</td>
+                  {% for metric, suffix, digits in [("cars", "", 1), ("car_km", " km", 1), ("km_saved_pct", "%", 1), ("matched_pct", "%", 1), ("saving_fils_per_rider", " fils", 0), ("walk_m", " m", 0), ("extra_minutes", " min", 1)] %}
+                    <td>{{ ("%." ~ digits ~ "f") | format(row[metric].mean) }}{{ suffix }}<small>({{ ("%." ~ digits ~ "f") | format(row[metric].min) }}–{{ ("%." ~ digits ~ "f") | format(row[metric].max) }})</small></td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table></div>
+      </section>
+    {% elif active == "match" %}
     {% if batch.matched %}
     {% set saved_pct = ((summary.solo_total - summary.paid_total) * 100 / summary.solo_total) | round | int if summary.solo_total else 0 %}
     <dl class="totals" aria-label="Matching totals">

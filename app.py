@@ -14,6 +14,7 @@ from store import (
     load_riders, locked_batch, operator_batch_for_token, refresh, respond_to_plan, run_matching, summarize,
     verify_ride_code,
 )
+from simulation import run_simulation
 
 load_dotenv(Path(__file__).with_name(".env"), override=False)
 
@@ -26,7 +27,7 @@ app.config.update(
 app.teardown_appcontext(close_database)
 app.register_blueprint(api)
 
-VIEWS = {"book": "Student app", "match": "Matching", "trips": "Trips", "captains": "Captains"}
+VIEWS = {"book": "Student app", "match": "Matching", "trips": "Trips", "captains": "Captains", "simulation": "Simulation"}
 
 
 # The session tracks two batches: "own_batch" is the one this browser created (replaced on reset),
@@ -100,6 +101,7 @@ def index():
         api_ttl_hours=int(API_BATCH_TTL.total_seconds() // 3600),
         driver_check=session.pop("driver_check", None) if active == "trips" else None,
         captains=captain_sheets(riders, cars) if active == "captains" else None, now=clock(batch),
+        simulation=run_simulation() if active == "simulation" else None,
     )
 
 
