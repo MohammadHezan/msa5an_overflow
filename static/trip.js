@@ -1,23 +1,19 @@
 const form = document.querySelector("#trip-form");
 
 if (form) {
-  const minutes = JSON.parse(form.dataset.minutes);
-  const fares = JSON.parse(document.querySelector("#fares").textContent);
-  const area = form.elements.area;
-  const arrival = form.elements.arrival;
-  const leaveBy = document.querySelector("#leave-by");
-  const fare = document.querySelector("#fare");
+  const estimates = JSON.parse(document.querySelector("#estimates").textContent);
+  const woman = document.querySelector("#woman");
+  const womenOnly = document.querySelector("#women-only");
+  const jod = (fils) => `JOD ${(fils / 1000).toFixed(2)}`;
 
-  function updateEstimate() {
-    const [hour, minute] = arrival.value.split(":").map(Number);
-    const departure = hour * 60 + minute - minutes[area.value] - Number(form.dataset.buffer);
-    const timePart = (value) => String(value).padStart(2, "0");
-    leaveBy.textContent = arrival.validity.valid
-      ? `${timePart(Math.floor(departure / 60))}:${timePart(departure % 60)}`
-      : "—";
-    fare.textContent = `JOD ${(fares[area.value] / 1000).toFixed(2)}`;
+  function update() {
+    const estimate = estimates[form.elements.stop.value];
+    document.querySelector("#solo").textContent = jod(estimate.solo);
+    document.querySelector("#shared").textContent = jod(estimate.shared);
+    womenOnly.disabled = !woman.checked;
+    if (!woman.checked) womenOnly.checked = false;
   }
 
-  form.addEventListener("input", updateEstimate);
-  updateEstimate();
+  form.addEventListener("input", update);
+  update();
 }

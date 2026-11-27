@@ -99,3 +99,42 @@ footer form { display: flex; gap: 8px; flex-wrap: wrap; }
   .layout { grid-template-columns: 1fr; }
   .table-scroll table { min-width: 470px; }
 }
+.eyebrow { margin: 0 0 4px; font-size: .74rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.tag { display: inline-block; vertical-align: 1px; margin-left: 4px; border-radius: 20px; padding: 2px 8px; font-size: .7rem; font-weight: 750; background: #ecf0ed; color: #40584a; }
+.tag.women { background: #f6e3ec; color: #7a2850; }
+.fare-card { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 18px 0; padding: 14px 16px; border-radius: 12px; background: #edf3e9; }
+.fare-card span { display: block; color: var(--muted); font-size: .79rem; }
+.fare-card strong { font-size: 1.5rem; letter-spacing: -.03em; }
+.fare-card s { font-size: 1.1rem; color: var(--muted); line-height: 2.1; }
+.fare-card .save strong { color: #20502f; }
+.route { list-style: none; margin: 0 0 14px; padding: 0 0 0 22px; border-left: 3px solid #b8d4bd; }
+.route li { position: relative; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 0; }
+.route li::before { content: ""; position: absolute; left: -29px; width: 11px; height: 11px; border-radius: 50%; background: var(--paper); border: 3px solid #7da98b; }
+.route li.pickup::before { background: var(--accent); border-color: var(--accent); }
+.route li.you { font-weight: 700; }
+.route li.you::before { background: #c9e594; border-color: var(--accent); }
+.route li.you .price { background: #c9e594; }
+.route small { display: block; }
+.price { flex: 0 0 auto; font-weight: 750; padding: 3px 9px; border-radius: 7px; background: #edf3e9; text-align: right; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.actions form { margin: 0; }
+.success-note { background: #dcefdc; }
+.rules { margin: 14px 0 20px; padding-left: 18px; color: var(--muted); }
+.rules li + li { margin-top: 8px; }
+.rules strong { color: var(--ink); }
+.direction { font-size: .78rem; font-weight: 700; color: var(--accent); }
+.stats { display: grid; grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
+.stat span { display: block; font-size: .82rem; font-weight: 700; color: var(--muted); }
+.stat strong { display: block; font-size: clamp(1.7rem, 3.5vw, 2.6rem); letter-spacing: -.05em; line-height: 1.15; }
+.stat em { font-style: normal; font-size: .55em; color: var(--muted); }
+.cars { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.car.solo { background: #f7f8f3; }
+.car-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+.route.compact { margin: 0; }
+.route.compact .price { background: none; padding: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.route.compact a { color: inherit; }
+@media (max-width: 720px) {
+  .fare-card { grid-template-columns: 1fr 1fr; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .stats .featured { grid-column: 1 / -1; }
+}

@@ -1,8 +1,8 @@
 # Campus Connect
 
-A one-campus Amman hackathon demo for booking private rides ahead of time. Students request a ride, operations runs the evening cutoff, and every request gets an outcome. SQLite stores each browser's demo batch, and OR-Tools CP-SAT allocates the ride credits.
+A proposed Jeeny feature that helps students pay less by sharing rides home with other students going the same way. A student books before class ends. Campus Connect groups students leaving the same campus in the same direction at about the same time, sets one meeting point and pickup time, and shows each student's share before they confirm. The price reflects how far each student rides. Women students can choose to match only with other women students.
 
-See [document.md](document.md) for the Expo and backend split, proposed API, task estimates, and simulation plan. Team questions and the original demo checklist are in [agent.md](agent.md).
+The demo is a Flask app. SQLite stores each browser's demo batch, and OR-Tools CP-SAT groups students into as few cars as possible.
 
 ## Run
 
@@ -19,10 +19,11 @@ Open [http://localhost:5000](http://localhost:5000). The demo stores batches und
 
 ## Judge walkthrough
 
-1. Choose **Start empty batch**. Enter a demo name, choose a pickup area and arrival time, and review the leave-by estimate.
-2. Submit the request. Open **Operations** and click **Run allocation**. Open the student's result from the Results table.
-3. Choose **Load seven-student scenario** and run the allocation at the default JOD 6.00 budget. Campus Connect projects **6 of 7** on-time arrivals. First come, first served projects **4 of 7** with the same four credits and driver capacity.
+1. The app opens with a sample afternoon of ten students. Open **Matching** and click **Match 10 students**.
+2. On **Trips**, see the five cars, each pickup time and gate, and each student's share compared with riding alone.
+3. Open **Sara**. Her class ends at 16:00. She meets Rama and Huda at the main gate at 16:15, shares one women-only car, and pays JOD 1.50 instead of JOD 4.50.
+4. Click **Decline** as Rama. Sara and Huda now see an updated plan and are asked to confirm again.
+5. Kareem finishes at the same time and heads the same way, but the car is women-only, so he is offered a solo ride.
+6. Choose **Start empty batch** to book your own requests from the **Book** page.
 
-Two fixture students have an on-time bus. First come, first served gives the first four eligible rides a credit, including two bus users. Campus Connect uses the four credits where they add an on-time option. Driver capacity and the per-student cap apply to each method. Full-fare rides require opt-in.
-
-The operations button simulates the 9 p.m. cutoff. Each available driver represents one ride in the configured arrival window. Travel times, fares, bus availability and arrivals are simulated. The app makes no bookings or payments. Each student gets one request per batch.
+Distances, fares and gates are simulated. A shared car costs 85% of JOD 0.90 + JOD 0.30/km to the last stop + JOD 0.25 per extra stop. Each student pays in proportion to their distance and never more than riding alone. The app makes no bookings or payments.
