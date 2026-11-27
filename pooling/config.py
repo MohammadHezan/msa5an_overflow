@@ -29,3 +29,12 @@ LOCK_LEAD_MIN = 15
 SOLVER_SECONDS = 2.0
 SOLVER_WORKERS = 4
 SOLO_PENALTY = 1500      # fils: regroup will spend up to this much of the group's savings to keep one student from riding alone
+
+# Simulated student verification. Codes are printed locally, never emailed.
+VERIFY_CODE_MIN = 5
+VERIFY_RESEND_SEC = 30
+VERIFY_MAX_WRONG = 5
+VERIFY_CODE_DIGITS = 6
+STUDENT_EMAIL_MAX = 254
+STUDENT_FIRST_NAME_MAX = 40
+UNIVERSITY_SEARCH_MAX = 100

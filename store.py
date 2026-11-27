@@ -87,6 +87,12 @@ CAPTAINS = (
     ("Fadi", "man", 1), ("Samer", "man", 1), ("Yousef", "man", 1), ("Tariq", "man", 1),
 )
 
+UNIVERSITIES = (
+    ("Al-Balqa Applied University", "Salt", "Salt campus", "Main gate", "bau.edu.jo", 1),
+    ("University of Jordan", "Amman", "Amman campus", "Main gate", "ju.edu.jo", 0),
+    ("Yarmouk University", "Irbid", "Irbid campus", "Main gate", "yu.edu.jo", 0),
+)
+
 RIDER_COLUMNS = {  # Columns added after the first release, with their definitions (migrations add them)
     "ride_code": "TEXT", "gender": "TEXT", "preference": "TEXT NOT NULL DEFAULT 'mixed'", "friend_group": "TEXT",
     "hold_until": "TEXT", "choice": "TEXT", "wait_until": "TEXT", "board_km": "REAL",
@@ -136,7 +142,8 @@ def database():
             CREATE TABLE IF NOT EXISTS api_tokens (
                 token_hash TEXT PRIMARY KEY, batch TEXT NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
                 role TEXT NOT NULL CHECK (role IN ('operator', 'student')),
-                rider INTEGER REFERENCES riders(id) ON DELETE CASCADE, client_request_id TEXT
+                rider INTEGER REFERENCES riders(id) ON DELETE CASCADE, client_request_id TEXT,
+                student_id INTEGER REFERENCES students(id)
             );
             CREATE TABLE IF NOT EXISTS captains (
                 id INTEGER PRIMARY KEY, name TEXT NOT NULL, gender TEXT NOT NULL, available INTEGER NOT NULL DEFAULT 1
@@ -150,17 +157,47 @@ def database():
                 batch TEXT NOT NULL REFERENCES batches(id) ON DELETE CASCADE, code TEXT NOT NULL,
                 open INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (batch, code)
             );
+            CREATE TABLE IF NOT EXISTS universities (
+                id INTEGER PRIMARY KEY, name TEXT NOT NULL, city TEXT NOT NULL, campus TEXT NOT NULL,
+                gate TEXT NOT NULL, email_domain TEXT NOT NULL UNIQUE,
+                available INTEGER NOT NULL DEFAULT 0 CHECK (available IN (0, 1))
+            );
+            CREATE TABLE IF NOT EXISTS students (
+                id INTEGER PRIMARY KEY, university INTEGER NOT NULL REFERENCES universities(id),
+                email TEXT NOT NULL COLLATE NOCASE, first_name TEXT NOT NULL, verified_at TEXT,
+                UNIQUE(university, email)
+            );
+            CREATE TABLE IF NOT EXISTS verification_challenges (
+                token_hash TEXT PRIMARY KEY REFERENCES api_tokens(token_hash) ON DELETE CASCADE,
+                student_id INTEGER NOT NULL REFERENCES students(id), code_digest TEXT NOT NULL,
+                nonce TEXT NOT NULL, expires_at TEXT NOT NULL, sent_at TEXT NOT NULL,
+                wrong_attempts INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS university_notifications (
+                university_id INTEGER NOT NULL REFERENCES universities(id),
+                token_hash TEXT NOT NULL, requested_at TEXT NOT NULL,
+                PRIMARY KEY (university_id, token_hash)
+            );
         """)
         _migrate(g.db)
         g.db.execute("CREATE UNIQUE INDEX IF NOT EXISTS riders_ride_code ON riders (batch, ride_code)")
         if not g.db.execute("SELECT 1 FROM captains LIMIT 1").fetchone():
             with g.db:
                 g.db.executemany("INSERT INTO captains (name, gender, available) VALUES (?, ?, ?)", CAPTAINS)
+        with g.db:
+            g.db.executemany(
+                "INSERT OR IGNORE INTO universities (name, city, campus, gate, email_domain, available) "
+                "VALUES (?, ?, ?, ?, ?, ?)", UNIVERSITIES,
+            )
     return g.db
 
 
 def _migrate(db):
     """Bring databases made by earlier versions up to the current schema."""
+    token_columns = {row["name"] for row in db.execute("PRAGMA table_info(api_tokens)")}
+    if "student_id" not in token_columns:
+        with db:
+            db.execute("ALTER TABLE api_tokens ADD COLUMN student_id INTEGER REFERENCES students(id)")
     batch_columns = {row["name"] for row in db.execute("PRAGMA table_info(batches)")}
     for column, kind in BATCH_COLUMNS.items():
         if column not in batch_columns:
@@ -772,10 +809,12 @@ def _hash(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def issue_token(db, batch_id, role):
+def issue_token(db, batch_id, role, student_id=None, commit=True):
     token = secrets.token_urlsafe(32)
-    with db:
-        db.execute("INSERT INTO api_tokens (token_hash, batch, role) VALUES (?, ?, ?)", (_hash(token), batch_id, role))
+    db.execute("INSERT INTO api_tokens (token_hash, batch, role, student_id) VALUES (?, ?, ?, ?)",
+               (_hash(token), batch_id, role, student_id))
+    if commit:
+        db.commit()
     return token
 
 
