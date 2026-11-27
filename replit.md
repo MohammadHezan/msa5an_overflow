@@ -12,4 +12,4 @@ Shared rides home from campus for students (proposed Jeeny feature, hackathon de
 - `sharing.py` – destinations, simulated map coordinates, fare rules, CP-SAT grouping, per-car price split.
 - Route maps are inline SVG drawn server-side (no map tiles or external services), labelled "Simulated map".
 - `templates/index.html`, `static/` – Book, Matching and Trips views.
-- `mobile/` – placeholder for a future Expo app. `document.md` and `agent.md` are team planning notes from the earlier ride-credit version.
+- `mobile/` – placeholder for a future Expo app. `document.md` (rules, task split, proposed JSON API) and `agent.md` (team decisions, interview form, acceptance checklist) are the team planning notes.
