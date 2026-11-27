@@ -8,7 +8,7 @@
   {% else %}
     {{ ui.intro("You’re on your way", "Heading to " ~ dest, "Boarding verified · Sharing is on") }}
   {% endif %}
-  {{ ui.map(university.campus, plan.boards[others[0].id] if others else "Campus street", dest, members | length - 1 if others else 1) }}
+  {{ ui.map(university.campus, "Campus street" if rider.direction == "from_campus" else rider.stop ~ " street", dest, members | length - 1 if others else 1) }}
   {% if others %}
     {{ ui.price("Your approved maximum", rider.share | jod, ((cap - rider.share) | jod) ~ " less than your solo quote", "Save " ~ saving ~ "%") }}
     {% if members | length > 2 %}<a class="yr-textlink" href="{{ url_for('yalla.ride', step='legs') }}">How each part of the ride is split</a>{% endif %}

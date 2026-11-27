@@ -7,7 +7,7 @@
   <ul class="yr-people">
     <li>{{ ui.initial(j.name) }}<span><strong>{{ j.name }}</strong><small>{{ plan.boards[j.id] }}</small></span><em>Joining</em>{{ ui.icon("check") }}</li>
   </ul>
-  {{ ui.row("pin", "Pickup ahead", plan.boards[j.id] ~ " · on your route") }}
+  {% if plan.boards[j.id] == street %}{{ ui.row("pin", "Same pickup street", street) }}{% else %}{{ ui.row("pin", "Pickup ahead", plan.boards[j.id]) }}{% endif %}
   {{ ui.info("shield", "Everyone confirms first", "The captain checks " ~ j.name ~ "’s own code at the pickup.") }}
 {% endblock %}
 {% block foot %}<div class="yr-foot">

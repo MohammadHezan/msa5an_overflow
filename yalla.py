@@ -483,9 +483,9 @@ def leg_split(plan, rider):
     origin = max((m["start_km"] or 0.0) for m in members) if to_campus else 0.0
     def on(m):
         board = m["board_km"] if m["board_km"] is not None else (m["start_km"] if to_campus else 0.0)
-        return origin - board if to_campus else board
+        return round(origin - board if to_campus else board, 2)
     def off(m):
-        return origin if to_campus else m["km"]
+        return round(origin if to_campus else m["km"], 2)
     points = sorted({round(on(m), 2) for m in members} | {round(off(m), 2) for m in members})
     def place(km):
         for m in members:
@@ -499,7 +499,8 @@ def leg_split(plan, rider):
         aboard = [m for m in members if on(m) <= start + 1e-6 and off(m) >= end - 1e-6]
         if aboard:
             legs.append({"from": place(start), "to": place(end), "km": round(end - start, 1),
-                         "aboard": ["You" if m["id"] == rider["id"] else m["name"] for m in aboard]})
+                         "aboard": ["You" if m["id"] == rider["id"] else m["name"]
+                                    for m in sorted(aboard, key=lambda m: m["id"] != rider["id"])]})
     return legs
 
 
@@ -569,7 +570,8 @@ def demo_joiner():
             if not name or len(rider["plan"]["members"]) >= RULES["seats"]:
                 raise Problem("car_full", "Your car is full.")
             corridor = CORRIDORS[rider["corridor"]]["stops"]
-            stop = min(corridor, key=lambda s: (abs(corridor[s] - corridor[rider["stop"]]), s == rider["stop"]))
+            used = {m["stop"] for m in rider["plan"]["members"]}
+            stop = min(corridor, key=lambda s: (s in used, abs(corridor[s] - corridor[rider["stop"]])))
             preference = "women" if rider["plan"].get("only") == "women" else "men" if rider["plan"].get("only") == "men" else "mixed"
             joiner_id = insert_request(db, batch, name, rider["class_end"] or "16:00", stop, rider["gender"], preference,
                                        direction=rider["direction"], class_start=rider["class_start"] or "09:00")
@@ -605,7 +607,9 @@ DEMO_SCREENS = {
     "05": ("destination", {}), "06": ("pickup_time", {}), "07": ("preferences", {}), "08": ("review", {}),
     "09": ("ride", {}), "10": ("ride", {}), "11": ("fare", {}), "12": ("ride", {}),
     "13": ("ride", {"step": "pickup"}), "14": ("ride", {"step": "code"}), "15": ("ride", {"step": "trip"}),
-    "16": ("ride", {"step": "receipt"}), "17": ("leave_now", {}), "34": ("help_page", {}), "36": ("not_available", {"university": "hillcrest"}),
+    "16": ("ride", {"step": "receipt"}), "17": ("leave_now", {}),
+    "18": ("ride", {}), "19": ("ride", {}), "20": ("ride", {}), "21": ("ride", {}), "22": ("ride", {}),
+    "23": ("ride", {}), "24": ("ride", {}), "25": ("ride", {"step": "legs"}), "38": ("ride", {}), "39": ("ride", {}), "34": ("help_page", {}), "36": ("not_available", {"university": "hillcrest"}),
 }
 
 
@@ -642,7 +646,28 @@ def demo(screen):
                 rider = next(r for r in load_riders(db, batch)[0] if r["id"] == rider_id)
                 respond_to_plan(db, batch, rider_id, "confirm", rider["signature"])
         session["yalla_rider"] = rider_id
+    if screen in GO_STEPS:
+        db = database()
+        with db:
+            batch_id = create_batch(db, True, replaces=session.get("own_batch", session.get("batch")))
+        session["batch"] = session["own_batch"] = batch_id
+        session["csrf"] = session.get("csrf") or secrets.token_urlsafe(32)
+        session["yalla"] = {**draft(), "stop": "Al Bayader"}
+        for step in GO_STEPS[screen]:  # The same handlers the buttons use
+            {"book": leave_now_book, "start": ride_started, "join": demo_joiner,
+             "seen": joined_seen, "finish": finish_ride}[step]()
+        session.pop("_flashes", None)
     return redirect(url_for(f"yalla.{endpoint}", **args))
+
+
+# Leave now & share states (17-25, 38-39), reached by replaying the demo buttons in order.
+_SHARED_THREE = ["book", "start", "join", "seen", "join", "seen"]
+GO_STEPS = {
+    "18": ["book"], "19": ["book", "start"], "20": ["book", "start", "join"],
+    "21": ["book", "start", "join", "seen", "join"], "22": _SHARED_THREE, "23": _SHARED_THREE + ["finish"],
+    "24": ["book", "start", "finish"], "25": _SHARED_THREE, "38": ["book", "start", "join", "seen"],
+    "39": ["book", "start", "join", "seen", "finish"],
+}
 
 
 # ---------- 34 · help ----------
