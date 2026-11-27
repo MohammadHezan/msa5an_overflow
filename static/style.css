@@ -161,3 +161,8 @@ footer form { display: flex; gap: 8px; flex-wrap: wrap; }
 img.mark { object-fit: cover; }
 .ops-tag { display: inline-block; margin-left: 6px; font-size: .7rem; font-weight: 600; color: var(--accent); background: #FDE6F3; padding: 1px 8px; border-radius: 99px; }
 .hero h1 { letter-spacing: -.03em; }
+
+.panel form.open-batch { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin-top: 18px; }
+.open-batch label { flex: 1 1 220px; }
+.opened-batch { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.open-batch button { flex: 0 0 auto; width: auto; }

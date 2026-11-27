@@ -64,6 +64,13 @@
       </div>
       <span class="demo-label"><span aria-hidden="true"></span> Proposed Jeeny feature · demo</span>
     </section>
+    {% if opened %}
+      <form action="{{ url_for('return_to_own_batch') }}" method="post" class="notice opened-batch">
+        {{ token() }}
+        <span>Viewing an API-created batch (opened with its operator token).</span>
+        <button class="secondary" type="submit">Back to my batch</button>
+      </form>
+    {% endif %}
     {% for message in get_flashed_messages() %}<p class="notice" role="status">{{ message }}</p>{% endfor %}
 
     {% if active == "book" %}
@@ -193,6 +200,14 @@
           {% if join_code %}
             <p class="join-code">Students join this batch from the phone app with code <strong>{{ join_code }}</strong> <small>(valid until {{ join_expires.strftime("%H:%M") }})</small></p>
           {% endif %}
+          <form action="{{ url_for('open_batch') }}" method="post" class="open-batch">
+            {{ token() }}
+            <label>Open a batch created through the API
+              <input type="password" name="operator_token" autocomplete="off" placeholder="Operator token" required>
+            </label>
+            <button class="secondary" type="submit">Open batch</button>
+          </form>
+          <p class="hint">API batches are deleted {{ api_ttl_hours }} hours after they are created.</p>
         </section>
         <aside class="panel">
           <div class="panel-heading"><h2>Requests</h2><span class="count">{{ riders | length }}</span></div>

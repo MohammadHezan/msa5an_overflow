@@ -9,8 +9,9 @@ from flask import Flask, abort, flash, redirect, render_template, request, sessi
 from api import api
 from sharing import CORRIDORS, route_map
 from store import (
-    RULES, Problem, check_request, close_database, create_batch, database, fare_estimates,
-    get_batch, insert_request, join_code, load_riders, locked_batch, respond_to_plan, run_matching, summarize,
+    API_BATCH_TTL, RULES, Problem, check_request, close_database, create_batch, database, delete_old_api_batches, fare_estimates,
+    get_batch, insert_request, join_code, load_riders, locked_batch, operator_batch_for_token, respond_to_plan,
+    run_matching, summarize,
 )
 
 load_dotenv(Path(__file__).with_name(".env"), override=False)
@@ -27,9 +28,17 @@ app.register_blueprint(api)
 VIEWS = {"book": "Student app", "match": "Matching", "trips": "Trips"}
 
 
+# The session tracks two batches: "own_batch" is the one this browser created (replaced on reset),
+# and "batch" is the one the dashboard shows and acts on. They differ after an operator opens an
+# API-created batch with its operator token; that batch is never deleted by this browser.
+
+def own_batch_id():
+    return session.get("own_batch", session.get("batch"))  # Older sessions only stored "batch"
+
+
 def new_batch(db, seeded):
-    batch = create_batch(db, seeded, replaces=session.get("batch"))
-    session["batch"] = batch
+    batch = create_batch(db, seeded, replaces=own_batch_id())
+    session["batch"] = session["own_batch"] = batch
     session["csrf"] = secrets.token_urlsafe(32)
     return batch
 
@@ -40,6 +49,10 @@ def current_batch(db):
         batch = get_batch(db, batch_id)
         if batch:
             return batch
+        if batch_id != own_batch_id():  # The opened API batch expired and was cleaned up
+            flash("The API batch you opened has been removed. Showing this browser's own batch.")
+            session["batch"] = own_batch_id()
+            return current_batch(db)
     return get_batch(db, new_batch(db, seeded=True))
 
 
@@ -81,7 +94,8 @@ def index():
         batch=batch, date_label=date.fromisoformat(batch["trip_date"]).strftime("%a, %d %b"),
         riders=riders, cars=cars, active=active, views=VIEWS, selected=selected, summary=summarize(riders, cars),
         corridors=CORRIDORS, estimates=fare_estimates(), rules=RULES,
-        join_code=code, join_expires=code_expires,
+        join_code=code, join_expires=code_expires, opened=batch["id"] != own_batch_id(),
+        api_ttl_hours=int(API_BATCH_TTL.total_seconds() // 3600),
     )
 
 
@@ -152,6 +166,29 @@ def respond(rider_id, action):
     else:
         flash(f"{rider['name']} left the ride. Anyone else in the car sees an updated plan.")
     return redirect(url_for("index", rider=rider_id))
+
+
+@app.post("/batches/open")
+def open_batch():
+    """Show an API-created batch in this dashboard, given its operator token."""
+    db = database()
+    with db:
+        delete_old_api_batches(db)
+    batch = operator_batch_for_token(db, request.form.get("operator_token", "").strip())
+    if not batch:
+        flash("That operator token is unknown or its batch has expired.")
+        return redirect(url_for("index", view="match"))
+    session.setdefault("own_batch", session.get("batch"))
+    session["batch"] = batch["id"]
+    flash("Opened the API batch. Matching and Trips now act on it.")
+    return redirect(url_for("index", view="trips" if batch["matched"] else "match"))
+
+
+@app.post("/batches/own")
+def return_to_own_batch():
+    session["batch"] = own_batch_id()
+    flash("Back to this browser's own batch.")
+    return redirect(url_for("index", view="match"))
 
 
 @app.post("/reset")

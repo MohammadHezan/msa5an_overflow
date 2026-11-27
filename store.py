@@ -6,7 +6,7 @@ so the web dashboard and the phone follow one set of rules on one batch.
 import hashlib
 import secrets
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -20,6 +20,7 @@ from sharing import (
 AMMAN = ZoneInfo("Asia/Amman")
 MAX_REQUESTS = 40
 JOIN_CODE_TTL = timedelta(hours=3)
+API_BATCH_TTL = timedelta(hours=24)  # Batches created through the API (they have an operator token) are deleted after this
 JOIN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # No 0/O or 1/I
 
 # name, class ends, drop-off, woman student, women-only matching
@@ -54,7 +55,8 @@ def database():
         g.db.execute("PRAGMA foreign_keys = ON")
         g.db.executescript("""
             CREATE TABLE IF NOT EXISTS batches (
-                id TEXT PRIMARY KEY, trip_date TEXT NOT NULL, matched INTEGER NOT NULL DEFAULT 0
+                id TEXT PRIMARY KEY, trip_date TEXT NOT NULL, matched INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT
             );
             CREATE TABLE IF NOT EXISTS riders (
                 id INTEGER PRIMARY KEY, batch TEXT NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
@@ -73,6 +75,11 @@ def database():
                 rider INTEGER REFERENCES riders(id) ON DELETE CASCADE, client_request_id TEXT
             );
         """)
+        columns = {row["name"] for row in g.db.execute("PRAGMA table_info(batches)")}
+        if "created_at" not in columns:  # Databases made before batches recorded their creation time
+            with g.db:  # Existing batches get a full retention period from now rather than being deleted at once
+                g.db.execute("ALTER TABLE batches ADD COLUMN created_at TEXT")
+                g.db.execute("UPDATE batches SET created_at = ? WHERE created_at IS NULL", (utc_stamp(),))
     return g.db
 
 
@@ -93,12 +100,27 @@ def add_rider(db, batch, name, class_end, stop, woman, women_only):
     ).lastrowid
 
 
+def utc_stamp(moment=None):
+    return (moment or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat(timespec="seconds")
+
+
+def delete_old_api_batches(db):
+    """Delete API-created batches older than API_BATCH_TTL. Call inside a transaction."""
+    cutoff = utc_stamp(datetime.now(timezone.utc) - API_BATCH_TTL)
+    return db.execute(
+        "DELETE FROM batches WHERE created_at < ? AND id IN "
+        "(SELECT batch FROM api_tokens WHERE role = 'operator')",
+        (cutoff,),
+    ).rowcount
+
+
 def create_batch(db, seeded, replaces=None):
-    """New batch for tomorrow in Amman. Deletes `replaces` (a previous batch id) in the same transaction."""
+    """New batch for tomorrow in Amman. Deletes `replaces` (a previous batch id) and expired API batches in the same transaction."""
     batch = secrets.token_hex(16)
     trip_date = now().date() + timedelta(days=1)
     with db:
-        db.execute("INSERT INTO batches (id, trip_date) VALUES (?, ?)", (batch, trip_date.isoformat()))
+        delete_old_api_batches(db)
+        db.execute("INSERT INTO batches (id, trip_date, created_at) VALUES (?, ?, ?)", (batch, trip_date.isoformat(), utc_stamp()))
         if seeded:
             for row in FIXTURE:
                 add_rider(db, batch, *row)
@@ -274,6 +296,14 @@ def issue_token(db, batch_id, role):
 
 def find_token(db, token):
     return db.execute("SELECT * FROM api_tokens WHERE token_hash = ?", (_hash(token),)).fetchone()
+
+
+def operator_batch_for_token(db, token):
+    """The batch an operator token controls, or None for an unknown, student or expired token."""
+    row = find_token(db, token) if token else None
+    if not row or row["role"] != "operator":
+        return None
+    return get_batch(db, row["batch"])
 
 
 def bind_token(db, token_hash, rider_id, client_request_id):
