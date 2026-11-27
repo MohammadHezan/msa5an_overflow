@@ -73,7 +73,7 @@ export function JoinScreen() {
         ) : health === 'down' ? (
           <Banner
             tone="error"
-            title="Can't reach Campus Connect"
+            title="Can't reach Yalla Ride"
             message={`Check your connection. The app is trying ${apiUrl}.`}
             actionLabel="Try again"
             onAction={checkHealth}

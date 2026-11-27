@@ -1,5 +1,5 @@
 /**
- * Client for the Campus Connect /api/v1 backend (see api.py and document.md "As built (B1)").
+ * Client for the Yalla Ride /api/v1 backend (see api.py and document.md "As built (B1)").
  * Every failure becomes an ApiError with a stable `code`, including `offline` and `timeout`
  * for requests that never got a response.
  */
@@ -123,7 +123,7 @@ async function request<T>(apiUrl: string, path: string, options: RequestOptions 
       timedOut ? 'timeout' : 'offline',
       timedOut
         ? 'The server is taking too long to answer. Check your connection and try again.'
-        : "Can't reach Campus Connect. Check your connection and try again.",
+        : "Can't reach Yalla Ride. Check your connection and try again.",
       0,
     );
   };

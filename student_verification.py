@@ -104,7 +104,7 @@ def _masked(email):
 def start_verification(db, token, university_id, email, first_name=None):
     school = university(db, university_id)
     if not school["available"]:
-        raise Problem("campus_unavailable", "Campus Connect is not available at this campus yet.", 409)
+        raise Problem("campus_unavailable", "Yalla Ride is not available at this campus yet.", 409)
     email = email.strip().casefold()
     if len(email) > config.STUDENT_EMAIL_MAX or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
         raise Problem("email_not_university", "Use your university email address.", 400)
@@ -142,7 +142,7 @@ def resend_verification(db, token):
         raise Problem("verification_not_started", "Start student verification first.", 409)
     student = db.execute("SELECT * FROM students WHERE id = ?", (challenge["student_id"],)).fetchone()
     if not university(db, student["university"])["available"]:
-        raise Problem("campus_unavailable", "Campus Connect is not available at this campus yet.", 409)
+        raise Problem("campus_unavailable", "Yalla Ride is not available at this campus yet.", 409)
     code, body = _new_challenge(db, token["token_hash"], student["id"], challenge, now())
     return (student["email"], code), {**body, "maskedEmail": _masked(student["email"]),
                                     "delivery": "console_demo", "message": "New code sent"}
@@ -163,7 +163,7 @@ def confirm_verification(db, token, code):
         return Problem("verification_code_invalid", "That code is incorrect.", 400)
     student = db.execute("SELECT * FROM students WHERE id = ?", (challenge["student_id"],)).fetchone()
     if not university(db, student["university"])["available"]:
-        return Problem("campus_unavailable", "Campus Connect is not available at this campus yet.", 409)
+        return Problem("campus_unavailable", "Yalla Ride is not available at this campus yet.", 409)
     db.execute("UPDATE students SET verified_at = COALESCE(verified_at, ?) WHERE id = ?",
                (now().isoformat(), student["id"]))
     db.execute("UPDATE api_tokens SET student_id = ? WHERE token_hash = ?", (student["id"], token["token_hash"]))

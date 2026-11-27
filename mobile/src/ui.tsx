@@ -20,7 +20,7 @@ export function Header({ subtitle, onLeave }: { subtitle?: string; onLeave?: () 
           </Pressable>
         ) : null}
       </View>
-      <Text style={styles.headerTitle}>Campus Connect</Text>
+      <Text style={styles.headerTitle}>Yalla Ride</Text>
       {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
     </View>
   );

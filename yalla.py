@@ -12,8 +12,8 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, s
 
 from sharing import CORRIDORS, STOPS, route_map
 from store import (
-    RULES, Problem, check_request, clock, database, fare_estimates, get_batch, insert_request, load_riders,
-    locked_batch, refresh, respond_to_plan, run_matching,
+    RULES, Problem, check_request, clock, create_batch, database, fare_estimates, get_batch, insert_request,
+    load_riders, locked_batch, refresh, respond_to_plan, run_matching,
 )
 
 yalla = Blueprint("yalla", __name__, url_prefix="/yalla")
@@ -406,6 +406,51 @@ def rate():
         session["yalla_rating"] = stars
         flash("Thanks for rating your shared ride")
     return redirect(url_for("yalla.ride", step="receipt"))
+
+
+# ---------- demo: open any designed screen directly ----------
+
+DEMO_SCREENS = {
+    "01": ("home", {}), "02": ("verify", {}), "03": ("verify_code", {}), "04": ("choose_university", {}),
+    "05": ("destination", {}), "06": ("pickup_time", {}), "07": ("preferences", {}), "08": ("review", {}),
+    "09": ("ride", {}), "10": ("ride", {}), "11": ("fare", {}), "12": ("ride", {}),
+    "13": ("ride", {"step": "pickup"}), "14": ("ride", {"step": "code"}), "15": ("ride", {"step": "trip"}),
+    "16": ("ride", {"step": "receipt"}), "34": ("help_page", {}), "36": ("not_available", {"university": "hillcrest"}),
+}
+
+
+@yalla.get("/demo/<screen>")
+def demo(screen):
+    """Open a designed screen with a seeded booking. Screens after booking start a fresh sample batch for this browser."""
+    if screen not in DEMO_SCREENS:
+        abort(404)
+    endpoint, args = DEMO_SCREENS[screen]
+    session["student_verified"] = True
+    session["yalla_name"] = "Sara A"
+    session["yalla"] = {**DEFAULT_DRAFT, "quiet": True}
+    if screen == "03":
+        session["yalla_email"] = "s***@cedar.edu"
+        session["yalla_code"] = f"{secrets.randbelow(900000) + 100000}"
+        session["yalla_code_until"] = (datetime.now() + CODE_LIFETIME).isoformat()
+    if screen >= "09" and screen <= "16":
+        db = database()
+        with db:
+            batch_id = create_batch(db, True, replaces=session.get("own_batch", session.get("batch")))
+        session["batch"] = session["own_batch"] = batch_id
+        session["csrf"] = session.get("csrf") or secrets.token_urlsafe(32)
+        d = draft()
+        with db:
+            batch = locked_batch(db, batch_id)
+            rider_id = insert_request(db, batch, student_name(), d["class_end"], d["stop"], d["gender"], d["preference"],
+                                      direction=d["direction"], class_start=d["class_start"])
+            if screen >= "10":
+                run_matching(db, batch)
+                batch = get_batch(db, batch_id)
+            if screen >= "12":
+                rider = next(r for r in load_riders(db, batch)[0] if r["id"] == rider_id)
+                respond_to_plan(db, batch, rider_id, "confirm", rider["signature"])
+        session["yalla_rider"] = rider_id
+    return redirect(url_for(f"yalla.{endpoint}", **args))
 
 
 # ---------- 34 · help ----------

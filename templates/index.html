@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Campus Connect · {{ views[active] }}</title>
+  <title>Yalla Ride · {{ views[active] }}</title>
   <link rel="icon" href="{{ url_for('static', filename='jeeny-icon.png') }}">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -45,7 +45,7 @@
   {% endmacro %}
   <header class="top">
     <div class="top-inner">
-      <a class="brand" href="{{ url_for('index') }}"><img class="mark" src="{{ url_for('static', filename='jeeny-icon.png') }}" alt="">Campus Connect <small class="ops-tag">Operator</small></a>
+      <a class="brand" href="{{ url_for('index') }}"><img class="mark" src="{{ url_for('static', filename='jeeny-icon.png') }}" alt="">Yalla Ride <small class="ops-tag">Operator</small></a>
       <nav aria-label="Demo views">
         {% for view, label in views.items() %}
           <a href="{{ url_for('index', view=view) }}"{% if view == active %} aria-current="page"{% endif %}>{{ label }}</a>
