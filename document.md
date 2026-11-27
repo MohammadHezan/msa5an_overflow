@@ -124,6 +124,16 @@ This is the implementation target. Each JSON endpoint mirrors a current Flask ro
 - The operator creates the batch and runs matching. A student token grants access only to that student's plan and actions. Do not expose other riders' surnames or drop-off details beyond what the plan shows. Keep credentials out of query strings and logs. Today's form routes use a CSRF token in the session; the JSON API needs bearer tokens instead.
 - Keep the fare and matching rules on the backend. Run booking, matching, confirm and decline in one transaction each, as the form routes already do, so a retry or concurrent action cannot double-book or confirm a stale plan.
 
+### As built (B1)
+
+The API lives in `api.py`; the HTML routes in `app.py` and the API both call the booking, matching, confirm and decline functions in `store.py`.
+
+- **Tokens.** `POST /api/v1/batches` (`{"mode": "seeded" | "empty"}`) returns the batch `id`, a six-character `joinCode` valid for 3 hours, and an `operatorToken`. The web dashboard shows the join code for its own batch on the Matching view, so a phone can join the batch the operator is running. `POST /api/v1/demo-sessions/join` (`{"joinCode"}`) returns a student `token`. Send tokens as `Authorization: Bearer <token>`.
+- **Scope.** A student token can book once; it is then bound to that rider and can only read, confirm or decline that rider. An operator token can read the batch, run matching, and act on any rider in its batch.
+- **Retries.** Repeating a booking with the same token, `clientRequestId` (8–64 letters, digits, `-`, `_`) and payload returns the original rider with `200` (the first booking returns `201`). Decline is also safe to repeat.
+- **Money and time.** Money is `{"fils": 1500, "currency": "JOD"}`. Plans include `pickupTime` (`16:15`) and `pickupAt` with the Amman offset.
+- **Errors.** `{"error": {"code", "message"}}` with codes `invalid_input` (400), `unauthorized` (401), `forbidden` (403), `not_found` / `join_code_invalid` (404), and `batch_matched`, `batch_full`, `batch_empty`, `duplicate_name`, `already_booked`, `request_conflict`, `not_matched`, `rider_declined`, `plan_changed` (409). `plan_changed` also returns the current plan under `rider`.
+
 ## Repeatable scenarios
 
 The sample afternoon is the fixed regression check: ten students, five cars, Sara's share JOD 1.50 versus JOD 4.50 alone, and Kareem offered a solo ride because the West car is women-only.

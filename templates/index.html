@@ -190,6 +190,9 @@
               <button type="submit" class="primary">Match {{ riders | length }} students <span aria-hidden="true">↗</span></button>
             </form>
           {% endif %}
+          {% if join_code %}
+            <p class="join-code">Students join this batch from the phone app with code <strong>{{ join_code }}</strong> <small>(valid until {{ join_expires.strftime("%H:%M") }})</small></p>
+          {% endif %}
         </section>
         <aside class="panel">
           <div class="panel-heading"><h2>Requests</h2><span class="count">{{ riders | length }}</span></div>

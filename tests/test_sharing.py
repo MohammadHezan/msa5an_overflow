@@ -5,7 +5,7 @@ import pytest
 
 from sharing import MIN_SHARE, SEATS, STOPS, compatible, group_riders, plan_car, solo_fare
 
-from app import FIXTURE
+from store import FIXTURE
 
 
 def make_riders(rows):

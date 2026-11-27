@@ -8,7 +8,9 @@ Shared rides home from campus for students (proposed Jeeny feature, hackathon de
 - `SESSION_SECRET` (in Secrets) keeps browser sessions valid across restarts.
 
 ## Layout
-- `app.py` – Flask routes, SQLite demo batches (`instance/campus.sqlite`), sample afternoon fixture.
+- `app.py` – Flask HTML routes (browser session owns a batch; Matching view shows the batch's student join code).
+- `api.py` – `/api/v1` JSON API for the Expo app and operators (bearer tokens).
+- `store.py` – SQLite demo batches (`instance/campus.sqlite`), sample fixture, and the booking/matching/confirm/decline actions shared by both.
 - `sharing.py` – destinations, simulated map coordinates, fare rules, CP-SAT grouping, per-car price split.
 - Route maps are inline SVG drawn server-side (no map tiles or external services), labelled "Simulated map".
 - `templates/phone.html` + `static/jeeny.css` – student app, styled as a feature inside Jeeny's ride section (magenta #EC008C, Poppins, map + bottom sheet, phone frame on desktop, full-screen on mobile).
