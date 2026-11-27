@@ -21,9 +21,12 @@ from store import (
 yalla = Blueprint("yalla", __name__, url_prefix="/yalla")
 
 UNIVERSITIES = [
-    {"id": "cedar", "name": "Cedar University", "campus": "Cedar Campus", "detail": "Cedar Campus · Street pickup", "open": True},
-    {"id": "hillcrest", "name": "Hillcrest University", "campus": "Hillcrest", "detail": "Hill City · Campus service updates", "open": False},
-    {"id": "northfield", "name": "Northfield University", "campus": "Northfield", "detail": "North City · Campus service updates", "open": False},
+    {"id": "cedar", "name": "Cedar University", "campus": "Cedar Campus", "detail": "Cedar Campus · Street pickup", "open": True,
+     "domain": "cedar.edu"},
+    {"id": "hillcrest", "name": "Hillcrest University", "campus": "Hillcrest", "detail": "Hill City · Campus service updates", "open": False,
+     "domain": "hillcrest.edu"},
+    {"id": "northfield", "name": "Northfield University", "campus": "Northfield", "detail": "North City · Campus service updates", "open": False,
+     "domain": "northfield.edu"},
 ]
 CODE_LIFETIME = timedelta(minutes=5)
 DEMO_JOINERS = ["Lina", "Noor", "Huda", "Rama", "Dima", "Tala"]
@@ -59,7 +62,9 @@ def ampm_filter(value):
 
 
 def draft():
-    return {**DEFAULT_DRAFT, **session.get("yalla", {})}
+    profile = {"gender": session.get("student_gender", DEFAULT_DRAFT["gender"]),
+               "direction": session.get("student_direction", DEFAULT_DRAFT["direction"])}  # From the Jeeny profile
+    return {**DEFAULT_DRAFT, **profile, **session.get("yalla", {})}
 
 
 def save_draft(**changes):
@@ -139,6 +144,11 @@ def verify():
         if len(email) > 254 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
             flash("Enter a valid university email.")
             return redirect(url_for("yalla.verify", next=request.form.get("next")))
+        domain = email.rsplit("@", 1)[1].lower()
+        if not any(domain == u["domain"] or domain.endswith("." + u["domain"]) for u in UNIVERSITIES):
+            session["yalla_bad_email"] = email
+            return redirect(url_for("yalla.email_recovery", next=request.form.get("next")))
+        session.pop("yalla_bad_email", None)
         session["yalla_email"] = masked(email)  # Only the masked form is kept; nothing is sent
         local = re.split(r"[._+-]", email.split("@")[0])
         session["yalla_name"] = " ".join(part.capitalize() for part in local if part)[:40] or "Student"
@@ -146,7 +156,16 @@ def verify():
         session["yalla_code_until"] = (datetime.now() + CODE_LIFETIME).isoformat()
         flash("Verification code sent")
         return redirect(url_for("yalla.verify_code", next=request.form.get("next")))
-    return render("verify.html", email="" if session.get("yalla_email") else "sara.a@cedar.edu", next=safe_next())
+    return render("verify.html", email=session.get("yalla_bad_email") or ("" if session.get("yalla_email") else "sara.a@cedar.edu"),
+                  next=safe_next())
+
+
+@yalla.get("/verify/check")
+def email_recovery():
+    """37: the address is not a university-issued email, so student status cannot be verified."""
+    if not session.get("yalla_bad_email"):
+        return redirect(url_for("yalla.verify"))
+    return render("email_recovery.html", email=session["yalla_bad_email"], next=safe_next())
 
 
 def masked(email):
@@ -306,6 +325,15 @@ def review():
                   preference_name=PREFERENCE_NAMES[d["preference"]])
 
 
+def release_unmatched(db, batch):
+    """Booking again after "no group found" replaces the old request instead of leaving a second one open."""
+    old = session.get("yalla_rider")
+    if old and batch["matched"]:
+        riders, _ = load_riders(db, batch)
+        if any(r["id"] == old and r["status"] in ("no_match", "waiting_match") for r in riders):
+            respond_to_plan(db, batch, old, "decline", None)
+
+
 @yalla.post("/plan/book")
 def book():
     if (blocked := need_verified()):
@@ -324,6 +352,7 @@ def book():
             batch = locked_batch(db, session.get("batch"))
             if not batch:
                 raise Problem("not_found", "Your request was not saved. Open the demo again and retry.")
+            release_unmatched(db, batch)
             rider_id = insert_request(db, batch, name, d["class_end"], d["stop"], d["gender"], d["preference"],
                                       friends, direction=d["direction"], class_start=d["class_start"])
     except Problem as problem:
@@ -465,15 +494,13 @@ def leave_now_book():
             if not batch["matched"]:  # Demo: today's planned requests are matched first, as the operator would
                 run_matching(db, batch)
                 batch = get_batch(db, batch["id"])
-            ready = min(max(clock(batch).strftime("%H:%M"), "08:00"), "21:00")
-            start = min(max(add_minutes(ready, 5), "07:00"), "23:00")
-            name = check_request(student_name(), ready, d["stop"], d["gender"], d["preference"], d["direction"], start)
-            rider_id = insert_request(db, batch, name, ready, d["stop"], d["gender"], d["preference"],
-                                      direction=d["direction"], class_start=start)
             riders, _ = load_riders(db, batch)
-            rider = next(r for r in riders if r["id"] == rider_id)
-            if rider["status"] == "no_match":
-                choose(db, batch, rider_id, "go")
+            old = next((r for r in riders if r["id"] == session.get("yalla_rider")), None)
+            if old and old["status"] in ("no_match", "waiting_match") and old["stop"] == d["stop"]:
+                choose(db, batch, old["id"], "go")  # 29 → Leave now & share keeps the same request
+                rider_id = old["id"]
+            else:
+                rider_id = book_now(db, batch, d)
     except Problem as problem:
         flash(problem.message)
         return redirect(url_for("yalla.leave_now"))
@@ -481,6 +508,21 @@ def leave_now_book():
     session["yalla_seen"] = [rider_id]
     session["yalla_started"] = False
     return redirect(url_for("yalla.ride"))
+
+
+def book_now(db, batch, d):
+    """Insert a request for right now; if no car can take it, the student leaves at once open to share."""
+    release_unmatched(db, batch)
+    ready = min(max(clock(batch).strftime("%H:%M"), "08:00"), "21:00")
+    start = min(max(add_minutes(ready, 5), "07:00"), "23:00")
+    name = check_request(student_name(), ready, d["stop"], d["gender"], d["preference"], d["direction"], start)
+    rider_id = insert_request(db, batch, name, ready, d["stop"], d["gender"], d["preference"],
+                              direction=d["direction"], class_start=start)
+    riders, _ = load_riders(db, batch)
+    rider = next(r for r in riders if r["id"] == rider_id)
+    if rider["status"] == "no_match":
+        choose(db, batch, rider_id, "go")
+    return rider_id
 
 
 def leg_split(plan, rider):

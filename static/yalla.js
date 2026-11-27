@@ -80,3 +80,20 @@ document.querySelectorAll("[data-share]").forEach((button) => {
     setTimeout(() => toast.remove(), 5000);
   });
 });
+
+// 35: when the phone loses its connection, cover the screen with "Your request is safe" until it is back.
+(() => {
+  const panel = document.querySelector("[data-offline]");
+  const head = document.querySelector(".yr-head");
+  if (!panel) return;
+  if (head) panel.style.top = `${head.offsetTop + head.offsetHeight}px`;
+  const show = () => { panel.hidden = navigator.onLine; };
+  window.addEventListener("offline", show);
+  window.addEventListener("online", show);
+  panel.querySelector("[data-retry]").addEventListener("click", (event) => {
+    if (!navigator.onLine) event.preventDefault();  // Still offline: stay here instead of showing a browser error
+  });
+  document.addEventListener("submit", (event) => {
+    if (!navigator.onLine) { event.preventDefault(); panel.hidden = false; }  // No duplicate submits while offline
+  });
+})();

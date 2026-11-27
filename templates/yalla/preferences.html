@@ -4,16 +4,13 @@
 {% block body %}
   {{ ui.intro("Ride preferences · 2 of 3", "Make the ride yours", "We’ll only offer groups that fit your choices.") }}
   <form id="pref-form" method="post" action="{{ url_for('yalla.preferences') }}" data-prefs>{{ ui.token() }}
-    <fieldset class="yr-seg small"><legend>I am</legend>
-      <label><input type="radio" name="gender" value="woman"{% if draft.gender == "woman" %} checked{% endif %}><span>Woman</span></label>
-      <label><input type="radio" name="gender" value="man"{% if draft.gender == "man" %} checked{% endif %}><span>Man</span></label>
-    </fieldset>
+    <input type="hidden" name="gender" value="{{ draft.gender }}">
     <div class="yr-card yr-pref">
       <div class="yr-pref-head">{{ ui.icon("people") }}<span><strong>Ride with</strong><small>The captain may be any gender.</small></span></div>
       <fieldset class="yr-seg"><legend class="sr">Ride with</legend>
         <label><input type="radio" name="preference" value="mixed"{% if draft.preference == "mixed" %} checked{% endif %}><span>Anyone</span></label>
-        <label><input type="radio" name="preference" value="women" data-gender="woman"{% if draft.preference == "women" %} checked{% endif %}><span>Women only</span></label>
-        <label><input type="radio" name="preference" value="men" data-gender="man"{% if draft.preference == "men" %} checked{% endif %}><span>Men only</span></label>
+        <label{% if draft.gender != "woman" %} hidden{% endif %}><input type="radio" name="preference" value="women" data-gender="woman"{% if draft.preference == "women" %} checked{% endif %}><span>Women only</span></label>
+        <label{% if draft.gender != "man" %} hidden{% endif %}><input type="radio" name="preference" value="men" data-gender="man"{% if draft.preference == "men" %} checked{% endif %}><span>Men only</span></label>
       </fieldset>
       <p class="yr-muted" data-slow{% if draft.preference == "mixed" %} hidden{% endif %}>Matching may take longer.</p>
     </div>

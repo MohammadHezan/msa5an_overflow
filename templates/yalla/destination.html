@@ -3,10 +3,7 @@
 {% block body %}
   {{ ui.intro("Trip details · 1 of 3", "Where are you headed?", "Your own drop-off, along a shared route." if draft.direction == "from_campus" else "Your own street, along a shared route.") }}
   <form id="dest-form" method="post" action="{{ url_for('yalla.destination') }}">{{ ui.token() }}
-    <fieldset class="yr-seg"><legend class="sr">Direction</legend>
-      <label><input type="radio" name="direction" value="from_campus"{% if draft.direction == "from_campus" %} checked{% endif %} data-autosubmit><span>From campus</span></label>
-      <label><input type="radio" name="direction" value="to_campus"{% if draft.direction == "to_campus" %} checked{% endif %} data-autosubmit><span>To campus</span></label>
-    </fieldset>
+    <input type="hidden" name="direction" value="{{ draft.direction }}">
     {% set stop_select %}<select name="stop" aria-label="{{ 'Your drop-off' if draft.direction == 'from_campus' else 'Your neighborhood' }}">{% for name, corridor in corridors.items() %}<optgroup label="{{ name }} corridor">{% for stop in corridor.stops %}<option{% if stop == draft.stop %} selected{% endif %}>{{ stop }}</option>{% endfor %}</optgroup>{% endfor %}</select>{% endset %}
     {% if draft.direction == "from_campus" %}
       {{ ui.row("cap", "From", university.campus ~ " · Campus street") }}

@@ -105,8 +105,14 @@ def index():
         driver_check=session.pop("driver_check", None) if active == "trips" else None,
         captains=captain_sheets(riders, cars) if active == "captains" else None, now=clock(batch),
         simulation=run_simulation() if active == "simulation" else None,
-        student_verified=session.get("student_verified", True), student_name="Sara",
+        student_verified=session.get("student_verified", True), profile=student_profile(),
     )
+
+
+def student_profile():
+    """The student's Jeeny profile (demo): name and gender, plus the trip direction Jeeny knows from the pickup."""
+    return {"name": session.get("yalla_name", "Sara A"), "gender": session.get("student_gender", "woman"),
+            "direction": session.get("student_direction", "from_campus")}
 
 
 @app.before_request

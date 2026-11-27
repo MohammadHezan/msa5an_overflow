@@ -14,6 +14,6 @@
   </div>
   {{ ui.info("car", "Captain " ~ plan.captain.name ~ " is assigned" if plan.captain else "Captain assignment is next", "Check the plate before you get in, then show your boarding code." if plan.captain else "We’ll show the captain, plate and arrival status here before you head to the street.") }}
   {{ ui.row("shield", "Your boarding code", rider.ride_code, url_for('yalla.ride', step='code')) }}
-  <form method="post" action="{{ url_for('yalla.respond', action='decline') }}">{{ ui.token() }}<button class="yr-textlink" type="submit">Cancel my request</button></form>
+  <a class="yr-textlink" href="{{ url_for('yalla.cancel') }}">Cancel my request</a>
 {% endblock %}
 {% block foot %}<div class="yr-foot">{{ ui.cta("View pickup details", url_for('yalla.ride', step='pickup')) }}</div>{% endblock %}

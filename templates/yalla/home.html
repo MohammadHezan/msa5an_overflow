@@ -13,7 +13,7 @@
   {{ ui.cta("Plan a shared ride", url_for('yalla.destination')) }}
   <a class="yr-cta ghost" href="{{ url_for('yalla.leave_now') }}">Leave now &amp; share</a>
   {{ ui.info("shield", "Know before you go", "Your pickup street, co-riders and fare are shown before you confirm. You choose what works.") }}
-  <a class="yr-card yr-trips-card" href="{{ url_for('yalla.ride') if rider else url_for('yalla.destination') }}">
+  <a class="yr-card yr-trips-card" href="{{ url_for('yalla.trips') }}">
     <p class="yr-eyebrow">Your campus trips</p>
     <strong>Every shared ride, in one place</strong>
     <small>{% if rider %}{{ rider.stop }} · {{ rider.status | replace('_', ' ') | capitalize }}{% else %}Upcoming rides, receipts and savings{% endif %}</small>
@@ -21,9 +21,5 @@
   </a>
 {% endblock %}
 {% block foot %}
-  <nav class="yr-nav" aria-label="Yalla Ride">
-    <a class="on" href="{{ url_for('yalla.home') }}" aria-current="page">{{ ui.icon("cap") }}<span>Campus</span></a>
-    <a href="{{ url_for('yalla.ride') if rider else url_for('yalla.home') }}">{{ ui.icon("history") }}<span>Trips</span></a>
-    <a href="{{ url_for('yalla.destination') }}">{{ ui.icon("bookmark") }}<span>Saved</span></a>
-  </nav>
+  {% set active = "campus" %}{% include "yalla/_nav.html" %}
 {% endblock %}
