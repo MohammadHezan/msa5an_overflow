@@ -15,6 +15,16 @@ CORRIDORS = {
 }
 STOPS = {stop: {"corridor": name, "km": km} for name, corridor in CORRIDORS.items() for stop, km in corridor["stops"].items()}
 
+# Approximate (simulated) map positions as (latitude, longitude). Good enough to sketch a route, not for navigation.
+GATES = {"Main gate": (32.0130, 35.8705), "North gate": (32.0215, 35.8730), "East gate": (32.0165, 35.8795)}
+COORDS = {
+    "Sweileh": (32.0236, 35.8411), "Khalda": (31.9986, 35.8494), "Dabouq": (31.9930, 35.8270),
+    "Al Bayader": (31.9620, 35.8420), "Wadi As-Seer": (31.9480, 35.8120),
+    "Al Jubeiha": (32.0310, 35.8700), "Shafa Badran": (32.0500, 35.8850), "Abu Nseir": (32.0620, 35.8780),
+    "Tla' Al Ali": (31.9960, 35.8600), "Um Al Summaq": (31.9840, 35.8450), "Abdoun": (31.9500, 35.8830),
+    "Tabarbour": (32.0120, 35.9350), "Marka": (31.9830, 35.9790),
+}
+
 BASE_FARE = 900  # Fils
 PER_KM = 300
 STOP_FEE = 250  # Each extra drop-off in a shared car
@@ -23,6 +33,25 @@ MIN_SHARE = 500
 SEATS = 4
 MAX_GAP = 20  # Minutes between the earliest and latest class end in one car
 WALK = 15  # Minutes from the last class ending to pickup at the gate
+
+
+def route_map(gate, stops, width=320, height=170, pad=22):
+    """Project the gate and ordered drop-offs into SVG coordinates for a small simulated map."""
+    places = [(gate, GATES[gate])] + [(stop, COORDS[stop]) for stop in stops]
+    lats = [lat for _, (lat, _) in places]
+    lngs = [lng for _, (_, lng) in places]
+    squash = math.cos(math.radians(sum(lats) / len(lats)))  # Keep east-west distances in proportion
+    span_x = max((max(lngs) - min(lngs)) * squash, 0.01)
+    span_y = max(max(lats) - min(lats), 0.01)
+    scale = min((width - 2 * pad) / span_x, (height - 2 * pad) / span_y)
+    mid_x, mid_y = (max(lngs) + min(lngs)) / 2 * squash, (max(lats) + min(lats)) / 2
+    points = [
+        {"name": name, "x": round(width / 2 + (lng * squash - mid_x) * scale, 1),
+         "y": round(height / 2 - (lat - mid_y) * scale, 1)}
+        for name, (lat, lng) in places
+    ]
+    return {"width": width, "height": height, "points": points,
+            "path": " ".join(f"{p['x']},{p['y']}" for p in points)}
 
 
 def solo_fare(stop):

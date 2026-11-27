@@ -10,7 +10,7 @@ from flask import Flask, abort, flash, g, redirect, render_template, request, se
 
 from sharing import (
     BASE_FARE, CORRIDORS, MAX_GAP, PER_KM, SEATS, SHARED_RATE, STOP_FEE, STOPS, WALK,
-    group_riders, plan_car, sample_share, solo_fare,
+    group_riders, plan_car, route_map, sample_share, solo_fare,
 )
 
 load_dotenv(Path(__file__).with_name(".env"), override=False)
@@ -133,6 +133,9 @@ def load_riders(db, batch):
         rider["signature"] = signature(plan, rider["id"]) if plan else None
     ordered = sorted(plans.values(), key=lambda p: (p["pickup"], p["gate"], -len(p["members"])))
     return riders, ordered
+
+
+app.jinja_env.globals["route_map"] = route_map
 
 
 @app.template_filter("jod")

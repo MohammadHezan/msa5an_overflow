@@ -91,6 +91,16 @@ th, td { padding: 9px 13px 9px 0; border-bottom: 1px solid var(--line); }
 thead { color: var(--muted); font-size: .84rem; }
 footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; padding: 22px 0 28px; color: var(--muted); font-size: .83rem; }
 footer form { display: flex; gap: 8px; flex-wrap: wrap; }
+.ride-map { margin: 0 0 16px; max-width: 440px; }
+.ride-map svg { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line);
+  background: #eef3e8 linear-gradient(#e2eadc 1px, transparent 1px) 0 0 / 100% 24px; }
+.ride-map .leg { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 6 4; stroke-linejoin: round; }
+.ride-map .gate circle { fill: var(--accent); stroke: var(--paper); stroke-width: 2.5; }
+.ride-map .stop circle { fill: var(--paper); stroke: #7da98b; stroke-width: 2.5; }
+.ride-map .stop.you circle { fill: #c9e594; stroke: var(--accent); }
+.ride-map text { font: 700 10px Inter, system-ui, sans-serif; fill: var(--ink); paint-order: stroke; stroke: #eef3e8; stroke-width: 3px; }
+.ride-map .num { text-anchor: middle; font-size: 9.5px; stroke: none; }
+.ride-map figcaption { margin-top: 4px; font-size: .72rem; color: var(--muted); }
 @media (max-width: 720px) {
   .top-inner, main { width: calc(100% - 28px); }
   .top-inner { gap: 6px 12px; flex-wrap: wrap; padding: 10px 0; }
@@ -133,6 +143,16 @@ footer form { display: flex; gap: 8px; flex-wrap: wrap; }
 .route.compact { margin: 0; }
 .route.compact .price { background: none; padding: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .route.compact a { color: inherit; }
+.ride-map { margin: 0 0 16px; max-width: 440px; }
+.ride-map svg { display: block; width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line);
+  background: #eef3e8 linear-gradient(#e2eadc 1px, transparent 1px) 0 0 / 100% 24px; }
+.ride-map .leg { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 6 4; stroke-linejoin: round; }
+.ride-map .gate circle { fill: var(--accent); stroke: var(--paper); stroke-width: 2.5; }
+.ride-map .stop circle { fill: var(--paper); stroke: #7da98b; stroke-width: 2.5; }
+.ride-map .stop.you circle { fill: #c9e594; stroke: var(--accent); }
+.ride-map text { font: 700 10px Inter, system-ui, sans-serif; fill: var(--ink); paint-order: stroke; stroke: #eef3e8; stroke-width: 3px; }
+.ride-map .num { text-anchor: middle; font-size: 9.5px; stroke: none; }
+.ride-map figcaption { margin-top: 4px; font-size: .72rem; color: var(--muted); }
 @media (max-width: 720px) {
   .fare-card { grid-template-columns: 1fr 1fr; }
   .stats { grid-template-columns: 1fr 1fr; }
