@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { api, ApiError, BookingPayload, formatJod, Stop, StopsResponse } from '../api';
+import { api, ApiError, BookingPayload, formatJod, Gender, Preference, Stop, StopsResponse } from '../api';
 import { submitBooking } from '../booking';
 import { Session, useSession } from '../session';
 import { colors, fonts, radius } from '../theme';
@@ -43,6 +43,14 @@ function bookingErrorTitle(error: ApiError): string {
       return 'This phone already booked';
     case 'invalid_input':
       return 'Check your details';
+    case 'group_not_found':
+      return 'No group with that code';
+    case 'group_full':
+      return 'That group is full';
+    case 'group_mismatch':
+      return "You can't join this group";
+    case 'group_placed':
+      return 'That group already has its car';
     default:
       return "Couldn't book";
   }
@@ -58,8 +66,13 @@ export function BookScreen({ session, onLeave }: { session: Session; onLeave: ()
   const [name, setName] = useState<string>(pending?.name ?? '');
   const [classEnd, setClassEnd] = useState<string>(pending?.classEnd ?? '16:00');
   const [stop, setStop] = useState<string>(pending?.stop ?? 'Dabouq');
-  const [woman, setWoman] = useState<boolean>(pending?.woman ?? false);
-  const [womenOnly, setWomenOnly] = useState<boolean>(pending?.womenOnly ?? false);
+  // Demo profile: Jeeny knows the student's gender; the demo starts as a man and can switch.
+  const [gender, setGender] = useState<Gender>(pending?.gender ?? 'man');
+  const [preference, setPreference] = useState<Preference>(pending?.preference ?? 'mixed');
+  const [friendsMode, setFriendsMode] = useState<'' | 'start' | 'join'>(pending?.friends?.mode ?? '');
+  const [groupOpen, setGroupOpen] = useState<boolean>(pending?.friends?.mode === 'start' ? pending.friends.open : false);
+  const [groupCode, setGroupCode] = useState<string>(pending?.friends?.mode === 'join' ? pending.friends.code : '');
+  const onlyOption: Preference = gender === 'man' ? 'men' : 'women';
   const [busy, setBusy] = useState<boolean>(false);
   // While a booking is unresolved, only those exact details may be sent (see booking.ts).
   const locked = pending !== null || busy;
@@ -92,9 +105,17 @@ export function BookScreen({ session, onLeave }: { session: Session; onLeave: ()
     return null;
   }, [stops, stop]);
 
-  const payload: BookingPayload = { name: name.trim().replace(/\s+/g, ' '), classEnd, stop, woman, womenOnly: woman && womenOnly };
+  const payload: BookingPayload = {
+    name: name.trim().replace(/\s+/g, ' '),
+    classEnd,
+    stop,
+    gender,
+    preference: preference === 'mixed' || preference === onlyOption ? preference : 'mixed',
+    friends: friendsMode === 'start' ? { mode: 'start', open: groupOpen } : friendsMode === 'join' ? { mode: 'join', code: groupCode.trim().toUpperCase() } : null,
+  };
   // An unresolved booking can always be resent with its stored details, even if drop-offs failed to load.
-  const canSubmit = pending !== null || (payload.name.length >= 1 && payload.name.length <= 40 && !!selected);
+  const canSubmit =
+    pending !== null || (payload.name.length >= 1 && payload.name.length <= 40 && !!selected && (friendsMode !== 'join' || groupCode.trim().length > 0));
 
   const send = async () => {
     setBusy(true);
@@ -224,23 +245,58 @@ export function BookScreen({ session, onLeave }: { session: Session; onLeave: ()
         </Card>
 
         <Card>
-          <Toggle
-            label="I'm a woman student"
-            value={woman}
+          <Text style={text.label}>I am</Text>
+          <Segments
+            options={[{ value: 'man', label: 'A man' }, { value: 'woman', label: 'A woman' }]}
+            value={gender}
             onChange={(value) => {
-              setWoman(value);
-              if (!value) setWomenOnly(false);
+              setGender(value as Gender);
+              setPreference('mixed');
             }}
-            testID="toggle-woman"
+            testID="gender"
           />
-          <Toggle
-            label="Women-only car"
-            hint={woman ? 'Only match me with other women students.' : 'Available to women students.'}
-            value={woman && womenOnly}
-            onChange={setWomenOnly}
-            disabled={!woman}
-            testID="toggle-women-only"
+          <Text style={text.muted}>Demo profile. In Jeeny this comes from your account.</Text>
+          <Text style={[text.label, { marginTop: 8 }]}>Ride with</Text>
+          <Segments
+            options={[{ value: 'mixed', label: 'Anyone' }, { value: onlyOption, label: gender === 'man' ? 'Men only' : 'Women only' }]}
+            value={preference}
+            onChange={(value) => setPreference(value as Preference)}
+            testID="preference"
           />
+          {preference !== 'mixed' ? <Text style={text.muted}>Matching may take longer.</Text> : null}
+        </Card>
+
+        <Card>
+          <Text style={text.label}>Book with friends</Text>
+          <Segments
+            options={[{ value: '', label: 'Just me' }, { value: 'start', label: 'Start a group' }, { value: 'join', label: 'Join a group' }]}
+            value={friendsMode}
+            onChange={(value) => setFriendsMode(value as '' | 'start' | 'join')}
+            testID="friends"
+          />
+          {friendsMode === 'start' ? (
+            <Toggle
+              label="Let other students fill empty seats"
+              hint="Off: only friends with your code ride in your car."
+              value={groupOpen}
+              onChange={setGroupOpen}
+              testID="toggle-group-open"
+            />
+          ) : null}
+          {friendsMode === 'join' ? (
+            <TextInput
+              value={groupCode}
+              onChangeText={(value) => setGroupCode(value.toUpperCase())}
+              placeholder="Group code, like GR-48"
+              placeholderTextColor="#B9B9C2"
+              maxLength={10}
+              autoCapitalize="characters"
+              style={styles.input}
+              accessibilityLabel="Group code"
+              testID="group-code"
+            />
+          ) : null}
+          <Text style={text.muted}>Friends in a group always ride in one car, up to {stops?.rules.seatsPerCar ?? 4}. Each pays for their own km.</Text>
         </Card>
         </View>
 
@@ -294,7 +350,44 @@ export function BookScreen({ session, onLeave }: { session: Session; onLeave: ()
   );
 }
 
+function Segments({
+  options,
+  value,
+  onChange,
+  testID,
+}: {
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (value: string) => void;
+  testID?: string;
+}) {
+  return (
+    <View style={styles.segments} accessibilityRole="radiogroup" testID={testID}>
+      {options.map((option) => {
+        const on = option.value === value;
+        return (
+          <Pressable
+            key={option.value}
+            onPress={() => onChange(option.value)}
+            style={[styles.segment, on && styles.segmentOn]}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: on }}
+            testID={testID ? `${testID}-${option.value || 'none'}` : undefined}
+          >
+            <Text style={[styles.segmentText, on && styles.segmentTextOn]}>{option.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  segments: { flexDirection: 'row', gap: 8 },
+  segment: { flex: 1, paddingVertical: 10, paddingHorizontal: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, alignItems: 'center' },
+  segmentOn: { borderColor: colors.pink, backgroundColor: colors.pinkSoft },
+  segmentText: { fontFamily: fonts.medium, fontSize: 13, color: colors.ink },
+  segmentTextOn: { color: colors.pink },
   body: { padding: 16, gap: 14 },
   form: { gap: 14 },
   input: {

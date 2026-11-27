@@ -15,6 +15,12 @@ const POLL_MS = 10000;
 type Notice = { tone: BannerTone; title: string; message?: string } | null;
 
 const STATUS_COPY: Record<RiderStatus, { icon: keyof typeof Ionicons.glyphMap; title: string; body: string; tone: string }> = {
+  lobby: {
+    icon: 'people-circle-outline',
+    title: 'Waiting for your friends',
+    body: 'Friends join with your group code. When everyone is in, your group gets one car together.',
+    tone: colors.pink,
+  },
   waiting: {
     icon: 'hourglass-outline',
     title: 'Booked. Waiting for matching',
@@ -49,7 +55,7 @@ export function PlanScreen({ session, onLeave }: { session: Session; onLeave: ()
   const [rider, setRider] = useState<Rider | null>(null);
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [acting, setActing] = useState<'confirm' | 'decline' | null>(null);
+  const [acting, setActing] = useState<'confirm' | 'decline' | 'ready' | null>(null);
   const [askDecline, setAskDecline] = useState<boolean>(false);
   const [notice, setNotice] = useState<Notice>(null);
   const inFlight = useRef<boolean>(false);
@@ -114,6 +120,21 @@ export function PlanScreen({ session, onLeave }: { session: Session; onLeave: ()
     }
   };
 
+  const groupReady = async (code: string) => {
+    setActing('ready');
+    setNotice(null);
+    try {
+      setRider(await api.ready(session.apiUrl, session.token, code));
+      setLoadError(null);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+    } catch (e) {
+      const err = asError(e);
+      setNotice({ tone: err.isNetwork ? 'error' : 'warning', title: "Couldn't find your car yet", message: err.message });
+    } finally {
+      setActing(null);
+    }
+  };
+
   const decline = async () => {
     setActing('decline');
     setNotice(null);
@@ -171,6 +192,17 @@ export function PlanScreen({ session, onLeave }: { session: Session; onLeave: ()
           <>
             <StatusCard rider={rider} />
             {notice ? <Banner tone={notice.tone} title={notice.title} message={notice.message} testID="plan-notice" /> : null}
+            {rider.group ? <GroupCard rider={rider} /> : null}
+            {rider.status === 'lobby' && rider.group?.youStarted ? (
+              <Button
+                label="We're all here, find our car"
+                icon="car-outline"
+                onPress={() => rider.group && groupReady(rider.group.code)}
+                busy={acting === 'ready'}
+                disabled={acting !== null}
+                testID="group-ready"
+              />
+            ) : null}
             {rider.plan && rider.status !== 'declined' ? <PlanDetails rider={rider} plan={rider.plan} /> : <RequestDetails rider={rider} />}
             <Actions
               rider={rider}
@@ -225,7 +257,7 @@ function PlanDetails({ rider, plan }: { rider: Rider; plan: Plan }) {
       <Card>
         <View style={styles.badges}>
           <Badge label={plan.shared ? `Shared · ${plan.dropOffs.length} riders` : 'Solo ride'} />
-          {plan.womenOnly ? <Badge label="Women-only" /> : null}
+          {plan.only === 'men' ? <Badge label="Men only" /> : plan.womenOnly || plan.only === 'women' ? <Badge label="Women only" /> : null}
           <Badge label={`${plan.corridor} corridor`} muted />
         </View>
         <Row icon="flag-outline" label="Meet at" value={plan.gate} strong />
@@ -283,7 +315,7 @@ function Actions({
   onLeave,
 }: {
   rider: Rider;
-  acting: 'confirm' | 'decline' | null;
+  acting: 'confirm' | 'decline' | 'ready' | null;
   askDecline: boolean;
   onConfirm: () => void;
   onAskDecline: (value: boolean) => void;
@@ -293,6 +325,9 @@ function Actions({
   onLeave: () => void;
 }) {
   const busy = acting !== null;
+  if (rider.status === 'lobby') {
+    return <Button label="Check who joined" icon="refresh" variant="secondary" onPress={onRefresh} busy={refreshing} testID="lobby-refresh" />;
+  }
   if (rider.status === 'waiting') {
     return <Button label="Check for my car" icon="refresh" variant="secondary" onPress={onRefresh} busy={refreshing} testID="plan-refresh" />;
   }
@@ -329,6 +364,35 @@ function Actions({
         />
       )}
     </View>
+  );
+}
+
+const OPTION_NAMES = { mixed: 'Anyone', men: 'Men only', women: 'Women only' } as const;
+
+function GroupCard({ rider }: { rider: Rider }) {
+  const group = rider.group;
+  if (!group) return null;
+  const free = Math.max(0, 4 - group.members.length);
+  return (
+    <Card style={{ gap: 10 }}>
+      <Text style={text.label}>Friends group · {group.members.length} of 4</Text>
+      <View style={styles.codeBox}>
+        <Text style={styles.codeHint}>{group.status === 'lobby' ? 'Share this code with your friends' : 'Your group code'}</Text>
+        <Text style={styles.code} testID="group-code-value">{group.code}</Text>
+      </View>
+      {group.members.map((m) => (
+        <Row key={m.name} icon={m.you ? 'person' : 'person-outline'} label={m.you ? 'You' : 'Friend'} value={m.you ? `${m.name} · joined` : `${m.name} · joined`} />
+      ))}
+      {group.status === 'lobby' && free > 0 ? (
+        <Text style={text.muted}>{free} free {free === 1 ? 'seat' : 'seats'} · {group.open ? 'friends or other students' : 'friends only'}</Text>
+      ) : null}
+      <Row icon="people-outline" label="Ride with" value={`${OPTION_NAMES[group.option]} · ${group.open ? 'open group' : 'friends only'}`} />
+      {group.status === 'lobby' ? (
+        <Text style={text.muted}>
+          {group.youStarted ? 'Tap the button when everyone is in.' : 'Your friend who started the group taps “find our car” when everyone is in.'} If nobody taps, the group gets its car after 10 minutes.
+        </Text>
+      ) : null}
+    </Card>
   );
 }
 
@@ -375,6 +439,9 @@ function TimelineItem({
 }
 
 const styles = StyleSheet.create({
+  codeBox: { backgroundColor: colors.pinkSoft, borderRadius: radius.card, padding: 16, gap: 4 },
+  codeHint: { fontFamily: fonts.semibold, fontSize: 11, color: colors.pink, textTransform: 'uppercase', letterSpacing: 0.8 },
+  code: { fontFamily: fonts.semibold, fontSize: 34, color: colors.ink, letterSpacing: 1 },
   body: { padding: 16, gap: 14 },
   statusIcon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },

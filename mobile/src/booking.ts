@@ -14,7 +14,10 @@ import { ApiError, BookingPayload, Rider } from './api';
  */
 
 /** Answers that prove these details were not saved. Anything else (5xx, gateway errors, unknown codes) may have committed. */
-const DEFINITE_REJECTIONS = new Set(['invalid_input', 'duplicate_name', 'batch_matched', 'batch_full', 'already_booked', 'unauthorized', 'forbidden']);
+const DEFINITE_REJECTIONS = new Set([
+  'invalid_input', 'duplicate_name', 'batch_matched', 'batch_full', 'already_booked', 'unauthorized', 'forbidden',
+  'group_not_found', 'group_full', 'group_mismatch', 'group_placed',
+]);
 
 export function isDefiniteRejection(error: ApiError): boolean {
   return error.status >= 400 && error.status < 500 && DEFINITE_REJECTIONS.has(error.code);

@@ -15,6 +15,7 @@ export type Money = { fils: number; currency: 'JOD' };
 
 export type RiderStatus =
   | 'waiting'
+  | 'lobby'
   | 'review'
   | 'no_match'
   | 'confirmed'
@@ -24,9 +25,26 @@ export type RiderStatus =
 
 export type DropOff = { order: number; stop: string; rider: string; you: boolean };
 
+export type Gender = 'man' | 'woman';
+export type Preference = 'mixed' | 'men' | 'women';
+export type Friends = { mode: 'start'; open: boolean } | { mode: 'join'; code: string } | null;
+
+/** A friends group (brief 05): everyone in it rides in one car. */
+export type Group = {
+  code: string;
+  open: boolean;
+  option: Preference;
+  status: 'lobby' | 'placed';
+  youStarted: boolean;
+  lobbyUntil: string | null;
+  members: { name: string; you: boolean; joined: boolean }[];
+};
+
 export type Plan = {
   shared: boolean;
   womenOnly: boolean;
+  only?: 'men' | 'women' | null;
+  captain?: { firstName: string; car: string; plate: string } | null;
   corridor: string;
   gate: string;
   pickupTime: string;
@@ -47,9 +65,10 @@ export type Rider = {
   tripDate: string;
   timezone: string;
   matched: boolean;
-  request: { classEnd: string; stop: string; woman: boolean; womenOnly: boolean };
+  request: { classEnd: string; stop: string; woman: boolean; womenOnly: boolean; gender?: Gender; preference?: Preference; friendGroup?: string | null };
   soloFare: Money;
   plan: Plan | null;
+  group?: Group | null;
 };
 
 export type Stop = { name: string; km: number; soloFare: Money; sampleShare: Money };
@@ -80,8 +99,9 @@ export type BookingPayload = {
   name: string;
   classEnd: string;
   stop: string;
-  woman: boolean;
-  womenOnly: boolean;
+  gender: Gender;
+  preference: Preference;
+  friends: Friends;
 };
 
 export class ApiError extends Error {
@@ -183,6 +203,10 @@ export const api = {
   confirm: (apiUrl: string, token: string, riderId: number, signature: string) =>
     request<Rider>(apiUrl, `/riders/${riderId}/confirm`, { method: 'POST', token, body: { signature } }).then((r) => r.data),
 
+  /** The group's creator says everyone is in: the group gets one car now. Safe to retry. */
+  ready: (apiUrl: string, token: string, code: string) =>
+    request<Rider>(apiUrl, `/groups/${encodeURIComponent(code)}/ready`, { method: 'POST', token, body: {} }).then((r) => r.data),
+
   decline: (apiUrl: string, token: string, riderId: number) =>
     request<Rider>(apiUrl, `/riders/${riderId}/decline`, { method: 'POST', token, body: {} }).then((r) => r.data),
 };
@@ -212,7 +236,8 @@ export function samePayload(a: BookingPayload, b: BookingPayload): boolean {
     a.name.trim().replace(/\s+/g, ' ') === b.name.trim().replace(/\s+/g, ' ') &&
     a.classEnd === b.classEnd &&
     a.stop === b.stop &&
-    a.woman === b.woman &&
-    a.womenOnly === b.womenOnly
+    a.gender === b.gender &&
+    a.preference === b.preference &&
+    JSON.stringify(a.friends) === JSON.stringify(b.friends)
   );
 }

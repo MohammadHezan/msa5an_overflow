@@ -38,7 +38,7 @@ test('phone booking, matching, stale confirmation, decline and connection errors
     '/batches', { mode: 'empty' },
   );
   const payload: BookingPayload = {
-    name: 'Sara', classEnd: '16:00', stop: 'Dabouq', woman: true, womenOnly: true,
+    name: 'Sara', classEnd: '16:00', stop: 'Dabouq', gender: 'woman', preference: 'women', friends: null,
   };
   const session = await api.join(origin, batch.joinCode);
   assert.equal(session.batchId, batch.id);

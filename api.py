@@ -26,6 +26,20 @@ from student_verification import (
 
 api = Blueprint("api", __name__, url_prefix="/api/v1")
 
+
+@api.after_request
+def allow_web_app(response):
+    """The Expo web build runs on another origin. Access uses bearer tokens, never cookies, so any origin may call."""
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+    return response
+
+
+@api.route("/<path:_any>", methods=["OPTIONS"])
+def preflight(_any):
+    return "", 204
+
 CLIENT_REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
 SAMPLE_RIDERS = 3
 

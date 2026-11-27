@@ -9,8 +9,8 @@ import { test } from 'node:test';
 import { ApiError, BookingPayload, Rider, samePayload } from '../src/api';
 import { BookingStore, submitBooking } from '../src/booking';
 
-const A: BookingPayload = { name: 'Sara K', classEnd: '16:00', stop: 'Dabouq', woman: true, womenOnly: true };
-const B: BookingPayload = { name: 'Sara K', classEnd: '16:10', stop: 'Khalda', woman: true, womenOnly: false };
+const A: BookingPayload = { name: 'Sara K', classEnd: '16:00', stop: 'Dabouq', gender: 'woman', preference: 'women', friends: null };
+const B: BookingPayload = { name: 'Sara K', classEnd: '16:10', stop: 'Khalda', gender: 'woman', preference: 'mixed', friends: null };
 
 /** One student token on the server: books once, returns the same rider for the same details. */
 function fakeServer() {
@@ -23,7 +23,7 @@ function fakeServer() {
     tripDate: '2026-11-28',
     timezone: 'Asia/Amman',
     matched: false,
-    request: { classEnd: payload.classEnd, stop: payload.stop, woman: payload.woman, womenOnly: payload.womenOnly },
+    request: { classEnd: payload.classEnd, stop: payload.stop, woman: payload.gender === 'woman', womenOnly: payload.preference === 'women' },
     soloFare: { fils: 4500, currency: 'JOD' },
     plan: null,
   });
@@ -152,7 +152,7 @@ test('a relaunch with no drop-off data can still resend the stored booking', asy
   const server = fakeServer();
   const phone = device();
   phone.disk.sentPayload = A;
-  const empty: BookingPayload = { name: '', classEnd: '16:00', stop: '', woman: false, womenOnly: false };
+  const empty: BookingPayload = { name: '', classEnd: '16:00', stop: '', gender: 'man', preference: 'mixed', friends: null };
   const result = await submitBooking(phone.launch(), empty, transport(server, () => 'up').book);
   assert.equal(result.ok, true);
   assert.deepEqual(server.state.saved, A);
