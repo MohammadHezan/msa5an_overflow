@@ -15,7 +15,6 @@ from zoneinfo import ZoneInfo
 from flask import current_app, g
 
 import go_now
-import scenarios
 from pooling import config
 from pooling.codes import new_code
 from pooling.model import PREFERENCES
@@ -338,14 +337,14 @@ def delete_old_batches(db):
     ).rowcount
 
 
-SAMPLES = {"seeded": FIXTURE, "busy": BUSY_WAVE, "morning": MORNING_WAVE, "scenarios": scenarios.BASE_WAVE, "empty": ()}
+SAMPLES = {"seeded": FIXTURE, "busy": BUSY_WAVE, "morning": MORNING_WAVE, "empty": ()}
 
 
 def create_batch(db, seeded, replaces=None):
     """New batch for tomorrow in Amman. Deletes `replaces` (a previous batch id) and expired batches in the same transaction.
 
     `seeded`: True/"seeded" for the sample afternoon, "busy" for 28 students leaving together, "morning" for the
-    morning sample, "scenarios" for the scenario tour (one situation per student), False/"empty" for none.
+    morning sample, False/"empty" for none.
     """
     sample = {True: "seeded", False: "empty"}.get(seeded, seeded)
     rows = SAMPLES[sample]
@@ -357,8 +356,6 @@ def create_batch(db, seeded, replaces=None):
                    (batch, trip_date.isoformat(), utc_stamp(), now().isoformat(), sample))
         for row in rows:
             add_rider(db, batch, *row)
-        if sample == "scenarios":
-            scenarios.stage(db, batch)
         if replaces:
             db.execute("DELETE FROM batches WHERE id = ?", (replaces,))
     return batch

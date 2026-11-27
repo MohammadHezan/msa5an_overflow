@@ -23,7 +23,7 @@ Open [http://localhost:5000](http://localhost:5000). The demo stores batches und
 
 1. The app opens with a sample afternoon of ten students. Open **Matching** and click **Match 10 students**.
 2. On **Trips**, see the five cars, each pickup time and gate, and each student's share compared with riding alone.
-3. Open **Sara**. Her class ends at 16:00. She meets Rama and Huda at the main gate at 16:15, shares one women-only car, and pays JOD 1.67 instead of JOD 4.50.
+3. Open **Sara**. Her class ends at 16:00. She meets Rama and Huda at the main gate at 16:02, shares one women-only car, and pays JOD 1.46 instead of JOD 4.34.
 4. Click **Decline** as Rama. Sara and Huda now see an updated plan and are asked to confirm again.
 5. Kareem finishes at the same time and heads the same way, but the car is women-only, so he is offered a solo ride.
 6. Choose **Start empty batch** to book your own requests from the **Book** page.

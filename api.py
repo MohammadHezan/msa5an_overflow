@@ -380,10 +380,10 @@ def health():
 @api.post("/batches")
 def create():
     mode = field(json_body(), "mode", str)
-    if mode not in {"seeded", "morning", "scenarios", "empty"}:
-        raise Problem("invalid_input", "`mode` must be `seeded`, `morning`, `scenarios` or `empty`.", 400)
+    if mode not in {"seeded", "morning", "empty"}:
+        raise Problem("invalid_input", "`mode` must be `seeded`, `morning` or `empty`.", 400)
     db = database()
-    batch_id = create_batch(db, seeded=mode if mode in ("morning", "scenarios") else mode == "seeded")
+    batch_id = create_batch(db, seeded=mode if mode == "morning" else mode == "seeded")
     token = issue_token(db, batch_id, "operator")
     code, expires = join_code(db, batch_id)
     return jsonify({
