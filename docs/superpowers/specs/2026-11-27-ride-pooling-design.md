@@ -1,253 +1,114 @@
-# Campus Connect ride pooling: design (draft)
+# Campus Connect ride pooling: design
 
-Status: **approved 2026-11-27.** Research behind each decision: [reports/Campus ride pooling research.md](../../../reports/Campus%20ride%20pooling%20research.md).
+Status: **approved 2026-11-27, revised the same day to match the app as built.** The Replit app (Flask pages, phone screen, `/api/v1` JSON API) runs on the `pooling/` engine. Research behind each decision: [reports/Campus ride pooling research.md](../../../reports/Campus%20ride%20pooling%20research.md). The API itself is documented in [document.md](../../../document.md), "Proposed API contract" and "As built (B1)".
 
 ## Product in one paragraph
 
 Campus Connect is a proposed feature inside Jeeny for university students from middle-income households who don't have a car and rely on buses or taxis after class. A student requests a shared ride. The app matches them with other students leaving the same campus around the same time and heading in the same direction. Before confirming, each student sees the meeting point, pickup time and their share of the fare, based on how far they'll ride. At the meeting point, the driver checks each passenger's unique ride code. The group travels to one destination or to nearby stops along the same route. Women students can choose a women-only group. Scheduled departures on popular routes are a later idea.
 
-## Decisions so far
+## Decisions
 
 | # | Decision | Choice | Why |
 |---|---|---|---|
-| D1 | Work split | Mohammad builds the algorithm in Python. A teammate builds the UI and everything else on Replit. | Parallel work |
-| D2 | Interface | JSON API under `/api/v1/rides/` | UI can be built against sample JSON before the matcher is done |
-| D3 | When matching runs | **Real time.** Each request is inserted into an open group immediately. A CP-SAT regroup pass runs before groups lock. | Instant answer, near-optimal at lock |
-| D4 | Fare split | **Proportional to solo distance**: `share_i = car_fare × solo_km_i / Σ solo_km` | Simple to explain. A rider who gets out earlier pays less. |
+| D1 | Work split | Mohammad owns the matching and pricing engine (`pooling/`). The teammate owns the app, API and UI on Replit. | Parallel work |
+| D2 | Interface | **Revised.** The app's existing `/api/v1` API (`api.py`, batches, join codes, bearer tokens). `sharing.py` adapts the engine to it. The planned `/api/v1/rides/` API was not merged; it is kept on the local branch `backup/rides-api`. | The teammate's UI already ran on `/api/v1`; one API, one engine |
+| D3 | When matching runs | **Revised.** **Batch.** Students book, then the operator runs matching once for the batch (CP-SAT over every feasible car). Live insertion (`pooling/matcher.py`) is built and tested but not wired into the app. | The app's flow is book, then match, then review and confirm |
+| D4 | Fare split | **Proportional to solo distance**: `share_i = car_fare × solo_km_i / Σ solo_km`, largest-remainder rounding to whole fils | Simple to explain. A rider who gets out earlier pays less. |
 | D5 | Max group size | **4 riders** | Higher savings. At most 24 drop-off orders to check. |
 | D6 | Legal model | One Jeeny booking at the approved app fare, split among riders. `Σ shares == car_fare`. No per-seat price below the approved fare. | No source found banning this. Per-seat pricing would likely need LTRC approval. |
-| D7 | Savings guarantee | A rider joins a group only if `share ≤ 0.8 × solo_fare` | "You always pay less than riding alone" |
-| D8 | Women-only | A hard filter: women-only requests match only women-only groups | Industry practice (Uber, DiDi, Careem) |
+| D7 | Savings guarantee | A rider shares a car only if `share ≤ 0.8 × solo_fare` | "You always pay less than riding alone" |
+| D8 | Women-only | **Revised.** If any rider in a car asked for women-only, every rider in it must be a woman. A woman who did not ask can still join. A car is labelled women-only when all riders are women and at least one asked. | The teammate's rule: still a hard filter, and it matches more women |
 
-## Tariff used by the simulator (LTRC, in effect since 11 May 2026)
+## Tariff (LTRC smart-app tariff, in effect since 11 May 2026)
 
 | | Start (JOD) | Per km (JOD) | Per waiting minute (JOD) |
 |---|---|---|---|
 | App ride, day | 0.468 | 0.336 | 0.0576 |
 | App ride, night | 0.480 | 0.396 | 0.0679 |
 
-The night window is a setting. Check: a 12 km daytime trip costs at least JOD 4.50.
+The night window (`22:00–06:00`) is an assumption and a setting. The app's class end times (08:00–21:00) always price at the day rate. Check: 12 km by day costs JOD 4.50. Waiting time is not priced.
 
-## Section 1: architecture and API (approved)
+## Section 1: architecture
 
-### The algorithm package (no web code)
+```
+templates/ (dashboard, phone)   api.py (/api/v1, tokens)
+              \                   /
+               app.py --- store.py (batches, riders, SQLite, statuses)
+                              |
+                          sharing.py   adapter: app rider dicts <-> engine
+                              |
+   pooling/  config  places  geo  pricing  model.evaluate  regroup  (matcher, codes: built, not wired)
+```
 
 | File | One job |
 |---|---|
-| `pooling/geo.py` | Campus and stop coordinates, road-distance estimate (straight line × 1.35), travel minutes |
-| `pooling/pricing.py` | Tariff, car fare, proportional split, savings check |
-| `pooling/matcher.py` | Real-time insertion into open groups, detour check, women-only filter, max 4 riders |
-| `pooling/regroup.py` | CP-SAT regroup of open groups at lock time (same lexicographic pattern as `allocation.py`) |
-| `pooling/codes.py` | Unique ride code for each rider when the group locks |
-| `pooling/config.py` | Every tunable limit: tariff, night window, detour, savings, window overlap, stop merge radius, lock lead time, speed |
+| `pooling/config.py` | Every tunable limit: tariff, night window, detour, savings, window overlap, stop merge radius, speed, solver time limit |
+| `pooling/places.py` | Single source of map data: the demo campus's corridors, gates and coordinates (used by the app), plus the Al-Ahliyya placeholder stops used in engine tests |
+| `pooling/geo.py` | Road distance. Corridor stops: gate to stop = stop km; same corridor = km difference; different corridors = via campus. Otherwise straight line × 1.35. Stops under 400 m apart are one stop. |
+| `pooling/pricing.py` | Tariff, car fare, proportional split |
+| `pooling/model.py` | `evaluate(riders)`: the one function that applies every rule and prices a car |
+| `pooling/regroup.py` | CP-SAT set partition over all feasible cars |
+| `pooling/matcher.py` | Live insertion into open groups (not used by the app yet) |
+| `pooling/codes.py` | Ride codes `CC-1234` (not used by the app yet) |
+| `sharing.py` | Keeps the app's interface (`group_riders`, `plan_car`, `solo_fare`, `sample_share`, `compatible`, `route_map`) and calls the engine |
 
-### The API (Flask routes in `app.py`, state in SQLite)
+**How the adapter maps the app's riders:** the meeting point is the corridor's gate. The window starts at class end + 15 min walk and lasts 25 min. Two windows then overlap by at least 5 min exactly when class ends are within 20 min of each other, which is the app's own rule. Pickup is the window start rounded up to the next 5 minutes.
 
-| Endpoint | Returns |
+## Section 2: matching rules
+
+A car is valid only if **all** of these hold, checked for every rider (`model.evaluate`):
+
+| Rule | Default |
 |---|---|
-| `POST /api/v1/rides/requests` | A provisional quote: meeting point, pickup time, share, solo fare, % saved, group size |
-| `POST /api/v1/rides/requests/{id}/confirm` and `/decline` | Updated status. Declining frees the seat. |
-| `GET /api/v1/rides/groups/{id}` | Riders (first names only), drop-off order, shares, status |
-| `POST /api/v1/rides/lock` | Demo button: regroup and lock the due groups, then issue ride codes |
-| `GET /api/v1/rides/stats` | Pooled vs. everyone solo: cars, total JOD, average saving |
-| `POST /api/v1/rides/demo/seed` | Loads the Sara scenario |
+| Same campus and meeting point | Exact match |
+| Departure windows overlap | The shared window is ≥ 5 min |
+| Seats | ≤ 4 riders |
+| Women-only | D8 |
+| Detour | In-car km ≤ min(1.5 × solo km, solo km + 4 km) |
+| Savings | Share ≤ 0.8 × solo fare (cars of 2 or more) |
+| Confirmed quote | A rider with a confirmed share is never charged more (engine rule; the app instead marks the rider `changed` and asks again) |
 
-## Section 2: matching rules (approved)
+`evaluate` tries every drop-off order and keeps the shortest route that passes.
 
-A new request can join an open group only if **all** of these hold. Every limit is a setting in `pooling/config.py`.
+**Matching (`regroup`, run by the operator's "Run matching"):** list every valid car of 1–4 riders, testing a car only if all its smaller sub-cars are valid. CP-SAT puts each rider in exactly one car, minimizing total car-km and then the number of cars. A rider alone is offered a solo ride.
 
-| Rule | Default | Why |
-|---|---|---|
-| Same campus and meeting point | Exact match | One pickup |
-| Departure windows overlap | Each request gives "leave between". The group's window is the intersection and must be ≥ 5 min. | Avoids fixed-slot edges (a 9:14 request and a 9:16 request still match) |
-| Seats | ≤ 4 riders | D5 |
-| Women-only | A women-only request joins only a women-only group, and vice versa | D8 |
-| Detour per rider | In-car km ≤ min(1.5 × solo km, solo km + 4 km), checked for **every** rider after insertion | Nobody's trip gets much longer |
-| Savings per rider | Every rider's share ≤ 0.8 × solo fare, checked for **every** rider after insertion | D7 |
-| Group is still open | Status `open` and not locked | Locked groups are final |
+**After a decline:** the remaining riders are re-priced. If they no longer pass every rule, the car is still priced at the regulated fare over its route (`evaluate(strict=False)`), so shares still add up to the car fare. The app marks earlier confirmations `changed`.
 
-**Insertion step (`matcher.insert`)**
+**Live insertion (built, not wired):** a new request joins the valid open group that adds the fewest km (ties: fuller group). Otherwise it opens a new group. This is the path to the real-time flow in the original D3.
 
-1. Filter open groups by campus, window, seats and women-only.
-2. For each candidate group, try every drop-off order with the new rider (at most 4! = 24) and keep the shortest route.
-3. Reject the group if the detour or savings rule fails for anyone.
-4. Among the groups that pass, choose the smallest **added km**. On a tie, choose the fuller group.
-5. If none passes, open a new group of 1. Its quote shows the solo fare, marked "waiting for riders".
+## Section 3: API
 
-**Nearby stops:** destinations within 400 m of each other count as one stop.
+The app's `/api/v1` contract is documented in [document.md](../../../document.md) and implemented in `api.py`. Engine-related changes:
 
-**Pickup time:** the start of the group's shared window. It can only move later as riders join, and never past anyone's window end.
+- `GET /api/v1/stops` → `rules` now has `baseFare` (468 fils), `perKm` (336 fils) and `minSavingPercent` (20). `extraStopFee`, `sharedRatePercent` and `minShare` were removed.
+- `soloFare`, `share`, `carFare` and `sampleShare` come from the regulated tariff and the proportional split, in exact fils, no longer rounded to 50.
 
-**Lock (`regroup.run`)**, run at departure − 15 min, when a group is full, or on the demo button:
+## Section 4: demo scenario and testing
 
-1. Take all open groups for that campus and window.
-2. List every feasible group of 1–4 riders under the rules above.
-3. CP-SAT puts each rider in exactly one group, minimizing total car-km and then the number of cars.
-4. Commit the result, set status `locked` and issue ride codes. A rider left alone is told "no match, solo fare X" and can book solo.
+**Sample afternoon** (`store.FIXTURE`, 10 students) still forms the same 5 cars:
 
-**Travel time:** km ÷ 25 km/h city average, as a setting. It is used only for the pickup and arrival estimates.
-
-## Section 3: JSON contract (approved)
-
-General rules:
-
-- Times are ISO 8601 with the Amman offset (`+03:00`).
-- Money is **integer fils** (1 JOD = 1000 fils), so the UI never handles floating-point rounding. The UI formats `1620` as `JOD 1.62`.
-- IDs are opaque strings.
-- Riders see other riders' first names only.
-
-### `GET /api/v1/rides/places`
-
-This endpoint was added so the UI can offer dropdowns rather than free-text addresses.
-
-```json
-{
-  "campuses": [
-    {"id": "ahu", "name": "Al-Ahliyya Amman University",
-     "meeting_points": [{"id": "ahu-main-gate", "name": "Main gate", "lat": 32.0430, "lon": 35.7220}]}
-  ],
-  "stops": [
-    {"id": "sweileh", "name": "Sweileh", "lat": 32.0230, "lon": 35.8400}
-  ]
-}
-```
-
-Coordinates are placeholders, to be checked on a map before the demo.
-
-### `POST /api/v1/rides/requests` creates a request and returns a provisional quote
-
-Request:
-
-```json
-{
-  "student": {"id": "stu-sara", "first_name": "Sara", "gender": "female"},
-  "campus_id": "ahu",
-  "meeting_point_id": "ahu-main-gate",
-  "stop_id": "sweileh",
-  "leave_after": "2026-11-28T16:00:00+03:00",
-  "leave_before": "2026-11-28T16:30:00+03:00",
-  "women_only": true
-}
-```
-
-Response `201`:
-
-```json
-{
-  "request_id": "req-12",
-  "status": "provisional",
-  "group": {"id": "grp-3", "size": 3, "max_size": 4, "women_only": true, "status": "open"},
-  "meeting_point": {"id": "ahu-main-gate", "name": "Main gate"},
-  "pickup_time": "2026-11-28T16:15:00+03:00",
-  "drop_position": 2,
-  "estimated_arrival": "2026-11-28T16:42:00+03:00",
-  "fare": {"your_share_fils": 1913, "solo_fare_fils": 4500, "saved_pct": 57, "car_fare_fils": 5710},
-  "ride_code": null
-}
-```
-
-A group of 1 returns `"status": "waiting_for_riders"` with `your_share_fils == solo_fare_fils`.
-
-### `POST /api/v1/rides/requests/{id}/confirm` and `/decline`
-
-Both return the same shape as the create response, with `status` set to `confirmed` or `declined`. Confirming does not freeze the share: it can only go **down** as riders join, and the UI should say so.
-
-### `GET /api/v1/rides/groups/{id}`
-
-```json
-{
-  "id": "grp-3", "status": "open", "women_only": true,
-  "meeting_point": {"id": "ahu-main-gate", "name": "Main gate"},
-  "pickup_time": "2026-11-28T16:15:00+03:00",
-  "car_fare_fils": 5710, "route_km": 15.6,
-  "riders": [
-    {"first_name": "Lina", "stop": "Tabarbour",  "drop_position": 1, "share_fils": 1429, "status": "confirmed"},
-    {"first_name": "Sara", "stop": "Sweileh",    "drop_position": 2, "share_fils": 1913, "status": "provisional"},
-    {"first_name": "Noor", "stop": "Al Jubeiha", "drop_position": 3, "share_fils": 2368, "status": "confirmed"}
-  ]
-}
-```
-
-The shares always add up to `car_fare_fils`. In this example the solo distances are 8.96, 12.0 and 14.85 km (Sara's 12 km gives her JOD 4.50 solo fare). The route is 15.6 km, so the car fare is 468 + 336 × 15.6 = 5710 fils, and each rider saves about 57%.
-
-### `POST /api/v1/rides/lock`
-
-Body: `{"campus_id": "ahu"}`. With no `window`, it locks all of that campus's open groups (the demo button).
-
-```json
-{
-  "locked_groups": [
-    {"id": "grp-3", "riders": [{"first_name": "Sara", "ride_code": "CC-4821", "share_fils": 1913}]}
-  ],
-  "unmatched": [{"request_id": "req-15", "first_name": "Omar", "solo_fare_fils": 3900}]
-}
-```
-
-### `GET /api/v1/rides/stats`
-
-```json
-{
-  "requests": 9, "matched": 8, "unmatched": 1,
-  "pooled": {"cars": 3, "total_fils": 14600},
-  "solo":   {"cars": 9, "total_fils": 32400},
-  "avg_saved_pct": 55
-}
-```
-
-### `POST /api/v1/rides/demo/seed`
-
-Clears the demo data and loads the Sara scenario (section 4). It returns the stats object.
-
-### Errors
-
-Every error uses one shape, so the UI needs one error handler:
-
-```json
-{"error": {"code": "group_locked", "message": "This group is already locked."}}
-```
-
-| HTTP | `code` | When |
-|---|---|---|
-| 400 | `invalid_request` | Missing or invalid field, or `leave_before` ≤ `leave_after` |
-| 404 | `not_found` | Unknown request, group, campus or stop |
-| 409 | `duplicate_request` | Student already has an active request in an overlapping window |
-| 409 | `group_locked` | Confirm or decline after lock |
-
-## Section 4: demo scenario and testing (approved)
-
-### Demo seed: "4 p.m. at the main gate"
-
-`POST /api/v1/rides/demo/seed` loads 10 students at one campus, all wanting to leave between 16:00 and 16:30. The requests arrive in a fixed order, through the same insertion code a live request uses.
-
-| Riders | Who | Expected outcome |
-|---|---|---|
-| 3 | Sara and two other women, women-only, stops along one corridor | One women-only group of 3, which is Sara's story |
-| 4 | Mixed riders along a second corridor | One full group of 4 |
-| 2 | Riders along a third corridor | One group of 2 |
-| 1 | Omar, far off every corridor (for example Zarqa) | Unmatched: "no match, solo fare X" |
-
-**Order trap:** the arrival order is chosen so that greedy insertion builds at least one worse group. The lock regroup must then fix it. This is the judge moment: "live answer, then the optimizer improves it."
-
-**Expected checks (exact JOD figures are recorded once the matcher runs):**
-
-- 4 cars instead of 10. Of the 10 requests, 9 are matched.
-- Every matched rider saves at least 20%. Sara pays well under her solo fare.
-- Car-km after regroup < car-km after greedy insertion alone.
-- Every group's shares add up exactly to its car fare.
-
-Stops and coordinates are placeholders until they are checked on a map. The numbers come from the code, never from a slide.
-
-### Tests (pytest, no network)
-
-| Area | What the tests prove |
+| Car | Riders and share (solo fare), JOD |
 |---|---|
-| `pricing` | 12 km by day = 4500 fils. The night tariff applies inside the night window. Shares add up to the car fare after largest-remainder rounding. A rider who gets out earlier never pays more. |
-| `matcher` | Women-only works in both directions. Windows that don't overlap never match. A 5th rider is refused. A detour or savings violation for an **existing** rider blocks the insertion. Stops within 400 m merge. |
-| `regroup` | Each rider ends up in exactly one group. The result is never worse than greedy. The seed shows a strict improvement. A time limit always returns an answer. |
-| API (Flask test client) | Response shapes match section 3. All four error codes. Locking twice returns the same codes and groups. A duplicate request is refused. |
-| Seed | `/demo/seed` then `/lock` reproduces the expected checks above. |
+| West · Main gate · 16:15 · women-only, car fare 5.84 | Sara 1.67 (4.50), Rama 1.95 (5.17), Huda 2.23 (5.84) |
+| West · Main gate · 16:20 | Kareem 3.16 alone (the West car is women-only) |
+| North · North gate · 16:35 | Lina 0.57 (1.48), Omar 1.34 (2.82), Yazan 1.91 (3.83) |
+| South · Main gate · 13:25 | Leen 1.66 (2.82), Dana 2.84 (4.50) |
+| East · East gate · 18:15 | Zaid 4.84 alone |
 
-### Existing app
+**Pitch number:** Sara pays **JOD 1.67 instead of JOD 4.50**, which is 63% off. The car pays the full regulated fare of 468 + 336 × 16 = 5,844 fils.
 
-The current credit-allocation demo (`allocation.py`, the existing routes and templates) stays as it is. The new `/api/v1/rides/` routes and the `pooling/` package sit beside it. Retiring the old demo is a separate decision for later.
+**Tests** (`python -m pytest`, 85 at revision):
 
+| File | What it proves |
+|---|---|
+| `test_geo`, `test_pricing` | Distances, tariff (12 km by day = 4500), exact-sum split |
+| `test_model` | Every rule in section 2, corridor distances, women-only (D8) |
+| `test_matcher`, `test_regroup`, `test_codes` | Live insertion, CP-SAT regroup (never worse than input, fixes a greedy trap), ride codes |
+| `test_sharing` | The app adapter: sample afternoon cars, Sara's share, shares add up to the car fare |
+| `test_app`, `test_api`, `test_open_batch` | The teammate's pages and API on the new numbers |
+
+## Open items
+
+- Wire ride codes (`pooling/codes.py`) into the app's confirmed plans for the driver check.
+- Decide whether to move the app to live insertion (original D3) or keep batch matching for the demo.
+- Check the demo coordinates on a map. The research's Gazette and fare checks are still unverified.

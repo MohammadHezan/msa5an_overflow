@@ -18,19 +18,21 @@ The first mobile milestone is one demo student booking from a physical phone, an
 
 ### Matching
 
-Two students can share a car only if all of these hold:
+A car is valid only if all of these hold for every rider (rules and limits live in `pooling/`; `sharing.py` adapts them to this app):
 
-1. **Same direction.** Their drop-offs are in the same corridor (West, North, South or East). Each corridor has a meeting gate.
-2. **Close class end times.** Their class end times are at most 20 minutes apart. Every pair in a car must meet this rule.
-3. **Women-only respected.** If either student asked for women-only matching, the other must be a woman student.
+1. **Same meeting gate.** Each corridor (West, North, South, East) has a gate. Distances follow the corridor: a stop's km from campus, the km difference along one corridor, or via campus between corridors.
+2. **Close class end times.** Class end times in one car are at most 20 minutes apart.
+3. **Women-only respected.** If anyone in the car asked for women-only matching, every rider must be a woman student.
 4. **Seats.** A car holds up to 4 students.
+5. **Short detour.** Nobody rides more than min(1.5 × their own km, their own km + 4 km).
+6. **Real saving.** Every rider in a shared car pays at most 80% of their solo fare.
 
-OR-Tools CP-SAT assigns every student to exactly one car and minimizes the number of cars. A student with no compatible partner gets a car alone and is offered a solo ride. A car is labelled women-only when all riders are women and at least one asked for it. [Google OR-Tools CP-SAT](https://developers.google.com/optimization/cp)
+OR-Tools CP-SAT considers every valid car of up to 4 students and assigns each student to exactly one car, using the fewest total car-km and then the fewest cars. A student with no valid partner gets a car alone and is offered a solo ride. A car is labelled women-only when all riders are women and at least one asked for it. [Google OR-Tools CP-SAT](https://developers.google.com/optimization/cp)
 
 ### Pickup time and drop-off order
 
 - Pickup is at the corridor's gate, 15 minutes after the latest class end in the car, rounded up to the next 5 minutes.
-- Drop-offs run from the nearest to the farthest stop along the corridor.
+- Drop-offs follow the shortest route, which along one corridor is nearest stop first.
 
 ### Pricing
 
