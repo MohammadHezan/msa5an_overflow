@@ -13,7 +13,7 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, s
 from pooling.config import DETOUR_EXTRA_KM, SPEED_KMH
 from sharing import CORRIDORS, STOPS
 from store import (
-    RULES, Problem, check_request, clock, create_batch, database, fare_estimates, get_batch, insert_request,
+    RULES, Problem, advance_clock, check_request, choose, clock, create_batch, database, fare_estimates, get_batch, insert_request,
     load_riders, locked_batch, refresh, respond_to_plan, run_matching,
 )
 
@@ -25,6 +25,7 @@ UNIVERSITIES = [
     {"id": "northfield", "name": "Northfield University", "campus": "Northfield", "detail": "North City · Campus service updates", "open": False},
 ]
 CODE_LIFETIME = timedelta(minutes=5)
+DEMO_JOINERS = ["Lina", "Noor", "Huda", "Rama", "Dima", "Tala"]
 CAR_COLORS = ["White sedan", "Silver sedan", "Grey hatchback", "Black sedan"]
 PREFERENCE_NAMES = {"mixed": "Anyone", "women": "Women only", "men": "Men only"}
 DEFAULT_DRAFT = {"direction": "from_campus", "stop": "Dabouq", "class_end": "16:00", "class_start": "08:30",
@@ -369,6 +370,8 @@ def ride():
         return render("matching.html", rider=rider, batch=batch,
                       preference_name=PREFERENCE_NAMES.get(rider["preference"], "Anyone"), **context)
     plan = rider["plan"] or {}
+    if plan.get("go"):
+        return go_ride(batch, rider, context)
     if plan.get("shared") and status in ("review",):
         return render("group.html", rider=rider, **context)
     if plan.get("shared") and status == "confirmed":
@@ -427,6 +430,155 @@ def rate():
         session["yalla_rating"] = stars
         flash("Thanks for rating your shared ride")
     return redirect(url_for("yalla.ride", step="receipt"))
+
+
+# ---------- 17-25, 38-39 · leave now and share (lone-rider choice C) ----------
+
+@yalla.get("/now")
+def leave_now():
+    if (blocked := need_verified()):
+        return blocked
+    d = draft()
+    return render("now.html", estimate=fare_estimates(student_name())[d["stop"]],
+                  preference_name=PREFERENCE_NAMES[d["preference"]])
+
+
+@yalla.post("/now")
+def leave_now_book():
+    """Book a request for right now and, if no car can take it, leave at once open to share (choice C)."""
+    if (blocked := need_verified()):
+        return blocked
+    d = draft()
+    db = database()
+    try:
+        with db:
+            batch = locked_batch(db, session.get("batch"))
+            if not batch:
+                raise Problem("not_found", "Your request was not saved. Open the demo again and retry.")
+            if not batch["matched"]:  # Demo: today's planned requests are matched first, as the operator would
+                run_matching(db, batch)
+                batch = get_batch(db, batch["id"])
+            ready = min(max(clock(batch).strftime("%H:%M"), "08:00"), "21:00")
+            start = min(max(add_minutes(ready, 5), "07:00"), "23:00")
+            name = check_request(student_name(), ready, d["stop"], d["gender"], d["preference"], d["direction"], start)
+            rider_id = insert_request(db, batch, name, ready, d["stop"], d["gender"], d["preference"],
+                                      direction=d["direction"], class_start=start)
+            riders, _ = load_riders(db, batch)
+            rider = next(r for r in riders if r["id"] == rider_id)
+            if rider["status"] == "no_match":
+                choose(db, batch, rider_id, "go")
+    except Problem as problem:
+        flash(problem.message)
+        return redirect(url_for("yalla.leave_now"))
+    session["yalla_rider"] = rider_id
+    session["yalla_seen"] = [rider_id]
+    session["yalla_started"] = False
+    return redirect(url_for("yalla.ride"))
+
+
+def leg_split(plan, rider):
+    """Legs of a go-now route between pickups and drop-offs, with who is aboard each leg."""
+    members = plan["members"]
+    to_campus = plan["direction"] == "to_campus"
+    origin = max((m["start_km"] or 0.0) for m in members) if to_campus else 0.0
+    def on(m):
+        board = m["board_km"] if m["board_km"] is not None else (m["start_km"] if to_campus else 0.0)
+        return origin - board if to_campus else board
+    def off(m):
+        return origin if to_campus else m["km"]
+    points = sorted({round(on(m), 2) for m in members} | {round(off(m), 2) for m in members})
+    def place(km):
+        for m in members:
+            if round(on(m), 2) == km:
+                return plan["boards"][m["id"]] if km else ("Campus street" if not to_campus else plan["boards"][m["id"]])
+            if round(off(m), 2) == km:
+                return "Campus" if to_campus else m["stop"]
+        return f"{km:.1f} km"
+    legs = []
+    for start, end in zip(points, points[1:]):
+        aboard = [m for m in members if on(m) <= start + 1e-6 and off(m) >= end - 1e-6]
+        if aboard:
+            legs.append({"from": place(start), "to": place(end), "km": round(end - start, 1),
+                         "aboard": ["You" if m["id"] == rider["id"] else m["name"] for m in aboard]})
+    return legs
+
+
+def go_ride(batch, rider, context):
+    plan = context["plan"]
+    seen = session.get("yalla_seen", [rider["id"]])
+    joined = [m for m in plan["members"] if m["id"] not in seen]
+    others = [m for m in plan["members"] if m["id"] != rider["id"]]
+    context.update(others=others, cap=rider["solo"], street=plan["boards"][rider["id"]],
+                   saving=round((rider["solo"] - rider["share"]) * 100 / rider["solo"]) if rider["solo"] else 0)
+    if rider["status"] == "arrived":
+        return render("now_receipt.html", rider=rider, **context)
+    if joined:
+        return render("now_joined.html", rider=rider, joined=joined, **context)
+    if request.args.get("step") == "legs":
+        return render("now_legs.html", rider=rider, legs=leg_split(plan, rider), **context)
+    if not session.get("yalla_started") or request.args.get("step") == "pickup":
+        return render("now_pickup.html", rider=rider, **context)
+    return render("now_ride.html", rider=rider, **context)
+
+
+@yalla.get("/ride/started")
+def ride_started():
+    session["yalla_started"] = True
+    return redirect(url_for("yalla.ride"))
+
+
+@yalla.post("/ride/seen")
+def joined_seen():
+    batch, rider = current_rider()
+    if rider and rider["plan"]:
+        session["yalla_seen"] = [m["id"] for m in rider["plan"]["members"]]
+    return redirect(url_for("yalla.ride"))
+
+
+@yalla.post("/ride/demo-joiner")
+def demo_joiner():
+    """Demo control: a made-up student on the same corridor requests a ride while the car is on its way."""
+    rider_id = session.get("yalla_rider")
+    db = database()
+    try:
+        with db:
+            batch = locked_batch(db, session.get("batch"))
+            riders, _ = load_riders(db, batch) if batch else ([], [])
+            rider = next((r for r in riders if r["id"] == rider_id), None)
+            if not rider or not (rider["plan"] or {}).get("go") or rider["status"] != "on_the_way":
+                raise Problem("not_on_the_way", "Students can join only while your car is on its way.")
+            taken = {r["name"] for r in riders}
+            name = next((n for n in DEMO_JOINERS if n not in taken), None)
+            if not name or len(rider["plan"]["members"]) >= RULES["seats"]:
+                raise Problem("car_full", "Your car is full.")
+            corridor = CORRIDORS[rider["corridor"]]["stops"]
+            stop = min(corridor, key=lambda s: (abs(corridor[s] - corridor[rider["stop"]]), s == rider["stop"]))
+            preference = "women" if rider["plan"].get("only") == "women" else "men" if rider["plan"].get("only") == "men" else "mixed"
+            joiner_id = insert_request(db, batch, name, rider["class_end"] or "16:00", stop, rider["gender"], preference,
+                                       direction=rider["direction"], class_start=rider["class_start"] or "09:00")
+            riders, _ = load_riders(db, batch)
+            joiner = next(r for r in riders if r["id"] == joiner_id)
+            if joiner["car"] != rider["car"]:
+                respond_to_plan(db, batch, joiner_id, "decline", None)
+                raise Problem("passed", f"{name} asked to join, but your car has already passed their street.")
+    except Problem as problem:
+        flash(problem.message)
+    return redirect(url_for("yalla.ride"))
+
+
+@yalla.post("/ride/finish")
+def finish_ride():
+    """Demo control: move the batch clock to the end of this go-now ride."""
+    batch, rider = current_rider()
+    if rider and (rider["plan"] or {}).get("go") and rider["status"] == "on_the_way":
+        plan = rider["plan"]
+        departed = datetime.fromisoformat(database().execute(
+            "SELECT departed_at FROM cars WHERE batch = ? AND car = ?", (batch["id"], plan["id"])).fetchone()[0])
+        left = plan["route_km"] * 60 / SPEED_KMH - (clock(batch) - departed).total_seconds() / 60
+        db = database()
+        with db:
+            advance_clock(db, batch["id"], max(1, int(left) + 1))
+    return redirect(url_for("yalla.ride"))
 
 
 # ---------- demo: open any designed screen directly ----------

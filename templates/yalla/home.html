@@ -11,7 +11,7 @@
     <img src="{{ url_for('static', filename='rides/campus.webp') }}" alt="">
   </section>
   {{ ui.cta("Plan a shared ride", url_for('yalla.destination')) }}
-  <a class="yr-cta ghost" href="{{ url_for('index', screen='book', ride='campus') }}">Leave now &amp; share</a>
+  <a class="yr-cta ghost" href="{{ url_for('yalla.leave_now') }}">Leave now &amp; share</a>
   {{ ui.info("shield", "Know before you go", "Your pickup street, co-riders and fare are shown before you confirm. You choose what works.") }}
   <a class="yr-card yr-trips-card" href="{{ url_for('yalla.ride') if rider else url_for('yalla.destination') }}">
     <p class="yr-eyebrow">Your campus trips</p>
