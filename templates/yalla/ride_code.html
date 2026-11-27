@@ -1,0 +1,16 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ url_for('yalla.ride', step='pickup') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Meet on " ~ street, "Your ride. Your code.", "Each student has a separate boarding code.") }}
+  {% include "yalla/_captain.html" %}
+  <div class="yr-code-card"><small>Show this to your captain</small><strong>{{ rider.ride_code }}</strong><span>Check the plate first: {{ car.plate }}</span></div>
+  <ul class="yr-people">
+    <li>{{ ui.initial("You") }}<span><strong>You</strong><small>{{ street }}</small></span><em>{{ "Ready" if rider.status == "confirmed" else "Not confirmed" }}</em>{{ ui.icon("check") }}</li>
+    {% for m in members if m.id != rider.id %}
+      <li>{{ ui.initial(m.name) }}<span><strong>{{ m.name }}</strong><small>{{ m.stop }}</small></span><em>{{ "Ready" if m.status == "confirmed" else "Confirming" }}</em>{{ ui.icon("check") }}</li>
+    {% endfor %}
+  </ul>
+  <p class="yr-fine">Only share this code with your assigned captain.</p>
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("I’m at the pickup street", url_for('yalla.ride', step='trip')) }}</div>{% endblock %}

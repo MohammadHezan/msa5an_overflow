@@ -130,14 +130,14 @@ def verify():
         if len(email) > 254 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
             flash("Enter a valid university email.")
             return redirect(url_for("yalla.verify", next=request.form.get("next")))
-        session["yalla_email"] = email
+        session["yalla_email"] = masked(email)  # Only the masked form is kept; nothing is sent
         local = re.split(r"[._+-]", email.split("@")[0])
         session["yalla_name"] = " ".join(part.capitalize() for part in local if part)[:40] or "Student"
         session["yalla_code"] = f"{secrets.randbelow(900000) + 100000}"
         session["yalla_code_until"] = (datetime.now() + CODE_LIFETIME).isoformat()
         flash("Verification code sent")
         return redirect(url_for("yalla.verify_code", next=request.form.get("next")))
-    return render("verify.html", email=session.get("yalla_email", "sara.a@cedar.edu"), next=safe_next())
+    return render("verify.html", email="" if session.get("yalla_email") else "sara.a@cedar.edu", next=safe_next())
 
 
 def masked(email):
@@ -162,7 +162,7 @@ def verify_code():
             return redirect(url_for("yalla.choose_university", next=request.form.get("next")))
         return redirect(url_for("yalla.verify_code", next=request.form.get("next")))
     left = max(0, int((until - datetime.now()).total_seconds()))
-    return render("verify_code.html", masked=masked(session.get("yalla_email", "")), demo_code=session["yalla_code"],
+    return render("verify_code.html", masked=session.get("yalla_email", ""), demo_code=session["yalla_code"],
                   left=f"{left // 60:02d}:{left % 60:02d}", next=safe_next())
 
 

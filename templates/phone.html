@@ -179,7 +179,7 @@
             <script type="application/json" id="estimates">{{ estimates | tojson }}</script>
             <div class="rides-foot"><p class="demo-note" id="demo-note" role="status"></p><button class="cta" type="button" id="confirm">Confirm Economy</button></div>
             <section class="campus-details" id="campus-details" aria-labelledby="details-title" hidden>
-              <div class="details-heading"><button type="button" class="round square" id="details-back" aria-label="Back to ride options">‹</button><div><h2 id="details-title">Yalla Ride</h2><small>Verified student · Cedar Campus</small></div></div>
+              <div class="details-heading"><button type="button" class="round square" id="details-back" aria-label="Back to ride options">‹</button><div><h2 id="details-title">Yalla Ride</h2><small>Verified student · Cedar Campus · <a href="{{ url_for('yalla.home') }}">Plan step by step</a></small></div></div>
               <div class="details-scroll">
                 <fieldset class="choice three gender-choice"><legend>I am</legend><label><input type="radio" name="gender" value="woman" checked disabled><span>Woman</span></label><label><input type="radio" name="gender" value="man" disabled><span>Man</span></label></fieldset>
                 <fieldset class="choice direction-choice"><legend>Direction</legend><label><input type="radio" name="direction" value="to_campus" disabled><span>To campus</span></label><label><input type="radio" name="direction" value="from_campus" checked disabled><span>From campus</span></label></fieldset>

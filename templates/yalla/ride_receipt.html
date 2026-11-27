@@ -1,0 +1,19 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ url_for('yalla.home') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Ride complete", "You’re home. Nice save." if rider.direction == "from_campus" else "You’re on campus. Nice save.", batch_date ~ " · " ~ (street ~ " → " ~ rider.stop if rider.direction == "from_campus" else rider.stop ~ " → " ~ university.campus)) }}
+  {{ ui.price("Paid with cash", rider.share | jod, "You saved " ~ ((rider.solo - rider.share) | jod) ~ " versus riding alone", "Save " ~ saving ~ "%") }}
+  <dl class="yr-facts">
+    <div><dt>Your ride</dt><dd>{{ "%.0f"|format(rider.km) }} km{% if ride_minutes %} · {{ ride_minutes }} min{% endif %}</dd></div>
+    <div><dt>Passengers sharing</dt><dd>{{ members | length }} students</dd></div>
+    <div><dt>Payment</dt><dd class="green">Cash · Paid</dd></div>
+  </dl>
+  <form class="yr-rate" method="post" action="{{ url_for('yalla.rate') }}">{{ ui.token() }}
+    <p><strong>How was your shared ride?</strong></p>
+    <div>{% for n in range(1, 6) %}<button type="submit" name="stars" value="{{ n }}" class="{{ 'on' if session.get('yalla_rating', 0) >= n }}" aria-label="{{ n }} star{{ 's' if n > 1 }}">★</button>{% endfor %}</div>
+  </form>
+  <a class="yr-textlink" href="{{ url_for('yalla.destination', stop=rider.stop, direction=rider.direction) }}">Book this campus route again</a>
+  <a class="yr-textlink" href="{{ url_for('yalla.home') }}">View all campus trips</a>
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Done", url_for('yalla.home')) }}</div>{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ url_for('yalla.ride') }}{% endblock %}
+{% block body %}
+  {% set total_km = members | sum(attribute="km") %}
+  {{ ui.intro("Fare details", "A fair share of one ride", "The start fare is split equally. Each km is split among the students in the car on that km.") }}
+  {{ ui.price("Your share · " ~ ("%.0f"|format(rider.km)) ~ " km", rider.share | jod, "Compared with " ~ (rider.solo | jod) ~ " riding alone", "Save " ~ saving ~ "%") }}
+  <dl class="yr-facts">
+    <div><dt>Whole car fare</dt><dd>JOD {{ "%.3f"|format(plan.car_fare / 1000) }}</dd></div>
+    <div><dt>Route distance</dt><dd>{{ "%.1f"|format(plan.route_km) }} km</dd></div>
+    <div><dt>Combined rider distances</dt><dd>{{ "%.0f"|format(total_km) }} km</dd></div>
+  </dl>
+  <div class="yr-split">
+    {% for m in me_first %}<div{% if m.id == rider.id %} class="me"{% endif %}><span>{{ "You" if m.id == rider.id else m.name }} · {{ "%.0f"|format(m.km) }} km</span><b>JOD {{ "%.3f"|format(plan.shares[m.id] / 1000) }}</b></div>{% endfor %}
+    {% if plan.jeeny_cover %}<div><span>Paid by Jeeny</span><b>JOD {{ "%.3f"|format(plan.jeeny_cover / 1000) }}</b></div>{% endif %}
+  </div>
+  {% set parts = [] %}{% for part in plan.segment_breakdown[rider.id] %}{% set _ = parts.append(part.km ~ " km shared by " ~ part.riders) %}{% endfor %}
+  {{ ui.info("money", "One car fare, split exactly", "Start fare JOD " ~ ("%.3f"|format(rules.base / 1000)) ~ " ÷ " ~ (members|length) ~ ", then your " ~ (parts | join("; ")) ~ ". The shares add up to the car fare.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Back to my group", url_for('yalla.ride')) }}</div>{% endblock %}

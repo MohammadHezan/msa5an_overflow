@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from flask import Flask, abort, flash, jsonify, redirect, render_template, request, session, url_for
 
 from api import api
+from yalla import yalla
 from sharing import CORRIDORS, route_map
 from store import (
     API_BATCH_TTL, RULES, WEB_BATCH_TTL, Problem, advance_clock, captain_sheets, check_request, choose, clock,
@@ -27,6 +28,7 @@ app.config.update(
 )
 app.teardown_appcontext(close_database)
 app.register_blueprint(api)
+app.register_blueprint(yalla)
 
 VIEWS = {"book": "Student app", "match": "Matching", "trips": "Trips", "captains": "Captains", "simulation": "Simulation"}
 
