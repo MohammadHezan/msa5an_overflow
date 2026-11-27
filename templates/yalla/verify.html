@@ -5,11 +5,11 @@
   <form id="verify-form" method="post" action="{{ url_for('yalla.verify') }}">{{ ui.token() }}
     <input type="hidden" name="next" value="{{ next }}">
     {{ ui.row("cap", "University", university.name ~ " · " ~ university.campus, url_for('yalla.choose_university', next=request.full_path)) }}
-    <label class="yr-row yr-field">{{ ui.icon("mail") }}<span class="yr-row-text"><small>University email</small><input type="email" name="email" value="{{ email }}" required maxlength="254" autocomplete="email"></span></label>
+    <label class="yr-row yr-field">{{ ui.icon("mail") }}<span class="yr-row-text"><small>University email</small><input type="email" name="email" value="{{ email }}" required maxlength="254" autocomplete="email"></span>{{ ui.chevron() }}</label>
   </form>
   {{ ui.info("shield", "Your student community", "University verification helps keep this option for students. Your email stays private.") }}
   <div class="yr-steps">
-    <div><b>1</b><span><strong>Use your university email</strong><small>We’ll show a one-time code. This demo sends no email.</small></span></div>
+    <div><b>1</b><span><strong>Use your university email</strong><small>We’ll send a one-time code.</small></span></div>
     <div><b>2</b><span><strong>Join your campus</strong><small>Then choose your route and ride preferences.</small></span></div>
   </div>
 {% endblock %}

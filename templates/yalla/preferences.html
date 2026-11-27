@@ -17,7 +17,7 @@
       </fieldset>
       <p class="yr-muted" data-slow{% if draft.preference == "mixed" %} hidden{% endif %}>Matching may take longer.</p>
     </div>
-    <label class="yr-card yr-toggle">{{ ui.icon("mute") }}<span><strong>Quiet ride</strong><small>Keep conversation to trip essentials. Shared with your car, not used for matching.</small></span><input type="checkbox" name="quiet" value="yes"{% if draft.quiet %} checked{% endif %}><i aria-hidden="true"></i></label>
+    <label class="yr-card yr-toggle">{{ ui.icon("mute") }}<span><strong>Quiet ride</strong><small>Keep conversation to trip essentials. Not used for matching.</small></span><input type="checkbox" name="quiet" value="yes"{% if draft.quiet %} checked{% endif %}><i aria-hidden="true"></i></label>
     {% if not batch or not batch.matched %}
     <div class="yr-card yr-pref">
       <div class="yr-pref-head">{{ ui.icon("users") }}<span><strong>Book with friends</strong><small>Friends in a group always ride in one car.</small></span></div>
@@ -31,8 +31,9 @@
     </div>
     {% endif %}
     {{ ui.row("clock", "Maximum wait for your group", rules.gap ~ " minutes") }}
+    {{ ui.row("route", "Maximum extra ride time", extra_minutes ~ " minutes") }}
     {{ ui.row("walk", "Maximum walk to the pickup street", "200 m") }}
   </form>
-  {{ ui.info("people", "One street pickup. Up to " ~ rules.seats ~ " students.", "Meet the car on your street, then get dropped off at your own stop.") }}
+  {{ ui.info("people", "One street pickup. Up to " ~ rules.seats ~ " students.", "Meet together on your street, then get dropped off at your own stop.") }}
 {% endblock %}
 {% block foot %}<div class="yr-foot"><button class="yr-cta" form="pref-form" type="submit">Review my request</button></div>{% endblock %}

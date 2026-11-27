@@ -56,7 +56,10 @@ def test_verification_code_flow_is_demo_only(client):
     response = post(client, "/yalla/verify", email="lina.k@cedar.edu")
     assert response.location.startswith("/yalla/verify/code")
     page = text(client.get(response.location))
-    assert "l***@cedar.edu" in page and "Demo code:" in page
+    with client.session_transaction() as session:
+        code = session["yalla_code"]
+    assert "l***@cedar.edu" in page
+    assert re.findall(r'name="digit" value="(\d)"', page) == list(code)  # Demo: no email, the code is filled in
     wrong = post(client, "/yalla/verify/code", digit=list("000000"))
     with client.session_transaction() as session:
         assert session.get("student_verified") is False

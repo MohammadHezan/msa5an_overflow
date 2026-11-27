@@ -1,7 +1,7 @@
 {% extends "yalla/base.html" %}
 {% import "yalla/_ui.html" as ui with context %}
 {% block back %}{{ url_for('index', screen='book', ride='campus') }}{% endblock %}
-{% block bodyclass %} with-nav{% endblock %}
+{% block bodyclass %} with-nav yr-home{% endblock %}
 {% block body %}
   <p class="yr-verified">{% if verified %}Student verified · {{ university.campus }}{% else %}<a href="{{ url_for('yalla.verify') }}">Verify your university email</a>{% endif %}</p>
   <section class="yr-hero">

@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 
+from pooling.config import DETOUR_EXTRA_KM, SPEED_KMH
 from sharing import CORRIDORS, STOPS, route_map
 from store import (
     RULES, Problem, check_request, clock, create_batch, database, fare_estimates, get_batch, insert_request,
@@ -264,7 +265,17 @@ def preferences():
         save_draft(gender=gender, preference=preference, quiet=form.get("quiet") == "yes", friends=friends,
                    group_code=form.get("group_code", "")[:10].strip().upper(), group_open=form.get("group_open") == "yes")
         return redirect(url_for("yalla.review"))
-    return render("preferences.html", batch=get_batch(database(), session.get("batch")))
+    return render("preferences.html", batch=get_batch(database(), session.get("batch")),
+                  extra_minutes=round(DETOUR_EXTRA_KM / SPEED_KMH * 60))
+
+
+@yalla.post("/plan/save")
+def save_route():
+    """Save the chosen stop as the student's Home route (this browser only)."""
+    d = draft()
+    session["yalla_saved"] = [{"label": "Home", "stop": d["stop"], "direction": d["direction"]}]
+    flash(f"Saved {d['stop']} as Home")
+    return redirect(url_for("yalla.destination"))
 
 
 @yalla.get("/plan/review")
@@ -428,6 +439,8 @@ def demo(screen):
     session["student_verified"] = True
     session["yalla_name"] = "Sara A"
     session["yalla"] = {**DEFAULT_DRAFT, "quiet": True}
+    session["yalla_recent"] = ["Sweileh"]
+    session.pop("yalla_saved", None)
     if screen == "03":
         session["yalla_email"] = "s***@cedar.edu"
         session["yalla_code"] = f"{secrets.randbelow(900000) + 100000}"

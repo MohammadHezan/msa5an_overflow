@@ -1,7 +1,7 @@
 {% extends "yalla/base.html" %}
 {% import "yalla/_ui.html" as ui with context %}
 {% block body %}
-  {{ ui.intro("Trip details · 1 of 3", "Where are you headed?", "Your own stop, along a shared route.") }}
+  {{ ui.intro("Trip details · 1 of 3", "Where are you headed?", "Your own drop-off, along a shared route." if draft.direction == "from_campus" else "Your own street, along a shared route.") }}
   <form id="dest-form" method="post" action="{{ url_for('yalla.destination') }}">{{ ui.token() }}
     <fieldset class="yr-seg"><legend class="sr">Direction</legend>
       <label><input type="radio" name="direction" value="from_campus"{% if draft.direction == "from_campus" %} checked{% endif %} data-autosubmit><span>From campus</span></label>
@@ -17,10 +17,9 @@
     {% endif %}
     <input type="hidden" name="go" value="next">
   </form>
-  {% if recent or saved %}
   <p class="yr-label">Recent &amp; saved</p>
-  {% for route in saved %}{{ ui.row("home", route.label, route.stop ~ " · Saved route", url_for('yalla.destination', stop=route.stop, direction=route.direction)) }}{% endfor %}
-  {% for stop in recent %}{{ ui.row("history", "Recent destination", stop, url_for('yalla.destination', stop=stop, direction=draft.direction)) }}{% endfor %}
-  {% endif %}
+  {% for route in saved %}{{ ui.row("home", route.label, route.stop ~ " · Area drop-off", url_for('yalla.destination', stop=route.stop, direction=route.direction)) }}{% endfor %}
+  {% for stop in recent if stop not in saved | map(attribute="stop") %}{{ ui.row("history", "Recent destination", stop ~ " · Shared pickup corridor", url_for('yalla.destination', stop=stop, direction=draft.direction)) }}{% endfor %}
+  {% if not saved %}<form method="post" action="{{ url_for('yalla.save_route') }}">{{ ui.token() }}<button class="yr-row yr-rowbtn" type="submit">{{ ui.icon("bookmark") }}<span class="yr-row-text"><small>Make next time easier</small><strong>Save {{ draft.stop }} as Home</strong></span>{{ ui.chevron() }}</button></form>{% endif %}
 {% endblock %}
 {% block foot %}<div class="yr-foot"><button class="yr-cta" form="dest-form" type="submit">Continue</button></div>{% endblock %}

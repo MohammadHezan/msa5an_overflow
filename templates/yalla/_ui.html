@@ -39,9 +39,9 @@
 {% endmacro %}
 
 {# A tappable card row: icon, small label, value, chevron. #}
-{% macro row(ico, label, value, href=none, tag="a") %}
+{% macro row(ico, label, value, href=none, chev=true) %}
   {% if href %}<a class="yr-row" href="{{ href }}">{% else %}<div class="yr-row">{% endif %}
-    {{ icon(ico) }}<span class="yr-row-text"><small>{{ label }}</small><strong>{{ value }}</strong></span>{% if href %}{{ chevron() }}{% endif %}
+    {{ icon(ico) }}<span class="yr-row-text"><small>{{ label }}</small><strong>{{ value }}</strong></span>{% if chev %}{{ chevron() }}{% endif %}
   {% if href %}</a>{% else %}</div>{% endif %}
 {% endmacro %}
 

@@ -2,7 +2,7 @@
 {% import "yalla/_ui.html" as ui with context %}
 {% block body %}
   {{ ui.intro("Your community", "Choose your university", "Start with the campus you’re leaving from.") }}
-  <label class="yr-row yr-field">{{ ui.icon("search") }}<span class="yr-row-text"><small>Search</small><input type="search" placeholder="University or city" data-filter=".yr-uni"></span></label>
+  <label class="yr-row yr-field">{{ ui.icon("search") }}<span class="yr-row-text"><small>Search</small><input type="search" placeholder="University or city" data-filter=".yr-uni"></span>{{ ui.chevron() }}</label>
   <form id="uni-form" method="post" action="{{ url_for('yalla.choose_university') }}">{{ ui.token() }}
     <input type="hidden" name="next" value="{{ next }}">
     {% for u in universities %}

@@ -204,3 +204,27 @@ a.yr-row:hover, label.yr-row:hover { border-color: #D3D3D3; }
   .yr-toast { top: 76px; }
   .screen.yr { height: 100dvh; }
 }
+
+/* Design match pass (390 px reference exports) */
+.yr-cta.ghost { margin-top: 0; }
+.yr-body > .yr-info, .yr-body > form + .yr-info { margin-top: 18px; }
+.yr-home > .yr-info { margin-top: 6px; }
+.yr-hero { padding: 22px 20px 26px; }
+.yr-hero h2 { font-size: 1.72rem; margin: 14px 0 22px; }
+.yr-hero img { width: 112px; bottom: 18px; }
+.yr-trips-card { padding: 18px 16px; }
+.yr-trips-card .yr-eyebrow { font-weight: 500; letter-spacing: 0; font-size: .78rem; }
+.yr-trips-card strong { font-size: 1.08rem; margin-top: 6px; }
+.yr-trips-card small { font-size: .82rem; }
+.yr-link-row { font-size: 1.08rem; font-weight: 600; gap: 120px; margin-top: 14px; }
+.yr-nav { border-top: 0; }
+.yr-nav .yr-ico { stroke: var(--ink); }
+.yr-steps b { width: 30px; height: 30px; flex-basis: 30px; }
+.yr-steps strong { font-weight: 500; font-size: .9rem; }
+.yr-steps > div { padding: 16px; }
+.yr-code input { font-size: 1.6rem; }
+.yr-code + .yr-muted { margin-top: 6px; }
+.yr-body > .yr-textlink { margin-top: 4px; }
+.yr-rowbtn { width: 100%; font: inherit; text-align: left; cursor: pointer; }
+.yr-field input::-webkit-calendar-picker-indicator { display: none; }
+.yr-label { margin-top: 18px; }
