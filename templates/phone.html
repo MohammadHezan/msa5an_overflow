@@ -11,6 +11,13 @@
   <link rel="icon" href="{{ url_for('static', filename='jeeny-icon.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='jeeny.css') }}">
   <script src="{{ url_for('static', filename='trip.js') }}" defer></script>
+  <script>
+    document.documentElement.dataset.bg = localStorage.getItem("bg") || "pink";
+    document.addEventListener("click", (e) => {
+      const b = e.target.closest(".bg-picker button");
+      if (b) { document.documentElement.dataset.bg = b.dataset.bg; localStorage.setItem("bg", b.dataset.bg); }
+    });
+  </script>
 </head>
 <body class="jeeny">
   {% macro token() %}<input type="hidden" name="csrf" value="{{ session.csrf }}">{% endmacro %}
@@ -29,6 +36,12 @@
       <img class="logo" src="{{ url_for('static', filename='jeeny-logo.png') }}" alt="Jeeny">
       <h1>Yalla Ride</h1>
       <p>A shared-ride option in Jeeny's ride section. Students leaving the same campus in the same direction share one car and split the fare.</p>
+      <div class="bg-picker" role="group" aria-label="Background color">
+        <span>Background</span>
+        <button type="button" data-bg="pink" style="--sw: rgb(236,0,140)" title="Pink 236, 0, 140"></button>
+        <button type="button" data-bg="lavender" style="--sw: rgb(192,193,225)" title="Lavender 192, 193, 225"></button>
+        <button type="button" data-bg="brown" style="--sw: rgb(143,91,68)" title="Brown 143, 91, 68"></button>
+      </div>
       <div class="side-card">
         <p class="side-label">View the app as</p>
         <div class="people">

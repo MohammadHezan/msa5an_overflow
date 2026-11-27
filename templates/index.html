@@ -8,6 +8,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <script src="{{ url_for('static', filename='trip.js') }}" defer></script>
+  <script>
+    document.documentElement.dataset.bg = localStorage.getItem("bg") || "lavender";
+    document.addEventListener("click", (e) => {
+      const b = e.target.closest(".bg-picker button");
+      if (b) { document.documentElement.dataset.bg = b.dataset.bg; localStorage.setItem("bg", b.dataset.bg); }
+    });
+  </script>
 </head>
 <body>
   {% macro token() %}<input type="hidden" name="csrf" value="{{ session.csrf }}">{% endmacro %}
@@ -51,6 +58,11 @@
           <a href="{{ url_for('index', view=view) }}"{% if view == active %} aria-current="page"{% endif %}>{{ label }}</a>
         {% endfor %}
       </nav>
+      <div class="bg-picker" role="group" aria-label="Background color">
+        <button type="button" data-bg="pink" style="--sw: rgb(236,0,140)" title="Pink 236, 0, 140"></button>
+        <button type="button" data-bg="lavender" style="--sw: rgb(192,193,225)" title="Lavender 192, 193, 225"></button>
+        <button type="button" data-bg="brown" style="--sw: rgb(143,91,68)" title="Brown 143, 91, 68"></button>
+      </div>
     </div>
   </header>
   <main>

@@ -11,7 +11,17 @@
 }
 * { box-sizing: border-box; }
 body.jeeny { margin: 0; color: var(--ink); min-height: 100vh;
-  background: #F1F1F1; }
+  background: var(--page-bg, rgb(236, 0, 140)); }
+html[data-bg="pink"] { --page-bg: rgb(236, 0, 140); }
+html[data-bg="lavender"] { --page-bg: rgb(192, 193, 225); }
+html[data-bg="brown"] { --page-bg: rgb(143, 91, 68); }
+html[data-bg="lavender"] .side, html[data-bg="lavender"] .side > p, html[data-bg="lavender"] .side-label,
+html[data-bg="lavender"] .side-reset button { color: var(--plum); }
+html[data-bg="lavender"] .side-card, html[data-bg="lavender"] .side-reset button { border-color: rgba(91,10,60,.25); }
+html[data-bg="lavender"] .person { background: rgba(91,10,60,.08); }
+.bg-picker { display: flex; align-items: center; gap: 8px; margin: 0 0 18px; font-size: .75rem; }
+.bg-picker button { width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid #fff; background: var(--sw); cursor: pointer; }
+html[data-bg="pink"] [data-bg="pink"], html[data-bg="lavender"] [data-bg="lavender"], html[data-bg="brown"] [data-bg="brown"] { outline: 2px solid var(--ink); outline-offset: 1px; }
 a { color: inherit; }
 button, input, select { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid #47B2E4; outline-offset: 2px; }
