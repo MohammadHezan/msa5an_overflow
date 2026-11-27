@@ -156,8 +156,10 @@
             <ol class="route compact">
               {% for stop in sheet.stops %}<li><span><strong>{{ loop.index }}. {{ stop }}</strong></span></li>{% endfor %}
             </ol>
-            <p class="hint">Codes to check:
-              {% for name, code in sheet.codes %}{{ name }} {% if code %}<code class="ride-code">{{ code }}</code>{% else %}<small>(not confirmed)</small>{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}</p>
+            <p class="eyebrow">Ride codes to check</p>
+            <ul class="code-list">
+              {% for name, code in sheet.codes %}<li><span>{{ name }}</span>{% if code %}<code class="ride-code">{{ code }}</code>{% else %}<small>not confirmed yet</small>{% endif %}</li>{% endfor %}
+            </ul>
           </section>
         {% endfor %}
       </div>
