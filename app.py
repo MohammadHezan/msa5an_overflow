@@ -9,9 +9,10 @@ from flask import Flask, abort, flash, redirect, render_template, request, sessi
 from api import api
 from sharing import CORRIDORS, route_map
 from store import (
-    API_BATCH_TTL, RULES, WEB_BATCH_TTL, Problem, check_request, close_database, create_batch, database, delete_old_batches, fare_estimates,
-    get_batch, insert_request, join_code, load_riders, locked_batch, operator_batch_for_token, respond_to_plan,
-    run_matching, summarize, verify_ride_code,
+    API_BATCH_TTL, RULES, WEB_BATCH_TTL, Problem, advance_clock, captain_sheets, check_request, choose, clock,
+    close_database, create_batch, database, delete_old_batches, fare_estimates, get_batch, insert_request, join_code,
+    load_riders, locked_batch, operator_batch_for_token, refresh, respond_to_plan, run_matching, summarize,
+    verify_ride_code,
 )
 
 load_dotenv(Path(__file__).with_name(".env"), override=False)
@@ -25,7 +26,7 @@ app.config.update(
 app.teardown_appcontext(close_database)
 app.register_blueprint(api)
 
-VIEWS = {"book": "Student app", "match": "Matching", "trips": "Trips"}
+VIEWS = {"book": "Student app", "match": "Matching", "trips": "Trips", "captains": "Captains"}
 
 
 # The session tracks two batches: "own_batch" is the one this browser created (replaced on reset),
@@ -36,7 +37,7 @@ def own_batch_id():
     return session.get("own_batch", session.get("batch"))  # Older sessions only stored "batch"
 
 
-def new_batch(db, seeded):
+def new_batch(db, seeded):  # seeded: True, False or "busy"
     batch = create_batch(db, seeded, replaces=own_batch_id())
     session["batch"] = session["own_batch"] = batch
     session["csrf"] = secrets.token_urlsafe(32)
@@ -74,7 +75,7 @@ def names(items):
 @app.get("/")
 def index():
     db = database()
-    batch = current_batch(db)
+    batch = refresh(db, current_batch(db)["id"])
     riders, cars = load_riders(db, batch)
     active = request.args.get("view", "book")
     if active not in VIEWS:
@@ -98,6 +99,7 @@ def index():
         join_code=code, join_expires=code_expires, opened=batch["id"] != own_batch_id(),
         api_ttl_hours=int(API_BATCH_TTL.total_seconds() // 3600),
         driver_check=session.pop("driver_check", None) if active == "trips" else None,
+        captains=captain_sheets(riders, cars) if active == "captains" else None, now=clock(batch),
     )
 
 
@@ -114,19 +116,38 @@ def check_form():
 def submit_request():
     form = request.form
     class_end, stop = form.get("class_end", ""), form.get("stop", "")
-    woman, women_only = form.get("woman") == "yes", form.get("women_only") == "yes"
+    # Older forms sent woman/women_only checkboxes instead of gender/preference
+    gender = form.get("gender") or ("woman" if form.get("woman") == "yes" else "man")
+    preference = form.get("preference") or ("women" if form.get("women_only") == "yes" else "mixed")
+    friends = None
+    if form.get("friends") == "start":
+        friends = {"mode": "start", "open": form.get("group_open") == "yes"}
+    elif form.get("friends") == "join":
+        friends = {"mode": "join", "code": form.get("group_code", "")[:10]}
     db = database()
     try:
-        name = check_request(form.get("name", ""), class_end, stop, woman, women_only)
+        name = check_request(form.get("name", ""), class_end, stop, gender, preference)
         with db:
             batch = locked_batch(db, session.get("batch"))
             if not batch:  # Cleared by the cleanup of old batches; the redirect gives this browser a fresh one
                 raise Problem("not_found", "Your request was not saved. Please submit it again.")
-            rider_id = insert_request(db, batch, name, class_end, stop, woman, women_only)
+            rider_id = insert_request(db, batch, name, class_end, stop, gender, preference, friends)
     except Problem as problem:
         flash(problem.message)
-        return redirect(url_for("index"))
-    flash(f"Request saved. {name} will see a shared-ride plan once matching runs.")
+        return redirect(url_for("index", screen="book"))
+    batch = get_batch(db, session.get("batch"))
+    rider = next(r for r in load_riders(db, batch)[0] if r["id"] == rider_id)
+    if not batch["matched"]:
+        if friends and friends["mode"] == "start":
+            flash(f"Group {rider['friend_group']} created. Friends join with this code (up to {RULES['seats']} in a car).")
+        elif friends:
+            flash(f"{name} joined group {rider['friend_group']}. You'll ride in one car.")
+        else:
+            flash(f"Request saved. {name} will see a shared-ride plan once matching runs.")
+    elif rider["status"] == "on_the_way":
+        flash(f"A car on its way can pick {name} up at {rider['plan']['boards'][rider_id]}.")
+    elif rider["status"] == "review":
+        flash(f"{name} matched with a student who was waiting.")
     return redirect(url_for("index", rider=rider_id))
 
 
@@ -149,7 +170,7 @@ def match():
 
 @app.post("/riders/<int:rider_id>/<action>")
 def respond(rider_id, action):
-    if action not in {"confirm", "decline"}:
+    if action not in {"confirm", "decline", "wait", "go"}:
         abort(404)
     db = database()
     try:
@@ -157,13 +178,23 @@ def respond(rider_id, action):
             batch = locked_batch(db, session.get("batch"))
             if not batch or not batch["matched"]:
                 return redirect(url_for("index"))
-            rider = respond_to_plan(db, batch, rider_id, action, request.form.get("plan"))
+            if action in {"wait", "go"}:
+                choose(db, batch, rider_id, action)
+            else:
+                rider = respond_to_plan(db, batch, rider_id, action, request.form.get("plan"))
     except Problem as problem:
-        if problem.code != "plan_changed":
+        if problem.code not in ("plan_changed", "not_alone", "on_the_way"):
             abort(404)
+        if problem.code != "plan_changed":
+            flash(problem.message)
+            return redirect(url_for("index", rider=rider_id))
         flash("This plan changed before you confirmed. Review the updated plan below.")
         return redirect(url_for("index", rider=rider_id))
-    if action == "confirm":
+    if action == "wait":
+        flash(f"Waiting up to {RULES['wait_minutes']} minutes for a student going your way.")
+    elif action == "go":
+        flash("Your car is on its way. Students going your way can join on the route.")
+    elif action == "confirm":
         flash("Ride confirmed." if rider["plan"]["shared"] else "Solo ride confirmed.")
     else:
         flash(f"{rider['name']} left the ride. Anyone else in the car sees an updated plan.")
@@ -181,6 +212,18 @@ def driver_check():
         {"name": rider["name"].split()[0], "stop": rider["stop"], "pickup": rider["plan"]["pickup"],
          "gate": rider["plan"]["gate"]} if rider else {})
     return redirect(url_for("index", view="trips"))
+
+
+@app.post("/clock")
+def move_clock():
+    """Demo control: move this batch's clock forward 5 minutes (seat holds, waiting, cars on the way)."""
+    db = database()
+    with db:
+        batch = locked_batch(db, session.get("batch"))
+        if batch:
+            advance_clock(db, batch["id"], 5)
+    flash("Demo clock moved forward 5 minutes.")
+    return redirect(request.form.get("back") if request.form.get("back", "").startswith("/") else url_for("index", view="trips"))
 
 
 @app.post("/batches/open")
@@ -209,11 +252,13 @@ def return_to_own_batch():
 @app.post("/reset")
 def reset():
     action = request.form.get("mode")
-    if action not in {"seeded", "empty"}:
+    if action not in {"seeded", "empty", "busy"}:
         abort(400)
-    new_batch(database(), seeded=action == "seeded")
-    flash("Sample afternoon loaded: ten students leaving campus." if action == "seeded" else "A new empty batch is ready.")
-    return redirect(url_for("index", view="match" if action == "seeded" else "book"))
+    new_batch(database(), seeded={"seeded": True, "empty": False, "busy": "busy"}[action])
+    flash({"seeded": "Sample afternoon loaded: ten students leaving campus.",
+           "busy": "Busy afternoon loaded: 28 students leaving campus around 16:00.",
+           "empty": "A new empty batch is ready."}[action])
+    return redirect(url_for("index", view="book" if action == "empty" else "match"))
 
 
 if __name__ == "__main__":
