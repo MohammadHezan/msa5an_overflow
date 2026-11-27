@@ -294,7 +294,22 @@ def load_riders(db, batch, at=None):
     """Riders with their current car plan and status, on the batch's demo clock (or `at`)."""
     at = at or clock(batch)
     riders = [
-        {**dict(row), "corridor": STOPS[row["stop"]]["corridor"], "km": STOPS[row["stop"]]["km"], "solo": solo_fare(row["stop"]),
+        {**dict(row), "corridor": row["corridor"] or STOPS[row["stop"]]["corridor"],
+         "km": float((row["end_km"] if row["direction"] == "from_campus" else row["start_km"])
+                     if row["start_km"] is not None else STOPS[row["stop"]]["km"]),
+         "solo": solo_fare(row["stop"]),
+         "ready_at": (datetime.strptime(row["class_end"], "%H:%M").replace(
+             year=date.fromisoformat(batch["trip_date"]).year,
+             month=date.fromisoformat(batch["trip_date"]).month,
+             day=date.fromisoformat(batch["trip_date"]).day, tzinfo=AMMAN
+         ) + timedelta(seconds=min(row["start_side_m"], 200) / 1.4)).isoformat()
+         if row["direction"] == "from_campus" and row["class_end"] else None,
+         "arrive_by": (datetime.strptime(row["class_start"], "%H:%M").replace(
+             year=date.fromisoformat(batch["trip_date"]).year,
+             month=date.fromisoformat(batch["trip_date"]).month,
+             day=date.fromisoformat(batch["trip_date"]).day, tzinfo=AMMAN
+         ) - timedelta(minutes=5)).isoformat()
+         if row["direction"] == "to_campus" and row["class_start"] else None,
          "group_open": bool(row["group_open"]) if row["group_open"] is not None else True}
         for row in db.execute(
             "SELECT riders.*, friend_groups.open AS group_open FROM riders "
@@ -344,6 +359,9 @@ def load_riders(db, batch, at=None):
         rider["ride_code"] = rider["ride_code"] if rider["status"] in ACTIVE_RIDES else None
         rider["share"] = plan["shares"][rider["id"]] if plan else None
         rider["signature"] = signature(plan, rider["id"]) if plan else None
+        if plan and plan.get("street"):
+            rider["walk_m"] = plan["walk_m"].get(rider["id"], 0)
+            rider["pickup_at"] = plan["rider_times"].get(rider["id"])
     ordered = sorted(plans.values(), key=lambda p: (p["pickup"], p["gate"], -len(p["members"])))
     return riders, ordered
 
