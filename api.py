@@ -13,8 +13,8 @@ from sharing import CORRIDORS
 from pooling import config
 from store import (
     AMMAN, RULES, Problem, batch_for_join_code, bind_token, check_request, create_batch, database, fare_estimates,
-    find_token, get_batch, insert_request, legacy_options, refresh, issue_token, join_code, load_riders, locked_batch, now,
-    choose, respond_to_plan, run_matching, summarize, verify_ride_code,
+    find_token, get_batch, group_ready, insert_request, legacy_options, refresh, issue_token, join_code, load_riders,
+    locked_batch, now, choose, respond_to_plan, run_matching, summarize, verify_ride_code,
 )
 from yalla import car_details, leg_split
 from student_verification import (
@@ -210,6 +210,7 @@ def rider_json(batch, rider):
         "soloFare": money(rider["solo"]), "rideCode": rider["ride_code"], "plan": None,
         "holdUntil": rider["hold_until"].isoformat() if rider["hold_until"] else None,
         "waitUntil": rider["wait_until"].isoformat() if rider["wait_until"] else None,
+        "group": group_json(rider),
     }
     if plan:
         body["plan"] = {
@@ -248,6 +249,33 @@ def captain_json(plan):
     car = car_details(plan)
     return {"firstName": first_name(plan["captain"]["name"]), "rating": float(car["rating"]),
             "ratingCount": car["ratings"], "car": car["car"], "plate": car["plate"]}
+
+
+def group_json(rider):
+    """The student's friends group (brief 05): code, open or closed, ride option, members and lobby state."""
+    group = rider.get("group")
+    if not group:
+        return None
+    return {"code": group["code"], "open": group["open"], "option": group["option"], "status": group["status"],
+            "youStarted": group["creator"] == rider["id"],
+            "lobbyUntil": group["lobby_until"].isoformat() if group["lobby_until"] else None,
+            "members": [{"name": first_name(m["name"]), "you": m["id"] == rider["id"], "joined": True}
+                        for m in group["members"]]}
+
+
+def friends_field(body):
+    """Optional `friends`: {"mode": "start", "open": bool} or {"mode": "join", "code": "GR-48"}."""
+    friends = body.get("friends")
+    if friends is None:
+        return None
+    if not isinstance(friends, dict) or friends.get("mode") not in ("start", "join"):
+        raise Problem("invalid_input", "`friends` must be {mode: start, open} or {mode: join, code}.", 400)
+    if friends["mode"] == "start":
+        return {"mode": "start", "open": bool(friends.get("open", True))}
+    code = friends.get("code")
+    if not isinstance(code, str) or not 1 <= len(code.strip()) <= 10:
+        raise Problem("invalid_input", "`friends.code` must be a group code like GR-48.", 400)
+    return {"mode": "join", "code": code}
 
 
 def batch_json(db, batch):
@@ -406,6 +434,7 @@ def book(batch_id):
     else:  # Older clients send woman/womenOnly flags
         gender, preference = legacy_options(field(body, "woman", bool, False), field(body, "womenOnly", bool, False))
     name = check_request(field(body, "name", str), class_end, stop, gender, preference, direction, class_start)
+    friends = friends_field(body)
 
     with db:
         batch = locked_batch(db, batch_id)
@@ -421,10 +450,27 @@ def book(batch_id):
                 raise Problem("request_conflict", "This clientRequestId was already used with different details.")
             rider_id, status = saved["id"], 200
         else:
-            rider_id, status = insert_request(db, batch, name, class_end, stop, gender, preference,
+            rider_id, status = insert_request(db, batch, name, class_end, stop, gender, preference, friends,
                                               direction=direction, class_start=class_start), 201
             bind_token(db, token["token_hash"], rider_id, client_request_id)
     return jsonify(rider_json(*load_rider(db, batch_id, rider_id))), status
+
+
+@api.post("/groups/<code>/ready")
+def ready(code):
+    """The group's creator says everyone is in: the group gets one car now. Retrying returns the placed group."""
+    db = database()
+    token = bearer(db)
+    if token["role"] != "student" or token["rider"] is None:
+        raise forbidden()
+    batch_id, rider_id = token["batch"], token["rider"]
+    try:
+        with db:
+            group_ready(db, locked_batch(db, batch_id), code.strip().upper(), rider_id)
+    except Problem as problem:
+        if problem.code != "group_placed":
+            raise
+    return jsonify(rider_json(*load_rider(db, batch_id, rider_id)))
 
 
 @api.post("/batches/<batch_id>/matching")

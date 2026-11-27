@@ -1,13 +1,14 @@
 {% extends "yalla/base.html" %}
 {% import "yalla/_ui.html" as ui with context %}
 {% block body %}
-  {{ ui.intro("Your group is ready", "A shared ride, your way", "Review the details before you confirm.") }}
+  {{ ui.intro("Your group is ready", "One car for your friends" if rider.friend_group else "A shared ride, your way", "Review the details before you confirm.") }}
+  {% if plan.only %}<p class="yr-fine">{{ "Men only" if plan.only == "men" else "Women only" }} car{% if plan.captain %} · Captain {{ plan.captain.name }}{% endif %}</p>{% endif %}
   {{ ui.price("Your share", rider.share | jod, (rider.solo | jod) ~ " riding alone", "Save " ~ saving ~ "%") }}
   {{ ui.row("pin", "Meet on " ~ street ~ " · walk " ~ walk_min ~ " min", batch_date ~ " · " ~ (pickup | ampm)) }}
   {% if rider.hold_until %}<p class="yr-warn">Your seat is held for {{ ((rider.hold_until - now).total_seconds() / 60) | round(0, "ceil") | int }} more min. Confirm before then or it goes back to the others.</p>{% endif %}
   <ul class="yr-people">
     {% for m in members %}
-      <li>{{ ui.initial(m.name) }}<span><strong>{{ "You" if m.id == rider.id else m.name }}</strong><small>{{ m.stop }} · {{ "Your own drop-off" if m.id == rider.id else "Verified student" }}</small></span><em>{{ loop.index }}{{ ["st","nd","rd","th"][[loop.index0, 3]|min] }} stop</em>{{ ui.icon("check") }}</li>
+      <li>{{ ui.initial(m.name) }}<span><strong>{{ "You" if m.id == rider.id else m.name }}</strong><small>{{ m.stop }} · {% if m.id == rider.id %}Your own drop-off{% elif rider.friend_group and m.friend_group == rider.friend_group %}Friends · {{ rider.friend_group }}{% else %}Student{% endif %}</small></span><em>{{ loop.index }}{{ ["st","nd","rd","th"][[loop.index0, 3]|min] }} stop</em>{{ ui.icon("check") }}</li>
     {% endfor %}
   </ul>
   <a class="yr-textlink" href="{{ url_for('yalla.fare') }}">How is my fare split?</a>

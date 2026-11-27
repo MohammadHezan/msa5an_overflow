@@ -15,7 +15,6 @@
       <p class="yr-muted" data-slow{% if draft.preference == "mixed" %} hidden{% endif %}>Matching may take longer.</p>
     </div>
     <label class="yr-card yr-toggle">{{ ui.icon("mute") }}<span><strong>Quiet ride</strong><small>Keep conversation to trip essentials. Not used for matching.</small></span><input type="checkbox" name="quiet" value="yes"{% if draft.quiet %} checked{% endif %}><i aria-hidden="true"></i></label>
-    {% if not batch or not batch.matched %}
     <div class="yr-card yr-pref">
       <div class="yr-pref-head">{{ ui.icon("users") }}<span><strong>Book with friends</strong><small>Friends in a group always ride in one car.</small></span></div>
       <fieldset class="yr-seg"><legend class="sr">Book with friends</legend>
@@ -25,8 +24,8 @@
       </fieldset>
       <label class="yr-inline-toggle" data-friends="start"{% if draft.friends != "start" %} hidden{% endif %}><span>Let others fill empty seats</span><input type="checkbox" name="group_open" value="yes"{% if draft.group_open %} checked{% endif %}><i aria-hidden="true"></i></label>
       <label class="yr-inline-field" data-friends="join"{% if draft.friends != "join" %} hidden{% endif %}><small>Group code</small><input name="group_code" value="{{ draft.group_code }}" maxlength="10" placeholder="GR-48" autocapitalize="characters"></label>
+      {% if batch and batch.matched %}<p class="yr-muted" data-friends="start"{% if draft.friends != "start" %} hidden{% endif %}>Today’s cars are already planned. Your friends join with your code, then you all get one car together.</p>{% endif %}
     </div>
-    {% endif %}
     {{ ui.row("clock", "Maximum wait for your group", rules.gap ~ " minutes") }}
     {{ ui.row("route", "Maximum extra ride time", extra_minutes ~ " minutes") }}
     {{ ui.row("walk", "Maximum walk to the pickup street", "200 m") }}

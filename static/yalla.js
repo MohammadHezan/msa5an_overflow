@@ -97,3 +97,15 @@ document.querySelectorAll("[data-share]").forEach((button) => {
     if (!navigator.onLine) { event.preventDefault(); panel.hidden = false; }  // No duplicate submits while offline
   });
 })();
+
+// Brief 05 lobby: "Copy code" copies the friends group code.
+document.querySelectorAll("[data-copy]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(button.dataset.copy); } catch (error) { /* clipboard blocked */ }
+    const toast = document.createElement("p");
+    toast.className = "yr-toast"; toast.setAttribute("role", "status");
+    toast.textContent = "Group code copied";
+    document.querySelector(".screen.yr").appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+  });
+});

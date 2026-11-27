@@ -20,7 +20,7 @@ from pooling.codes import new_code
 from pooling.model import PREFERENCES
 from sharing import (
     BASE_FARE, CORRIDORS, MAX_GAP, MIN_SAVING_PCT, PER_KM, SEATS, STOPS, WALK,
-    group_problem, group_riders, plan_car, sample_share, solo_fare, trip_time,
+    group_problem, group_riders, one_car_km, only_label, plan_car, sample_share, solo_fare, trip_time,
 )
 
 AMMAN = ZoneInfo("Asia/Amman")
@@ -31,6 +31,7 @@ WEB_BATCH_TTL = timedelta(days=3)  # Browser-session batches (no operator token)
 JOIN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # No 0/O or 1/I
 SEAT_HOLD = timedelta(minutes=2)  # After matching, a student in a shared car has this long to confirm
 WAIT_FOR_MATCH = timedelta(minutes=10)  # Option B for a student left alone
+GROUP_LOBBY = timedelta(minutes=10)  # A friends group started after matching waits this long for its friends
 EXTRA_STOP_BONUS = 100  # Fils per drop-off after the first, paid to the captain by Jeeny (not by students)
 
 # name, class end, neighborhood, gender, preference, direction, class start
@@ -155,7 +156,7 @@ def database():
             );
             CREATE TABLE IF NOT EXISTS friend_groups (
                 batch TEXT NOT NULL REFERENCES batches(id) ON DELETE CASCADE, code TEXT NOT NULL,
-                open INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (batch, code)
+                open INTEGER NOT NULL DEFAULT 1, lobby_until TEXT, PRIMARY KEY (batch, code)
             );
             CREATE TABLE IF NOT EXISTS universities (
                 id INTEGER PRIMARY KEY, name TEXT NOT NULL, city TEXT NOT NULL, campus TEXT NOT NULL,
@@ -205,6 +206,10 @@ def _migrate(db):
                 db.execute(f"ALTER TABLE batches ADD COLUMN {column} {kind}")
                 if column == "created_at":  # Existing batches get a full retention period from now rather than being deleted at once
                     db.execute("UPDATE batches SET created_at = ? WHERE created_at IS NULL", (utc_stamp(),))
+    group_columns = {row["name"] for row in db.execute("PRAGMA table_info(friend_groups)")}
+    if "lobby_until" not in group_columns:
+        with db:
+            db.execute("ALTER TABLE friend_groups ADD COLUMN lobby_until TEXT")
     rider_columns = {row["name"] for row in db.execute("PRAGMA table_info(riders)")}
     with db:
         for column, kind in RIDER_COLUMNS.items():
@@ -314,6 +319,7 @@ def locked_batch(db, batch_id):
     batch = get_batch(db, batch_id)
     if batch:
         release_expired_holds(db, batch)
+        place_expired_lobbies(db, batch)
     return batch
 
 
@@ -412,9 +418,10 @@ def load_riders(db, batch, at=None):
              day=date.fromisoformat(batch["trip_date"]).day, tzinfo=AMMAN
          ) - timedelta(minutes=5)).isoformat()
          if row["direction"] == "to_campus" and row["class_start"] else None,
-         "group_open": bool(row["group_open"]) if row["group_open"] is not None else True}
+         "group_open": bool(row["group_open"]) if row["group_open"] is not None else True,
+         "group_lobby": _at(row["group_lobby"])}
         for row in db.execute(
-            "SELECT riders.*, friend_groups.open AS group_open FROM riders "
+            "SELECT riders.*, friend_groups.open AS group_open, friend_groups.lobby_until AS group_lobby FROM riders "
             "LEFT JOIN friend_groups ON friend_groups.batch = riders.batch AND friend_groups.code = riders.friend_group "
             "WHERE riders.batch = ? ORDER BY class_end, id", (batch["id"],))
     ]
@@ -444,6 +451,8 @@ def load_riders(db, batch, at=None):
             rider["status"] = "waiting"
         elif rider["declined"]:
             rider["status"] = "declined"
+        elif plan is None and rider["group_lobby"]:
+            rider["status"] = "lobby"  # A friends group booked after matching, waiting for its friends
         elif plan is None:
             rider["status"] = "waiting"  # A late request being placed
         elif plan.get("go"):
@@ -468,6 +477,23 @@ def load_riders(db, batch, at=None):
         if plan and plan.get("street"):
             rider["walk_m"] = plan["walk_m"].get(rider["id"], 0)
             rider["pickup_at"] = plan["rider_times"].get(rider["id"])
+    groups = {}
+    for rider in riders:
+        if rider["friend_group"]:
+            groups.setdefault(rider["friend_group"], []).append(rider)
+    for code, members in groups.items():
+        active = [m for m in members if not m["declined"]]
+        creator = min(active, key=lambda m: m["id"]) if active else None
+        summary = {"code": code, "open": members[0]["group_open"],
+                   "option": creator["preference"] if creator else "mixed",
+                   "creator": creator["id"] if creator else None,
+                   "members": [{"id": m["id"], "name": m["name"], "gender": m["gender"]} for m in active],
+                   "status": "lobby" if members[0]["group_lobby"] else "placed",
+                   "lobby_until": members[0]["group_lobby"]}
+        for member in members:
+            member["group"] = summary
+    for rider in riders:
+        rider.setdefault("group", None)
     ordered = sorted(plans.values(), key=lambda p: (p["pickup"], p["gate"], -len(p["members"])))
     return riders, ordered
 
@@ -523,31 +549,56 @@ def _new_group_code(db, batch_id):
     return secrets.choice(free)
 
 
+def group_fit_problem(members, gender, preference):
+    """Why a student with this gender and ride option can't join these friends, or None.
+    The group's ride option is its creator's (the first to book)."""
+    if not members:
+        return None
+    option = min(members, key=lambda m: m["id"])["preference"]
+    if option == "men" and gender != "man":
+        return "This group is men only."
+    if option == "women" and gender != "woman":
+        return "This group is women only."
+    if preference == "men" and any(m["gender"] != "man" for m in members):
+        return "Your ride option doesn't fit this group."
+    if preference == "women" and any(m["gender"] != "woman" for m in members):
+        return "Your ride option doesn't fit this group."
+    return None
+
+
 def insert_request(db, batch, name, class_end, stop, gender, preference, friends=None,
                    direction="from_campus", class_start=None):
     """Save a checked request. Call inside a locked_batch transaction.
 
     friends: None (just me), {"mode": "start", "open": bool} or {"mode": "join", "code": "GR-48"}.
-    After matching has run, the request is a late request: it is placed at once (see place_late_request).
+    After matching has run, a lone request is placed at once (see place_late_request). A friends group
+    started after matching waits in a lobby until its creator says everyone is in, it has 4 students,
+    or GROUP_LOBBY runs out; then it gets one car (see place_group).
     """
     if db.execute("SELECT COUNT(*) FROM riders WHERE batch = ?", (batch["id"],)).fetchone()[0] >= MAX_REQUESTS:
         raise Problem("batch_full", "This demo batch is full.")
-    if batch["matched"] and friends:
-        raise Problem("batch_matched", "Matching already ran, so friends can't book together now. Book on your own.")
     if db.execute("SELECT 1 FROM riders WHERE batch = ? AND student_key = ?", (batch["id"], name.casefold())).fetchone():
         raise Problem("duplicate_name", "That name already has a request in this batch.")
     code = None
     if friends and friends["mode"] == "start":
         code = _new_group_code(db, batch["id"])
-        db.execute("INSERT INTO friend_groups (batch, code, open) VALUES (?, ?, ?)", (batch["id"], code, int(friends["open"])))
+        lobby = (clock(batch) + GROUP_LOBBY).isoformat() if batch["matched"] else None
+        db.execute("INSERT INTO friend_groups (batch, code, open, lobby_until) VALUES (?, ?, ?, ?)",
+                   (batch["id"], code, int(friends["open"]), lobby))
     elif friends and friends["mode"] == "join":
         code = friends["code"].strip().upper()
-        if not db.execute("SELECT 1 FROM friend_groups WHERE batch = ? AND code = ?", (batch["id"], code)).fetchone():
+        group = db.execute("SELECT * FROM friend_groups WHERE batch = ? AND code = ?", (batch["id"], code)).fetchone()
+        if not group:
             raise Problem("group_not_found", "No group with that code in this batch.", 404)
+        if batch["matched"] and not group["lobby_until"]:
+            raise Problem("group_placed", "This group already has its car. Book on your own.")
         members = [dict(row) for row in db.execute(
-            "SELECT * FROM riders WHERE batch = ? AND friend_group = ?", (batch["id"], code))]
+            "SELECT * FROM riders WHERE batch = ? AND friend_group = ? AND declined = 0", (batch["id"], code))]
         if len(members) >= SEATS:
-            raise Problem("group_full", f"That group already has {SEATS} students.")
+            raise Problem("group_full", f"This group is full ({SEATS} students).")
+        problem = group_fit_problem(members, gender, preference)
+        if problem:
+            raise Problem("group_mismatch", problem)
         corridor, start_km, start_side_m, end_km, end_side_m = _street_location(name, stop, direction)
         newcomer = {"id": 0, "name": name, "class_end": class_end, "class_start": class_start,
                     "stop": stop, "gender": gender, "preference": preference, "direction": direction,
@@ -558,9 +609,88 @@ def insert_request(db, batch, name, class_end, stop, gender, preference, friends
             raise Problem("group_mismatch", problem)
     rider_id = add_rider(db, batch["id"], name, class_end, stop, gender, preference,
                          direction, class_start, friend_group=code)
-    if batch["matched"]:
+    if batch["matched"] and code:
+        count = db.execute("SELECT COUNT(*) FROM riders WHERE batch = ? AND friend_group = ? AND declined = 0",
+                           (batch["id"], code)).fetchone()[0]
+        if count >= SEATS:
+            place_group(db, batch, code)
+    elif batch["matched"]:
         place_late_request(db, batch, rider_id)
     return rider_id
+
+
+def group_creator(members):
+    """The friend who leads the group: the first who booked and is still in it."""
+    active = [m for m in members if not m["declined"]]
+    return min(active, key=lambda m: m["id"]) if active else None
+
+
+def _hold_car(db, batch_id, car, at):
+    """Give every unconfirmed rider in `car` a fresh seat hold (the car changed, so they review it again)."""
+    db.execute("UPDATE riders SET hold_until = ?, choice = NULL, wait_until = NULL "
+               "WHERE batch = ? AND car = ? AND declined = 0 AND confirmed_plan IS NULL",
+               ((at + SEAT_HOLD).isoformat(), batch_id, car))
+
+
+def place_group(db, batch, code):
+    """Give a friends group from the lobby one car. Call inside locked_batch. Returns the car number (None if empty).
+
+    Open group: the existing car (not left yet, no closed group, enough free seats) that passes every rule with
+    all of them and adds the fewest km. Otherwise, and always for a closed group: a new car of its own.
+    The group is never split.
+    """
+    at = clock(batch)
+    db.execute("UPDATE friend_groups SET lobby_until = NULL WHERE batch = ? AND code = ?", (batch["id"], code))
+    riders, plans = load_riders(db, batch, at)
+    members = [r for r in riders if r["friend_group"] == code and not r["declined"] and r["car"] is None]
+    if not members:
+        return None
+    best = None
+    if all(m["group_open"] for m in members):
+        for plan in plans:
+            aboard = plan["members"]
+            if plan.get("go") or len(aboard) + len(members) > SEATS:
+                continue
+            if any(m["friend_group"] and not m["group_open"] for m in aboard):
+                continue
+            if not plan["shared"] and not all(m["status"] == "waiting_match" for m in aboard):
+                continue  # A student who accepted riding alone is not moved into a group
+            km = one_car_km(aboard + members)
+            if km is not None and (best is None or km - plan["route_km"] < best[1]):
+                best = (plan["id"], km - plan["route_km"])
+    car = best[0] if best else _next_car(db, batch["id"])
+    db.executemany("UPDATE riders SET car = ? WHERE id = ?", [(car, m["id"]) for m in members])
+    if best or len(members) > 1:
+        _hold_car(db, batch["id"], car, at)
+    if not best:
+        assign_captain(db, batch["id"], car, only_label(members))
+    return car
+
+
+def group_ready(db, batch, code, rider_id):
+    """The group's creator says everyone is in: place the group now. Call inside locked_batch."""
+    group = db.execute("SELECT * FROM friend_groups WHERE batch = ? AND code = ?", (batch["id"], code)).fetchone()
+    if not group:
+        raise Problem("group_not_found", "No group with that code in this batch.", 404)
+    members = [dict(row) for row in db.execute(
+        "SELECT * FROM riders WHERE batch = ? AND friend_group = ?", (batch["id"], code))]
+    creator = group_creator(members)
+    if not creator or creator["id"] != rider_id:
+        raise Problem("not_group_creator", "Only the student who started the group can say everyone is in.", 403)
+    if not group["lobby_until"]:
+        raise Problem("group_placed", "Your group already has its car.")
+    return place_group(db, batch, code)
+
+
+def place_expired_lobbies(db, batch):
+    """Friends groups whose lobby time ran out get their car with whoever joined. Call inside a write transaction."""
+    if not batch["matched"]:
+        return
+    at = clock(batch)
+    for row in db.execute("SELECT code, lobby_until FROM friend_groups WHERE batch = ? AND lobby_until IS NOT NULL",
+                          (batch["id"],)).fetchall():
+        if _at(row["lobby_until"]) <= at:
+            place_group(db, batch, row["code"])
 
 
 def _next_car(db, batch_id):
@@ -625,7 +755,8 @@ def refresh(db, batch_id):
     if not batch or not batch["matched"]:
         return batch
     riders, _ = load_riders(db, batch)
-    if any(r["hold_until"] and r["hold_until"] <= clock(batch) for r in riders):
+    at = clock(batch)
+    if any((r["hold_until"] and r["hold_until"] <= at) or (r["group_lobby"] and r["group_lobby"] <= at) for r in riders):
         with db:
             locked_batch(db, batch_id)
     return get_batch(db, batch_id)
@@ -656,6 +787,22 @@ def place_late_request(db, batch, rider_id):
                            "(SELECT car FROM riders WHERE batch = ? AND car IS NOT NULL AND declined = 0)",
                            (batch["id"], batch["id"]))
                 return "matched"
+
+    open_cars = []  # Cars of open friends groups with a free seat take late riders (brief 05)
+    for plan in plans:
+        aboard = plan["members"]
+        if plan.get("go") or len(aboard) >= SEATS or not any(m["friend_group"] for m in aboard):
+            continue
+        if any(m["friend_group"] and not m["group_open"] for m in aboard):
+            continue
+        km = one_car_km(aboard + [newcomer])
+        if km is not None:
+            open_cars.append((km - plan["route_km"], plan["id"]))
+    if open_cars:
+        car = min(open_cars)[1]
+        db.execute("UPDATE riders SET car = ? WHERE id = ?", (car, rider_id))
+        _hold_car(db, batch["id"], car, at)
+        return "matched"
 
     for plan in plans:
         if plan.get("go") and not plan["arrived"]:

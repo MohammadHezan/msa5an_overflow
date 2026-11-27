@@ -296,3 +296,10 @@ a.yr-row:hover, label.yr-row:hover { border-color: #D3D3D3; }
 .dz-toast strong { font-size: 1.05rem; font-weight: 600; }
 .dz-toast p { margin: 6px 0 0; color: var(--muted); font-size: .86rem; }
 @keyframes dz-out { to { visibility: hidden; } }
+
+/* Brief 05: demo profile switch and friends lobby */
+.yr-iam { margin: 10px 0 14px; }
+.yr-people li.yr-empty { opacity: .55; }
+.yr-people li.yr-empty .yr-initial { background: #F1F1F1; color: #777A82; }
+.yr-lobby-links { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding-bottom: 0; }
+.yr-hero, .yr-iam { flex-shrink: 0; }

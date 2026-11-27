@@ -1,0 +1,28 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block body %}
+  {{ ui.intro("Friends group · " ~ group.members | length ~ " of " ~ rules.seats, "Waiting for your friends", "Everyone in this group rides in one car. Each of you pays for your own km.") }}
+  <div class="yr-code-card"><small>Your group code</small><strong id="group-code">{{ group.code }}</strong><span>Friends enter it under “Join a group” on their own phone.</span></div>
+  <button class="yr-textlink" type="button" data-copy="{{ group.code }}">Copy code</button>
+  <ul class="yr-people">
+    {% for m in group.members %}
+      <li>{{ ui.initial(m.name) }}<span><strong>{{ "You" if m.id == rider.id else m.name }}</strong><small>{{ "Started the group" if m.id == group.creator else "Joined" }}</small></span><em>Joined</em>{{ ui.icon("check") }}</li>
+    {% endfor %}
+    {% for _ in range(rules.seats - group.members | length) %}
+      <li class="yr-empty">{{ ui.initial("·") }}<span><strong>Free seat</strong><small>{{ "A friend, or another student" if group.open else "Only friends with the code" }}</small></span></li>
+    {% endfor %}
+  </ul>
+  {{ ui.row("people", "Ride with", option_name ~ (" · open to other students" if group.open else " · friends only"), chev=false) }}
+  {{ ui.row("clock", "We find your car", "in " ~ left ~ " min, or when you tap below", chev=false) }}
+  <p class="yr-fine">You see your own street pickup and exact share before you confirm.</p>
+  <div class="yr-lobby-links">
+    <form method="post" action="{{ url_for('yalla.demo_friend') }}">{{ ui.token() }}<button class="yr-textlink muted" type="submit">Demo: a friend joins</button></form>
+    {% if rider.gender == "man" and group.option != "men" %}<form method="post" action="{{ url_for('yalla.demo_friend') }}">{{ ui.token() }}<input type="hidden" name="gender" value="woman"><button class="yr-textlink muted" type="submit">Demo: a woman friend joins</button></form>{% endif %}
+    {% if group.option == "men" %}<form method="post" action="{{ url_for('yalla.demo_friend') }}">{{ ui.token() }}<input type="hidden" name="gender" value="woman"><button class="yr-textlink muted" type="submit">Demo: a woman tries to join</button></form>{% endif %}
+  </div>
+{% endblock %}
+{% block foot %}<div class="yr-foot">
+  {% if you_started %}<form method="post" action="{{ url_for('yalla.ready') }}">{{ ui.token() }}{{ ui.cta("We’re all here, find our car") }}</form>
+  {% else %}<p class="yr-fine">{{ (group.members | selectattr("id", "equalto", group.creator) | first).name }} taps “find our car” when everyone is in.</p>{% endif %}
+  <form method="post" action="{{ url_for('yalla.respond', action='decline') }}">{{ ui.token() }}<button class="yr-textlink muted" type="submit">Leave the group</button></form>
+</div>{% endblock %}

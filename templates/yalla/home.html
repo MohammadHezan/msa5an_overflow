@@ -4,6 +4,14 @@
 {% block bodyclass %} with-nav yr-home{% endblock %}
 {% block body %}
   <p class="yr-verified">{% if verified %}Student verified · {{ university.campus }}{% else %}<a href="{{ url_for('yalla.verify') }}">Verify your university email</a>{% endif %}</p>
+  <form class="yr-card yr-pref yr-iam" method="post" action="{{ url_for('yalla.profile') }}">{{ ui.token() }}
+    <div class="yr-pref-head">{{ ui.icon("people") }}<span><strong>{{ name }}</strong><small>Demo profile · ride options follow your gender</small></span></div>
+    <fieldset class="yr-seg"><legend class="sr">I am</legend>
+      <label><input type="radio" name="gender" value="man"{% if draft.gender == "man" %} checked{% endif %} onchange="this.form.submit()"><span>I am a man</span></label>
+      <label><input type="radio" name="gender" value="woman"{% if draft.gender == "woman" %} checked{% endif %} onchange="this.form.submit()"><span>I am a woman</span></label>
+    </fieldset>
+    <noscript><button class="yr-textlink" type="submit">Switch profile</button></noscript>
+  </form>
   <section class="yr-hero">
     <p class="yr-eyebrow">{{ ui.icon("cap") }} For your campus</p>
     <h2>Same campus.<br>Better way home.</h2>
@@ -12,6 +20,7 @@
   </section>
   {{ ui.cta("Plan a shared ride", url_for('yalla.destination')) }}
   <a class="yr-cta ghost" href="{{ url_for('yalla.leave_now') }}">Leave now &amp; share</a>
+  <a class="yr-textlink" href="{{ url_for('yalla.demo_friends') }}">Demo: book with friends after today’s cars are planned</a>
   {{ ui.info("shield", "Know before you go", "Your pickup street, co-riders and fare are shown before you confirm. You choose what works.") }}
   <a class="yr-card yr-trips-card" href="{{ url_for('yalla.trips') }}">
     <p class="yr-eyebrow">Your campus trips</p>

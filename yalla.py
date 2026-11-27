@@ -14,8 +14,8 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, s
 from pooling.config import DETOUR_EXTRA_KM, SPEED_KMH
 from sharing import CORRIDORS, STOPS
 from store import (
-    RULES, Problem, advance_clock, check_request, choose, clock, create_batch, database, fare_estimates, get_batch, insert_request,
-    load_riders, locked_batch, refresh, respond_to_plan, run_matching,
+    GROUP_LOBBY, RULES, Problem, advance_clock, check_request, choose, clock, create_batch, database, fare_estimates, get_batch,
+    group_ready, insert_request, load_riders, locked_batch, refresh, respond_to_plan, run_matching,
 )
 
 yalla = Blueprint("yalla", __name__, url_prefix="/yalla")
@@ -32,8 +32,10 @@ CODE_LIFETIME = timedelta(minutes=5)
 DEMO_JOINERS = ["Lina", "Noor", "Huda", "Rama", "Dima", "Tala"]
 CAR_COLORS = ["White sedan", "Silver sedan", "Grey hatchback", "Black sedan"]
 PREFERENCE_NAMES = {"mixed": "Anyone", "women": "Women only", "men": "Men only"}
+DEFAULT_NAME = {"man": "Omar K", "woman": "Sara A"}  # Demo profiles; the live flow starts as a man (brief 05)
+DEMO_FRIENDS = {"man": ["Ahmad K", "Yousef M", "Ali S", "Faris N"], "woman": ["Lina H", "Noor T", "Dima R", "Tala S"]}
 DEFAULT_DRAFT = {"direction": "from_campus", "stop": "Dabouq", "class_end": "16:00", "class_start": "08:30",
-                 "gender": "woman", "preference": "mixed", "quiet": False, "friends": "", "group_code": "",
+                 "gender": "man", "preference": "mixed", "quiet": False, "friends": "", "group_code": "",
                  "group_open": True}
 
 
@@ -81,7 +83,7 @@ def verified():
 
 
 def student_name():
-    return session.get("yalla_name", "Sara A")
+    return session.get("yalla_name") or DEFAULT_NAME[draft()["gender"]]
 
 
 def walk_minutes(meters):
@@ -153,7 +155,19 @@ def home():
     if not request.args.get("live"):  # The user asked for the design screens only; ?live=1 opens the working flow
         return redirect(url_for("yalla.design", screen="01"))
     _, rider = current_rider()
-    return render("home.html", rider=rider)
+    return render("home.html", rider=rider, name=student_name())
+
+
+@yalla.post("/profile")
+def profile():
+    """Demo "I am" switch: picks the made-up Jeeny profile (Omar K or Sara A) and resets the ride option."""
+    gender = request.form.get("gender")
+    if gender not in DEFAULT_NAME:
+        abort(400)
+    session["student_gender"] = gender
+    session["yalla_name"] = DEFAULT_NAME[gender]
+    save_draft(gender=gender, preference="mixed")
+    return redirect(url_for("yalla.home", live=1))
 
 
 # ---------- 02-04 · student verification (demo only) ----------
@@ -177,7 +191,8 @@ def verify():
         session["yalla_code_until"] = (datetime.now() + CODE_LIFETIME).isoformat()
         flash("Verification code sent")
         return redirect(url_for("yalla.verify_code", next=request.form.get("next")))
-    return render("verify.html", email=session.get("yalla_bad_email") or ("" if session.get("yalla_email") else "sara.a@cedar.edu"),
+    sample = "omar.k@cedar.edu" if draft()["gender"] == "man" else "sara.a@cedar.edu"
+    return render("verify.html", email=session.get("yalla_bad_email") or ("" if session.get("yalla_email") else sample),
                   next=safe_next())
 
 
@@ -423,6 +438,8 @@ def ride():
         return redirect(url_for("yalla.home"))
     status = rider["status"]
     context = ride_context(batch, rider)
+    if status == "lobby":
+        return lobby(batch, rider, context)
     if not batch["matched"]:
         return render("matching.html", rider=rider, batch=batch,
                       preference_name=PREFERENCE_NAMES.get(rider["preference"], "Anyone"), **context)
@@ -454,6 +471,58 @@ def ride():
     if status == "solo_confirmed":
         return render("ride_confirmed.html", rider=rider, **context)
     return redirect(url_for("yalla.home"))
+
+
+def lobby(batch, rider, context):
+    """Brief 05: a friends group booked after matching waits here for its friends, then gets one car."""
+    group = rider["group"]
+    left = max(0, -(-int((group["lobby_until"] - clock(batch)).total_seconds()) // 60)) if group["lobby_until"] else 0
+    return render("lobby.html", rider=rider, group=group, left=left, you_started=group["creator"] == rider["id"],
+                  option_name=PREFERENCE_NAMES.get(group["option"], "Anyone"), **context)
+
+
+@yalla.post("/ride/ready")
+def ready():
+    """The creator says everyone is in: the group gets one car now."""
+    batch, rider = current_rider()
+    if not rider or not rider["friend_group"]:
+        return redirect(url_for("yalla.ride"))
+    db = database()
+    try:
+        with db:
+            group_ready(db, locked_batch(db, batch["id"]), rider["friend_group"], rider["id"])
+    except Problem as problem:
+        if problem.code != "group_placed":
+            flash(problem.message)
+    return redirect(url_for("yalla.ride"))
+
+
+@yalla.post("/ride/demo-friend")
+def demo_friend():
+    """Demo control: a made-up friend books from their own phone and joins this group with its code."""
+    batch, rider = current_rider()
+    if not rider or not rider["friend_group"]:
+        return redirect(url_for("yalla.ride"))
+    db = database()
+    try:
+        with db:
+            batch = locked_batch(db, batch["id"])
+            riders, _ = load_riders(db, batch)
+            taken = {r["name"] for r in riders}
+            gender = request.form.get("gender") if request.form.get("gender") in DEMO_FRIENDS else rider["gender"]
+            name = next((n for n in DEMO_FRIENDS[gender] if n not in taken), None)
+            if not name:
+                raise Problem("no_demo_friend", "No more demo friends to add.")
+            corridor = CORRIDORS[rider["corridor"]]["stops"]
+            used = {r["stop"] for r in riders if r["friend_group"] == rider["friend_group"]}
+            stop = min(corridor, key=lambda s: (s in used, abs(corridor[s] - corridor[rider["stop"]])))
+            insert_request(db, batch, name, rider["class_end"] or "16:00", stop, gender, "mixed",
+                           {"mode": "join", "code": rider["friend_group"]},
+                           direction=rider["direction"], class_start=rider["class_start"] or "09:00")
+        flash(f"{name.split()[0]} joined with {rider['friend_group']}")
+    except Problem as problem:
+        flash(problem.message)
+    return redirect(url_for("yalla.ride"))
 
 
 @yalla.get("/ride/fare")
@@ -713,7 +782,8 @@ def demo(screen):
     endpoint, args = DEMO_SCREENS[screen]
     session["student_verified"] = True
     session["yalla_name"] = "Sara A"
-    session["yalla"] = {**DEFAULT_DRAFT, "quiet": True}
+    session["student_gender"] = "woman"  # The designed screens show Sara
+    session["yalla"] = {**DEFAULT_DRAFT, "gender": "woman", "quiet": True}
     session["yalla_recent"] = ["Sweileh"]
     session.pop("yalla_saved", None)
     if screen == "03":
@@ -809,6 +879,36 @@ GO_STEPS = {
     "24": ["book", "start", "finish"], "25": _SHARED_THREE, "38": ["book", "start", "join", "seen"],
     "39": ["book", "start", "join", "seen", "finish"],
 }
+
+
+@yalla.get("/demo/friends")
+def demo_friends():
+    """Brief 05 demo: the afternoon batch is already matched, then Omar starts a friends group (men only by default,
+    closed unless ?open=1). Add friends with the demo button, then tap "find our car"."""
+    option = request.args.get("option", "men")
+    if option not in ("men", "mixed"):
+        abort(400)
+    session["student_verified"] = True
+    session["student_gender"] = "man"
+    session["yalla_name"] = DEFAULT_NAME["man"]
+    session["yalla"] = {**DEFAULT_DRAFT, "gender": "man", "preference": option, "stop": "Khalda", "class_end": "16:05",
+                        "friends": "start", "group_open": request.args.get("open", "") == "1"}
+    db = database()
+    with db:
+        batch_id = create_batch(db, True, replaces=session.get("own_batch", session.get("batch")))
+    session["batch"] = session["own_batch"] = batch_id
+    session["csrf"] = session.get("csrf") or secrets.token_urlsafe(32)
+    d = draft()
+    with db:
+        batch = locked_batch(db, batch_id)
+        run_matching(db, batch)  # The operator already matched this afternoon
+        batch = get_batch(db, batch_id)
+        rider_id = insert_request(db, batch, student_name(), d["class_end"], d["stop"], d["gender"], d["preference"],
+                                  {"mode": "start", "open": d["group_open"]}, direction=d["direction"], class_start=d["class_start"])
+    session["yalla_rider"] = rider_id
+    for key in ("yalla_quote", "yalla_updated", "yalla_history"):
+        session.pop(key, None)
+    return redirect(url_for("yalla.ride"))
 
 
 # ---------- 26-33 · trips, saved routes, no group, changed offer, cancel ----------

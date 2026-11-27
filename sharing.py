@@ -147,6 +147,12 @@ def group_riders(riders):
     return [[by_id[x.request_id] for x in plan.riders] for plan in regroup(singles, together=together, closed=closed)]
 
 
+def one_car_km(members):
+    """Route km if these riders pass every rule in one car (detour, savings, ride options, confirmed quotes), else None."""
+    plan = evaluate([_rider(m) for m in members])
+    return plan.route_km if plan else None
+
+
 def group_problem(members):
     """Why these friends cannot share one car (gate, class-end gap, seats or ride option), or None."""
     if len(members) > SEATS:
