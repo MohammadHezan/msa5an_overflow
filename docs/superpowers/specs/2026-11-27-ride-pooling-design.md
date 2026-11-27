@@ -51,7 +51,7 @@ The night window is a setting. Check: a 12 km daytime trip costs at least JOD 4.
 | `GET /api/v1/rides/stats` | Pooled vs. everyone solo: cars, total JOD, average saving |
 | `POST /api/v1/rides/demo/seed` | Loads the Sara scenario |
 
-## Section 2: matching rules (proposed, awaiting approval)
+## Section 2: matching rules (approved)
 
 A new request can join an open group only if **all** of these hold. Every limit is a setting in `pooling/config.py`.
 
@@ -86,8 +86,132 @@ A new request can join an open group only if **all** of these hold. Every limit 
 
 **Travel time:** km ÷ 25 km/h city average, as a setting. It is used only for the pickup and arrival estimates.
 
-## Still to decide
+## Section 3: JSON contract (proposed, awaiting approval)
 
-- Request and response JSON field names and the error format
+General rules:
+
+- Times are ISO 8601 with the Amman offset (`+03:00`).
+- Money is **integer fils** (1 JOD = 1000 fils), so the UI never handles floating-point rounding. The UI formats `1620` as `JOD 1.62`.
+- IDs are opaque strings.
+- Riders see other riders' first names only.
+
+### `GET /api/v1/rides/places`
+
+This endpoint was added so the UI can offer dropdowns rather than free-text addresses.
+
+```json
+{
+  "campuses": [
+    {"id": "ahu", "name": "Al-Ahliyya Amman University",
+     "meeting_points": [{"id": "ahu-main-gate", "name": "Main gate", "lat": 32.0430, "lon": 35.7220}]}
+  ],
+  "stops": [
+    {"id": "sweileh", "name": "Sweileh", "lat": 32.0230, "lon": 35.8400}
+  ]
+}
+```
+
+Coordinates are placeholders, to be checked on a map before the demo.
+
+### `POST /api/v1/rides/requests` creates a request and returns a provisional quote
+
+Request:
+
+```json
+{
+  "student": {"id": "stu-sara", "first_name": "Sara", "gender": "female"},
+  "campus_id": "ahu",
+  "meeting_point_id": "ahu-main-gate",
+  "stop_id": "sweileh",
+  "leave_after": "2026-11-28T16:00:00+03:00",
+  "leave_before": "2026-11-28T16:30:00+03:00",
+  "women_only": true
+}
+```
+
+Response `201`:
+
+```json
+{
+  "request_id": "req-12",
+  "status": "provisional",
+  "group": {"id": "grp-3", "size": 3, "max_size": 4, "women_only": true, "status": "open"},
+  "meeting_point": {"id": "ahu-main-gate", "name": "Main gate"},
+  "pickup_time": "2026-11-28T16:15:00+03:00",
+  "drop_position": 3,
+  "estimated_arrival": "2026-11-28T16:42:00+03:00",
+  "fare": {"your_share_fils": 1620, "solo_fare_fils": 4500, "saved_pct": 64, "car_fare_fils": 4850},
+  "ride_code": null
+}
+```
+
+A group of 1 returns `"status": "waiting_for_riders"` with `your_share_fils == solo_fare_fils`.
+
+### `POST /api/v1/rides/requests/{id}/confirm` and `/decline`
+
+Both return the same shape as the create response, with `status` set to `confirmed` or `declined`. Confirming does not freeze the share: it can only go **down** as riders join, and the UI should say so.
+
+### `GET /api/v1/rides/groups/{id}`
+
+```json
+{
+  "id": "grp-3", "status": "open", "women_only": true,
+  "meeting_point": {"id": "ahu-main-gate", "name": "Main gate"},
+  "pickup_time": "2026-11-28T16:15:00+03:00",
+  "car_fare_fils": 4850, "route_km": 14.2,
+  "riders": [
+    {"first_name": "Lina", "stop": "Tabarbour", "drop_position": 1, "share_fils": 1180, "status": "confirmed"},
+    {"first_name": "Noor", "stop": "Sweileh",   "drop_position": 2, "share_fils": 2050, "status": "confirmed"},
+    {"first_name": "Sara", "stop": "Sweileh",   "drop_position": 3, "share_fils": 1620, "status": "provisional"}
+  ]
+}
+```
+
+The shares always add up to `car_fare_fils`.
+
+### `POST /api/v1/rides/lock`
+
+Body: `{"campus_id": "ahu"}`. With no `window`, it locks all of that campus's open groups (the demo button).
+
+```json
+{
+  "locked_groups": [
+    {"id": "grp-3", "riders": [{"first_name": "Sara", "ride_code": "CC-4821", "share_fils": 1620}]}
+  ],
+  "unmatched": [{"request_id": "req-15", "first_name": "Omar", "solo_fare_fils": 3900}]
+}
+```
+
+### `GET /api/v1/rides/stats`
+
+```json
+{
+  "requests": 9, "matched": 8, "unmatched": 1,
+  "pooled": {"cars": 3, "total_fils": 14600},
+  "solo":   {"cars": 9, "total_fils": 32400},
+  "avg_saved_pct": 55
+}
+```
+
+### `POST /api/v1/rides/demo/seed`
+
+Clears the demo data and loads the Sara scenario (section 4). It returns the stats object.
+
+### Errors
+
+Every error uses one shape, so the UI needs one error handler:
+
+```json
+{"error": {"code": "group_locked", "message": "This group is already locked."}}
+```
+
+| HTTP | `code` | When |
+|---|---|---|
+| 400 | `invalid_request` | Missing or invalid field, or `leave_before` ≤ `leave_after` |
+| 404 | `not_found` | Unknown request, group, campus or stop |
+| 409 | `duplicate_request` | Student already has an active request in an overlapping window |
+| 409 | `group_locked` | Confirm or decline after lock |
+
+## Still to decide
 - The demo seed scenario and the numbers it must reproduce
 - Testing plan
