@@ -3,7 +3,7 @@
 {% block body %}
   {% set count = ["", "one-person", "two-person", "three-person", "four-person"][members | length] %}
   {{ ui.intro("Offer updated", "Your group has changed.", "A student left before you confirmed the offer." if not rider.confirmed_plan else "A student left after you confirmed. Your old code is paused.") }}
-  {{ ui.price("Updated " ~ count ~ " share", rider.share | jod, "Your previous approved share · " ~ (previous | jod) if previous else "Solo quote · " ~ (rider.solo | jod), "Save " ~ saving ~ "%") }}
+  {{ ui.price("Updated " ~ count ~ " share", rider.share | jod, "Previous unconfirmed quote · " ~ (previous | jod) if previous else "Solo quote · " ~ (rider.solo | jod), "Save " ~ saving ~ "%") }}
   <ul class="yr-people">
     {% for m in members %}<li>{{ ui.initial(m.name) }}<span><strong>{{ "You" if m.id == rider.id else m.name }}</strong><small>{{ m.stop }}</small></span><em>{{ ["1st", "2nd", "3rd", "4th"][loop.index0] }} stop</em>{{ ui.icon("check") }}</li>{% endfor %}
   </ul>

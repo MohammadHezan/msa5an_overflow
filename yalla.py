@@ -408,15 +408,31 @@ def ride():
     plan = rider["plan"] or {}
     if plan.get("go"):
         return go_ride(batch, rider, context)
+    quote = session.get("yalla_quote") or {}
+    if status == "review" and quote.get("rider") == rider["id"] and quote["signature"] != rider["signature"]:
+        return render("offer_changed.html", rider=rider, previous=quote["share"], **context)  # 30
     if plan.get("shared") and status in ("review",):
+        session["yalla_quote"] = {"rider": rider["id"], "signature": rider["signature"], "share": rider["share"]}
         return render("group.html", rider=rider, **context)
+    if status in ("confirmed", "solo_confirmed") and session.get("yalla_updated") and not request.args.get("seen"):
+        return render("offer_accepted.html", rider=rider, **context)  # 31
+    if request.args.get("seen"):
+        session.pop("yalla_updated", None)
+        return redirect(url_for("yalla.ride"))
     if plan.get("shared") and status == "confirmed":
         step = request.args.get("step", "confirmed")
         if step not in ("confirmed", "pickup", "code", "trip", "receipt"):
             abort(404)
         return render(f"ride_{step}.html", rider=rider, **context)
-    # States built in later phases (changed offer, lone-rider choices, go-now) use the Jeeny ride view for now.
-    return redirect(url_for("index", rider=rider["id"]))
+    if status == "declined":
+        return render("cancelled.html", rider=rider, **context)
+    if status in ("no_match", "waiting_match"):
+        return render("no_match.html", rider=rider, **context)
+    if status == "changed":
+        return render("offer_changed.html", rider=rider, previous=quote.get("share"), **context)
+    if status == "solo_confirmed":
+        return render("ride_confirmed.html", rider=rider, **context)
+    return redirect(url_for("yalla.home"))
 
 
 @yalla.get("/ride/fare")
@@ -453,6 +469,9 @@ def respond(action):
             if not batch or not batch["matched"] or not rider_id:
                 return redirect(url_for("yalla.home"))
             respond_to_plan(db, batch, rider_id, action, request.form.get("plan"))
+        if action == "confirm" and request.form.get("updated"):
+            session["yalla_updated"] = True
+        session.pop("yalla_quote", None)
     except Problem as problem:
         flash("This plan changed before you confirmed. Review the updated plan." if problem.code == "plan_changed"
               else problem.message)
@@ -658,7 +677,10 @@ DEMO_SCREENS = {
     "13": ("ride", {"step": "pickup"}), "14": ("ride", {"step": "code"}), "15": ("ride", {"step": "trip"}),
     "16": ("ride", {"step": "receipt"}), "17": ("leave_now", {}),
     "18": ("ride", {}), "19": ("ride", {}), "20": ("ride", {}), "21": ("ride", {}), "22": ("ride", {}),
-    "23": ("ride", {}), "24": ("ride", {}), "25": ("ride", {"step": "legs"}), "38": ("ride", {}), "39": ("ride", {}), "34": ("help_page", {}), "36": ("not_available", {"university": "hillcrest"}),
+    "23": ("ride", {}), "24": ("ride", {}), "25": ("ride", {"step": "legs"}), "38": ("ride", {}), "39": ("ride", {}), "34": ("help_page", {}),
+    "26": ("trips", {}), "27": ("trips", {"tab": "past"}), "28": ("saved", {}), "29": ("ride", {}), "30": ("ride", {}),
+    "31": ("ride", {}), "32": ("cancel", {}), "33": ("ride", {}), "35": ("ride", {"offline": 1}),
+    "37": ("email_recovery", {}), "36": ("not_available", {"university": "hillcrest"}),
 }
 
 
@@ -695,6 +717,20 @@ def demo(screen):
                 rider = next(r for r in load_riders(db, batch)[0] if r["id"] == rider_id)
                 respond_to_plan(db, batch, rider_id, "confirm", rider["signature"])
         session["yalla_rider"] = rider_id
+    session.pop("yalla_quote", None)
+    session.pop("yalla_updated", None)
+    session.pop("yalla_history", None)
+    if screen == "37":
+        session["yalla_bad_email"] = "sara.a@example.com"
+    if screen == "28":
+        session["yalla_saved"] = [{"label": "Home", "stop": "Dabouq", "direction": "from_campus", "time": "16:10", "quiet": True},
+                                  {"label": "Now", "stop": "Sweileh", "direction": "from_campus", "mode": "now"}]
+    if screen == "27":
+        session["yalla_history"] = [
+            {"when": "Today · 4:15 PM", "route": "Campus street → Dabouq", "kind": "Planned shared ride · 3 students", "paid": 1670},
+            {"when": "Today · 4:05 PM", "route": "Campus street → Sweileh", "kind": "Shared along the way · 3 students", "paid": 2750}]
+    if screen in ("26", "29", "30", "31", "32", "33", "35"):
+        seed_planned(screen)
     if screen in GO_STEPS:
         db = database()
         with db:
@@ -709,6 +745,41 @@ def demo(screen):
     return redirect(url_for(f"yalla.{endpoint}", **args))
 
 
+def seed_planned(screen):
+    """26, 29-33, 35: a planned request in a fresh sample batch, moved to the state the screen shows."""
+    db = database()
+    with db:
+        batch_id = create_batch(db, True, replaces=session.get("own_batch", session.get("batch")))
+    session["batch"] = session["own_batch"] = batch_id
+    session["csrf"] = session.get("csrf") or secrets.token_urlsafe(32)
+    if screen == "29":  # Nobody else rides toward Marka at this time, so no group fits
+        session["yalla"] = {**draft(), "stop": "Marka", "class_end": "20:30", "preference": "women"}
+    d = draft()
+    with db:
+        batch = locked_batch(db, batch_id)
+        rider_id = insert_request(db, batch, student_name(), d["class_end"], d["stop"], d["gender"], d["preference"],
+                                  direction=d["direction"], class_start=d["class_start"])
+        if screen in ("30", "31"):  # A third student, so two are left after one leaves
+            insert_request(db, batch, "Rama K", add_minutes(d["class_end"], 10), "Al Bayader", "woman", "mixed", direction=d["direction"],
+                           class_start=d["class_start"])
+        run_matching(db, batch)
+        batch = get_batch(db, batch_id)
+        rider = next(r for r in load_riders(db, batch)[0] if r["id"] == rider_id)
+        if screen in ("30", "31"):  # Sara saw a group offer, then one of the others left before she confirmed
+            session["yalla_quote"] = {"rider": rider_id, "signature": rider["signature"], "share": rider["share"]}
+            other = next(m for m in rider["plan"]["members"] if m["id"] != rider_id and m["name"] != "Rama K")
+            respond_to_plan(db, batch, other["id"], "decline", None)
+            if screen == "31":
+                rider = next(r for r in load_riders(db, batch)[0] if r["id"] == rider_id)
+                respond_to_plan(db, batch, rider_id, "confirm", rider["signature"])
+                session["yalla_updated"] = True
+        elif screen in ("26", "32", "33", "35"):
+            respond_to_plan(db, batch, rider_id, "confirm", rider["signature"])
+            if screen == "33":
+                respond_to_plan(db, batch, rider_id, "decline", None)
+    session["yalla_rider"] = rider_id
+
+
 # Leave now & share states (17-25, 38-39), reached by replaying the demo buttons in order.
 _SHARED_THREE = ["book", "start", "join", "seen", "join", "seen"]
 GO_STEPS = {
@@ -717,6 +788,79 @@ GO_STEPS = {
     "24": ["book", "start", "finish"], "25": _SHARED_THREE, "38": ["book", "start", "join", "seen"],
     "39": ["book", "start", "join", "seen", "finish"],
 }
+
+
+# ---------- 26-33 · trips, saved routes, no group, changed offer, cancel ----------
+
+def trip_card(batch, rider):
+    """One line in My campus trips for a booked request."""
+    plan = rider["plan"] or {}
+    street = (plan.get("boards") or {}).get(rider["id"]) or pickup_street(rider)
+    if street == (CORRIDORS.get(plan.get("corridor") or "") or {}).get("gate"):
+        street = pickup_street(rider)
+    route = f"{street} → {rider['stop']}" if rider["direction"] == "from_campus" else f"{rider['stop']} → {university()['campus']}"
+    count = len(plan.get("members") or [rider])
+    quiet = " · Quiet ride" if draft()["quiet"] else ""
+    group = {"women": "women students", "men": "men students"}.get(plan.get("only"), "students")
+    if plan.get("go"):
+        kind = f"Shared along the way · {count} students" if count > 1 else "Leave now & share · Private ride"
+    else:
+        kind = f"{count} {group}{quiet}"
+    when = rider.get("pickup_at") or plan.get("pickup") or rider["class_end"]
+    labels = {"confirmed": ("Confirmed", ""), "solo_confirmed": ("Confirmed", ""), "on_the_way": ("On the way", "pink"),
+              "review": ("Review offer", "pink"), "changed": ("Offer changed", "pink"), "waiting": ("Finding group", "muted"),
+              "waiting_match": ("Finding group", "muted"), "no_match": ("No group yet", "muted"), "arrived": ("Completed", "")}
+    label, tone = labels.get(rider["status"], (rider["status"].replace("_", " ").capitalize(), "muted"))
+    return {"when": f"{batch_date()} · {ampm(when)}", "route": route, "kind": kind, "paid": rider.get("share"),
+            "label": label, "tone": tone, "status": rider["status"]}
+
+
+@yalla.get("/trips")
+def trips():
+    batch, rider = current_rider()
+    card = trip_card(batch, rider) if rider and rider["status"] != "declined" else None
+    upcoming = card if card and card["status"] != "arrived" and not session.get("yalla_done") else None
+    history = list(session.get("yalla_history", []))
+    if card and (card["status"] == "arrived" or session.get("yalla_done")) and card["route"] not in [h["route"] for h in history]:
+        history.insert(0, {**card, "kind": card["kind"].replace(" · Quiet ride", "") if card["kind"].startswith("Shared") else
+                           "Planned shared ride · " + card["kind"].split(" ")[0] + " students"})
+    return render("trips.html", tab=request.args.get("tab"), upcoming=upcoming, history=history)
+
+
+@yalla.get("/saved")
+def saved():
+    routes = []
+    for route in session.get("yalla_saved", []):
+        line = (f"{university()['campus']} · Campus street → {route['stop']}" if route["direction"] == "from_campus"
+                else f"{route['stop']} street → {university()['campus']}")
+        if route.get("mode") == "now":
+            routes.append({"title": f"{route['stop']}, when I’m ready", "line": line,
+                           "detail": "Leave now and share if someone matches", "action": "Check today’s fare"})
+        else:
+            routes.append({"title": "Home after class" if route["direction"] == "from_campus" else "To campus",
+                           "line": line, "detail": f"Ready at {ampm(route.get('time') or draft()['class_end'])}"
+                           + (" · Quiet ride" if route.get("quiet") else ""), "action": "Use this route"})
+    return render("saved.html", routes=routes)
+
+
+@yalla.post("/saved/use")
+def use_saved():
+    routes = session.get("yalla_saved", [])
+    index = request.form.get("index", type=int)
+    if index is None or not 0 <= index < len(routes):
+        abort(400)
+    route = routes[index]
+    save_draft(stop=route["stop"], direction=route["direction"], quiet=bool(route.get("quiet")),
+               **({"class_end": route["time"]} if route.get("time") else {}))
+    return redirect(url_for("yalla.leave_now") if route.get("mode") == "now" else url_for("yalla.review"))
+
+
+@yalla.get("/ride/cancel")
+def cancel():
+    batch, rider = current_rider()
+    if not rider or rider["status"] in ("declined", "on_the_way", "arrived"):
+        return redirect(url_for("yalla.ride"))
+    return render("cancel.html", rider=rider, **ride_context(batch, rider))
 
 
 # ---------- 34 · help ----------

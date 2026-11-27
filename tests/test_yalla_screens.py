@@ -168,3 +168,41 @@ def test_keep_my_route_turns_the_joiner_down(client):
     assert len(rider["plan"]["members"]) == 1 and rider["share"] == rider["solo"]
     post(client, "/yalla/ride/finish")
     assert "Home, at the fare you chose." in text(client.get("/yalla/ride"))
+
+
+def test_profile_supplies_name_gender_and_direction(client):
+    page = text(client.get("/yalla/plan/preferences"))
+    assert "I am" not in page and "Men only" in page  # Only the option for the profile's gender is shown
+    assert 'name="direction"' in text(client.get("/yalla/plan/destination")) and "To campus</span>" not in text(client.get("/yalla/plan/destination"))
+    book_page = text(client.get("/?screen=book&ride=campus"))
+    assert "Your name" not in book_page and "<legend>I am</legend>" not in book_page and "<legend>Direction</legend>" not in book_page
+
+
+def test_trips_saved_and_recovery_screens(client):
+    for screen, words in {"26": "Your next ride, sorted.", "27": "Small shares. Real savings.", "28": "Same route. Fewer taps.",
+                          "29": "You still have options.", "30": "Your group has changed.", "31": "Your new plan is confirmed.",
+                          "32": "Plans changed?", "33": "You’re all clear.", "37": "Let’s check that email."}.items():
+        assert words in text(client.get(f"/yalla/demo/{screen}", follow_redirects=True)), screen
+
+
+def test_cancel_releases_the_seat_and_the_code(client):
+    client.get("/yalla/demo/32")
+    assert my_rider(client)["ride_code"]
+    post(client, "/yalla/ride/decline")
+    assert my_rider(client)["status"] == "declined" and not my_rider(client)["ride_code"]
+    assert "JOD 0.00 charged" in text(client.get("/yalla/ride"))
+
+
+def test_changed_offer_needs_a_new_yes(client):
+    client.get("/yalla/demo/30")
+    rider = my_rider(client)
+    assert rider["status"] == "review" and len(rider["plan"]["members"]) == 2
+    post(client, "/yalla/ride/confirm", plan=rider["signature"], updated="1")
+    assert "Your new plan is confirmed." in text(client.get("/yalla/ride"))
+    assert "Your seat is confirmed" in text(client.get("/yalla/ride?seen=1", follow_redirects=True))
+
+
+def test_personal_email_goes_to_recovery(client):
+    response = post(client, "/yalla/verify", email="sara.a@example.com")
+    assert response.headers["Location"].startswith("/yalla/verify/check")
+    assert "sara.a@example.com" in text(client.get("/yalla/verify/check"))
