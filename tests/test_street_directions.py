@@ -54,6 +54,35 @@ def test_one_street_rider_pays_exact_solo_fare_and_walk_is_capped():
     assert plan.walk_m["single"] == 200
 
 
+def test_street_walk_threshold_adds_only_excess_distance_to_the_car():
+    from dataclasses import replace
+
+    base = street("single", "from_campus", 0, 8, ready_at=at("16:00"),
+                  start_side=200, end_side=200)
+    at_limit = evaluate([base])
+    beyond_limit = evaluate([replace(base, start_side_m=350, end_side_m=400)])
+    assert at_limit.route_km == 8
+    assert abs(beyond_limit.route_km - 8.7) < 1e-9
+    assert at_limit.walk_m["single"] == beyond_limit.walk_m["single"] == 200
+    assert beyond_limit.in_car_km["single"] == beyond_limit.solo_km["single"]
+    assert beyond_limit.shares["single"] == beyond_limit.car_fare == beyond_limit.solo_fare["single"]
+
+
+def test_demo_street_locations_are_repeatable_and_near_each_stop():
+    from sharing import STOPS
+    from store import _street_location
+
+    for stop, info in STOPS.items():
+        for direction in ("from_campus", "to_campus"):
+            location = _street_location("Demo student", stop, direction)
+            assert location == _street_location("Demo student", stop, direction)
+            corridor, start, start_side, end, end_side = location
+            assert corridor == info["corridor"]
+            assert 0 <= start_side <= 400 and 0 <= end_side <= 400
+            assert abs((start if direction == "to_campus" else end) - info["km"]) <= 1
+            assert (end if direction == "to_campus" else start) == 0
+
+
 def test_direction_and_corridor_are_hard_matching_rules():
     ready = at("16:00")
     west = street("west", "from_campus", 0, 8, ready_at=ready)
