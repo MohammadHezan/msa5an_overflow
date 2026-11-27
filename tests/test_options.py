@@ -259,6 +259,34 @@ def test_c_nobody_joins_pays_exactly_the_solo_fare(alone):
     assert zaid["share"] == zaid["solo"]
 
 
+def test_c_solo_includes_campus_turn_in_and_keeps_pickup_time_stable(alone):
+    client, zaid = alone
+    sql("UPDATE riders SET start_side_m = 350 WHERE id = ?", zaid["id"])
+    post(client, f"/riders/{zaid['id']}/go")
+    first = state(client)[0]["Zaid"]
+    assert first["share"] == first["solo"]
+    pickup = first["plan"]["rider_times"][zaid["id"]]
+    post(client, "/clock", minutes="5")
+    later = state(client)[0]["Zaid"]
+    assert later["plan"]["rider_times"][zaid["id"]] == pickup
+    assert client.get("/?view=captains").status_code == 200
+
+
+def test_c_to_campus_allows_only_a_street_pickup_still_ahead(empty):
+    book(empty, "Morning far", "Wadi As-Seer", direction="to_campus", class_start="08:30")
+    post(empty, "/match")
+    far = state(empty)[0]["Morning far"]
+    post(empty, f"/riders/{far['id']}/go")
+    post(empty, "/clock", minutes="5")
+    book(empty, "Morning near", "Dabouq", direction="to_campus", class_start="08:30")
+    riders, _ = state(empty)
+    assert riders["Morning near"]["car"] == riders["Morning far"]["car"]
+    assert all(riders[name]["share"] < riders[name]["solo"] for name in ("Morning far", "Morning near"))
+    plan = riders["Morning far"]["plan"]
+    assert sum(plan["shares"].values()) == plan["car_fare"]
+    assert empty.get("/?view=captains").status_code == 200
+
+
 def test_c_someone_joins_on_the_way_both_pay_less(alone):
     client, zaid = alone
     post(client, f"/riders/{zaid['id']}/go")

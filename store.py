@@ -302,7 +302,7 @@ def _go_plan(members, car_row, at):
                           (m["start_km"] if direction == "to_campus" else 0.0))
         extras[m["id"]] = []
         if direction == "from_campus":
-            if m["board_km"] is None:
+            if pickup_km == 0:
                 if m["start_side_m"] > 200:
                     extras[m["id"]].append((0.0, 2 * (m["start_side_m"] - 200) / 1000, "pickup"))
             if m["end_side_m"] > 200:
@@ -319,7 +319,6 @@ def _go_plan(members, car_row, at):
         riders, trip_time(pickup), direction=direction, extras=extras, caps=caps,
     )
     position = go_now.position_km(departed, at, route_km, direction, route_origin)
-    last_drop_km = max((m["km"] for m in members), default=0.0)
     ordered = sorted(members, key=lambda m: ((m["km"] if direction == "from_campus" else -m["start_km"]), m["id"]))
     boards = {
         m["id"]: (m["stop"] + " street" if direction == "to_campus"
@@ -327,18 +326,30 @@ def _go_plan(members, car_row, at):
         for m in members
     }
     walk_m = {m["id"]: min(int(m["start_side_m"] or 0), 200) for m in members}
-    rider_times = {m["id"]: (departed + timedelta(
-        hours=abs(position - float(m["board_km"] or 0.0)) / config.SPEED_KMH
-    )).astimezone(AMMAN).strftime("%H:%M") for m in members}
+    def time_at(distance):
+        return (departed + timedelta(hours=distance / config.SPEED_KMH)).astimezone(AMMAN).strftime("%H:%M")
+
+    rider_times = {}
+    drop_times = {}
+    all_turns = [turn for entries in extras.values() for turn in entries]
+    for rid, board, drop in riders:
+        before_board = sum(distance for point, distance, _ in all_turns
+                           if point > board) if direction == "to_campus" else sum(
+                               distance for point, distance, _ in all_turns if point < board)
+        before_drop = sum(distance for point, distance, _ in all_turns if point <= drop)
+        rider_times[rid] = time_at((route_origin - board if direction == "to_campus" else board) + before_board)
+        drop_times[rid] = time_at(route_km if direction == "to_campus" else drop + before_drop)
+    arrived = (at - departed).total_seconds() >= route_km * 3600 / config.SPEED_KMH
     return {
         "gate": CORRIDORS[corridor]["gate"], "corridor": corridor, "pickup": pickup,
         "members": ordered, "car_fare": fare, "route_km": route_km, "shares": shares,
         "shared": len(members) > 1, "only": None, "women_only": False,
         "go": True, "position_km": round(position, 1),
-        "arrived": position <= 0 if direction == "to_campus" else position >= last_drop_km,
+        "arrived": arrived,
         "boards": boards, "direction": direction, "street": True,
-        "walk_m": walk_m, "rider_times": rider_times, "drop_times": {},
-        "segment_breakdown": {},
+        "walk_m": walk_m, "rider_times": rider_times, "drop_times": drop_times,
+        "campus_arrival": time_at(route_km) if direction == "to_campus" else None,
+        "segment_breakdown": {}, "jeeny_cover": 0,
     }
 
 

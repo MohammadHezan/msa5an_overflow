@@ -47,8 +47,9 @@ def split(riders, at: datetime, direction="from_campus", extras=None, caps=None)
     road_extent = max((drop if direction == "from_campus" else board
                        for _, board, drop in riders), default=0.0)
     route_km = road_extent + sum(distance for entries in extras.values() for _, distance, _ in entries)
-    total = car_fare(route_km, at)
-    start = car_fare(0, at)
+    # This street-pickup demo uses the brief's fixed approved tariff in every mode.
+    start = config.START_DAY
+    total = start + round(config.PER_KM_DAY * route_km)
     per_km = (total - start) / route_km if route_km else 0
     marks = sorted({0.0, road_extent, *(b for _, b, _ in riders), *(d for _, _, d in riders)})
     raw = {rid: start / len(riders) for rid, _, _ in riders}
