@@ -154,8 +154,13 @@
                 <span class="ride-price"><b id="shared">—</b><small>after class</small></span>
               </label>
               <div class="campus-details">
+                <fieldset class="choice three direction-choice">
+                  <legend>Where are you going?</legend>
+                  <label><input type="radio" name="direction" value="from_campus" checked><span>From campus</span></label>
+                  <label><input type="radio" name="direction" value="to_campus"><span>To campus</span></label>
+                </fieldset>
                 <label class="box wide"><small>Drop-off</small>
-                  <select name="stop" required>
+                  <select name="stop" id="trip-stop" required>
                     {% for direction, corridor in corridors.items() %}
                       <optgroup label="{{ direction }} · {{ corridor.gate }}">
                         {% for stop in corridor.stops %}<option value="{{ stop }}"{% if stop == "Dabouq" %} selected{% endif %}>{{ stop }}</option>{% endfor %}
@@ -165,7 +170,8 @@
                 </label>
                 <div class="row2">
                   <label class="box"><small>Your name</small><input name="name" maxlength="40" placeholder="Sara" required></label>
-                  <label class="box"><small>Class ends</small><input type="time" name="class_end" value="16:00" min="08:00" max="21:00" required></label>
+                  <label class="box" id="class-end-wrap"><small>Class ends</small><input type="time" name="class_end" value="16:00" min="08:00" max="21:00" required></label>
+                  <label class="box" id="class-start-wrap" hidden><small>Class starts</small><input type="time" name="class_start" value="08:30" min="07:00" max="23:00" disabled></label>
                 </div>
                 <fieldset class="choice">
                   <legend>I am</legend>
@@ -188,11 +194,11 @@
                 </fieldset>
                 <div class="friends-start" id="friends-start" hidden>
                   <label class="toggle"><span>Let others fill empty seats</span><input type="checkbox" name="group_open" value="yes" checked><i></i></label>
-                  <p class="details-note">You'll get a code like GR-48 to share. Up to {{ rules.seats }} friends, same gate, classes ending within {{ rules.gap }} minutes. Each friend pays for their own km.</p>
+                  <p class="details-note">You'll get a code like GR-48 to share. Up to {{ rules.seats }} friends, same corridor and direction, times within {{ rules.gap }} minutes. Each friend pays for their own km.</p>
                 </div>
                 <label class="box wide" id="friends-join" hidden><small>Group code</small><input name="group_code" maxlength="10" placeholder="GR-48" autocapitalize="characters"></label>
                 {% endif %}
-                <p class="details-note">One pickup at the gate. You'll see your exact share before you confirm.</p>
+                <p class="details-note">Meet on the street along your route. Walk at most 200 m to the pickup point; you'll see your pickup time and exact share before you confirm.</p>
               </div>
               {% for key, label, eta in [("economy", "Economy", "2 min"), ("taxi", "Taxi", "1 min"), ("comfort", "Jeeny Comfort", "7 min"), ("box", "Box", "4 min")] %}
                 <label class="ride">

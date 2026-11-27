@@ -186,12 +186,45 @@ def plan_car(members):
     ready = to_minutes(plan.pickup_time.astimezone(config.TZ).strftime("%H:%M"))
     shared = len(ordered) > 1
     corridor = STOPS[ordered[0]["stop"]]["corridor"]
+    street = plan.board_km is not None
+    rider_times = {}
+    drop_times = {}
+    walk_m = {}
+    segment_breakdown = {}
+    if street:
+        for engine_rider in plan.riders:
+            rider_id = engine_rider.request_id
+            grouped = {}
+            for length, occupants in plan.segments or ():
+                if rider_id in occupants:
+                    grouped[len(occupants)] = grouped.get(len(occupants), 0.0) + length
+            segment_breakdown[by_id[rider_id]["id"]] = [
+                {"riders": count, "km": round(length, 2)}
+                for count, length in sorted(grouped.items(), reverse=True)
+            ]
+        for engine_rider in plan.riders:
+            rider_id = engine_rider.request_id
+            member = by_id[rider_id]
+            member["solo"] = plan.solo_fare[rider_id]
+            member["km"] = plan.solo_km[rider_id]
+            rider_times[member["id"]] = (
+                plan.pickup_time if engine_rider.direction == "from_campus"
+                else plan.arrival[rider_id]
+            ).astimezone(config.TZ).strftime("%H:%M")
+            drop_times[member["id"]] = plan.arrival[rider_id].astimezone(config.TZ).strftime("%H:%M")
+            walk_m[member["id"]] = min(int(member.get("start_side_m") or 0), config.MAX_WALK_M)
+        ordered = [by_id[r.request_id] for r in plan.riders]
+        corridor = plan.riders[0].corridor
     return {
         "gate": CORRIDORS[corridor]["gate"], "corridor": corridor,
-        "pickup": to_clock(-(-ready // 5) * 5), "members": ordered,
+        "pickup": to_clock(ready) if street else to_clock(-(-ready // 5) * 5), "members": ordered,
         "car_fare": plan.car_fare, "route_km": plan.route_km,
         "shares": {by_id[rid]["id"]: share for rid, share in plan.shares.items()},
         "shared": shared,
         "only": only_label(ordered),
         "women_only": only_label(ordered) == "women",
+        "street": street,
+        "direction": plan.riders[0].direction if street else "from_campus",
+        "rider_times": rider_times, "drop_times": drop_times, "walk_m": walk_m,
+        "segment_breakdown": segment_breakdown,
     }

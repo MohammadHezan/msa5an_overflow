@@ -115,7 +115,8 @@ def rider_json(batch, rider):
     body = {
         "id": rider["id"], "name": rider["name"], "status": rider["status"],
         "batchId": batch["id"], "tripDate": batch["trip_date"], "timezone": "Asia/Amman", "matched": bool(batch["matched"]),
-        "request": {"classEnd": rider["class_end"], "stop": rider["stop"], "gender": rider["gender"],
+        "request": {"direction": rider["direction"], "classEnd": rider["class_end"],
+                    "classStart": rider["class_start"], "stop": rider["stop"], "gender": rider["gender"],
                     "preference": rider["preference"], "friendGroup": rider["friend_group"],
                     # Older clients read these two flags
                     "woman": rider["gender"] == "woman", "womenOnly": rider["preference"] == "women"},
@@ -128,6 +129,12 @@ def rider_json(batch, rider):
             "shared": plan["shared"], "womenOnly": plan.get("women_only", False), "only": plan.get("only"),
             "corridor": plan["corridor"], "gate": plan["gate"], "goNow": bool(plan.get("go")),
             "pickupTime": plan["pickup"], "pickupAt": pickup_at(batch["trip_date"], plan["pickup"]),
+            "direction": plan.get("direction", rider["direction"]),
+            "walkMeters": plan.get("walk_m", {}).get(rider["id"], 0),
+            "walkMinutes": round(plan.get("walk_m", {}).get(rider["id"], 0) / 1.4 / 60, 1),
+            "yourPickupTime": plan.get("rider_times", {}).get(rider["id"], plan["pickup"]),
+            "yourDropOffTime": plan.get("drop_times", {}).get(rider["id"]),
+            "arriveBy": rider["class_start"] if rider["direction"] == "to_campus" else None,
             "riders": [first_name(m["name"]) for m in plan["members"] if m["id"] != rider["id"]],
             "dropOffs": [
                 {"order": i, "stop": m["stop"], "rider": first_name(m["name"]), "you": m["id"] == rider["id"]}
@@ -274,12 +281,13 @@ def book(batch_id):
     client_request_id = field(body, "clientRequestId", str)
     if not CLIENT_REQUEST_ID.fullmatch(client_request_id):
         raise Problem("invalid_input", "`clientRequestId` must be 8–64 letters, digits, `-` or `_`.", 400)
-    class_end, stop = field(body, "classEnd", str), field(body, "stop", str)
+    direction = field(body, "direction", str, "from_campus")
+    class_end, class_start, stop = field(body, "classEnd", str, ""), field(body, "classStart", str, ""), field(body, "stop", str)
     if "gender" in body or "preference" in body:
         gender, preference = field(body, "gender", str), field(body, "preference", str, "mixed")
     else:  # Older clients send woman/womenOnly flags
         gender, preference = legacy_options(field(body, "woman", bool, False), field(body, "womenOnly", bool, False))
-    name = check_request(field(body, "name", str), class_end, stop, gender, preference)
+    name = check_request(field(body, "name", str), class_end, stop, gender, preference, direction, class_start)
 
     with db:
         batch = locked_batch(db, batch_id)
@@ -290,12 +298,13 @@ def book(batch_id):
             if token["client_request_id"] != client_request_id:
                 raise Problem("already_booked", "This student session already booked a ride.")
             saved = db.execute("SELECT * FROM riders WHERE id = ?", (token["rider"],)).fetchone()
-            if (saved["name"], saved["class_end"], saved["stop"], saved["gender"], saved["preference"]) \
-                    != (name, class_end, stop, gender, preference):
+            if (saved["name"], saved["class_end"], saved["class_start"], saved["stop"], saved["gender"],
+                saved["preference"], saved["direction"]) != (name, class_end, class_start, stop, gender, preference, direction):
                 raise Problem("request_conflict", "This clientRequestId was already used with different details.")
             rider_id, status = saved["id"], 200
         else:
-            rider_id, status = insert_request(db, batch, name, class_end, stop, gender, preference), 201
+            rider_id, status = insert_request(db, batch, name, class_end, stop, gender, preference,
+                                              direction=direction, class_start=class_start), 201
             bind_token(db, token["token_hash"], rider_id, client_request_id)
     return jsonify(rider_json(*load_rider(db, batch_id, rider_id))), status
 

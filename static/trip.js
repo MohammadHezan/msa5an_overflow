@@ -8,6 +8,9 @@ if (form) {
   const friendsStart = document.querySelector("#friends-start");
   const friendsJoin = document.querySelector("#friends-join");
   const confirm = document.querySelector("#confirm");
+  const endWrap = document.querySelector("#class-end-wrap");
+  const startWrap = document.querySelector("#class-start-wrap");
+  const stopLabel = document.querySelector("#trip-stop").closest("label").querySelector("small");
   const note = document.querySelector("#demo-note");
   const jod = (fils) => `JOD ${(fils / 1000).toFixed(2)}`;
   // Other Jeeny services are shown for comparison only, priced from the solo fare to this drop-off.
@@ -25,6 +28,18 @@ if (form) {
     }
     // Women-only is for women students, men-only for men students
     const gender = form.elements.gender.value;
+    const direction = form.elements.direction.value;
+    const toCampus = direction === "to_campus";
+    endWrap.hidden = toCampus;
+    startWrap.hidden = !toCampus;
+    form.elements.class_end.disabled = toCampus;
+    form.elements.class_end.required = !toCampus;
+    form.elements.class_start.disabled = !toCampus;
+    form.elements.class_start.required = toCampus;
+    stopLabel.textContent = toCampus ? "Starting neighborhood" : "Drop-off";
+    document.querySelector(".ride-name small").textContent = toCampus
+      ? "Share with students heading to campus"
+      : "Share with students going your way";
     prefWomen.disabled = gender !== "woman";
     prefMen.disabled = gender !== "man";
     if (form.elements.preference.value === "women" && gender !== "woman") form.elements.preference.value = "mixed";

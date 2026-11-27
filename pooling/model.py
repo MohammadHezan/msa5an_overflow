@@ -51,6 +51,7 @@ class GroupPlan:
     board_km: dict[str, float] | None = None
     drop_km: dict[str, float] | None = None
     walk_m: dict[str, int] | None = None
+    segments: tuple[tuple[float, tuple[str, ...]], ...] | None = None
 
     @property
     def ids(self) -> frozenset[str]:
@@ -298,4 +299,5 @@ def _evaluate_street(riders: tuple[Rider, ...], strict: bool, window) -> GroupPl
         solo_fare=solo_fares, in_car_km=in_car, pickup_time=start_time, arrival=arrivals,
         board_km=board, drop_km=drop,
         walk_m={r.request_id: _walk_distance(r.start_side_m) for r in riders},
+        segments=tuple(segments),
     )

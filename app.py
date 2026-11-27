@@ -115,7 +115,8 @@ def check_form():
 @app.post("/requests")
 def submit_request():
     form = request.form
-    class_end, stop = form.get("class_end", ""), form.get("stop", "")
+    direction = form.get("direction", "from_campus")
+    class_end, class_start, stop = form.get("class_end", ""), form.get("class_start", ""), form.get("stop", "")
     # Older forms sent woman/women_only checkboxes instead of gender/preference
     gender = form.get("gender") or ("woman" if form.get("woman") == "yes" else "man")
     preference = form.get("preference") or ("women" if form.get("women_only") == "yes" else "mixed")
@@ -126,12 +127,13 @@ def submit_request():
         friends = {"mode": "join", "code": form.get("group_code", "")[:10]}
     db = database()
     try:
-        name = check_request(form.get("name", ""), class_end, stop, gender, preference)
+        name = check_request(form.get("name", ""), class_end, stop, gender, preference, direction, class_start)
         with db:
             batch = locked_batch(db, session.get("batch"))
             if not batch:  # Cleared by the cleanup of old batches; the redirect gives this browser a fresh one
                 raise Problem("not_found", "Your request was not saved. Please submit it again.")
-            rider_id = insert_request(db, batch, name, class_end, stop, gender, preference, friends)
+            rider_id = insert_request(db, batch, name, class_end, stop, gender, preference, friends,
+                                      direction=direction, class_start=class_start)
     except Problem as problem:
         flash(problem.message)
         return redirect(url_for("index", screen="book"))
