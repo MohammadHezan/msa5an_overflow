@@ -3,7 +3,7 @@
 {% block back %}{{ url_for('yalla.ride') }}{% endblock %}
 {% block body %}
   {{ ui.intro("Pickup at " ~ (pickup | ampm), "Your captain is on the way", ("Arriving in " ~ arrive_in ~ " minutes · " ~ street) if arrive_in else ("Pickup on " ~ street)) }}
-  {{ ui.map(university.campus ~ " campus", "Campus street" if rider.direction == "from_campus" else rider.stop ~ " street", "Your stop" if rider.direction == "from_campus" else "Campus", members | length - 1) }}
+  {{ ui.map(university.campus, "Campus street" if rider.direction == "from_campus" else rider.stop ~ " street", "Your stop" if rider.direction == "from_campus" else "Campus", members | length - 1) }}
   {% include "yalla/_captain.html" %}
   <div class="yr-two">
     <a class="yr-cta ghost" href="{{ url_for('yalla.help_page') }}">Call captain</a>

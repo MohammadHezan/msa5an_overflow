@@ -4,7 +4,7 @@
 {% block body %}
   {% set mine = members | selectattr("id", "equalto", rider.id) | first %}
   {{ ui.intro("Trip in progress", "Next stop: " ~ (members[0].stop if members[0].id != rider.id else "your destination"), "Boarding verified" ~ (" · Quiet ride" if quiet else "")) }}
-  {{ ui.map(university.campus ~ " campus", "Campus street" if rider.direction == "from_campus" else rider.stop ~ " street", "Your stop" if rider.direction == "from_campus" else "Campus", members | length - 1) }}
+  {{ ui.map(university.campus, "Campus street" if rider.direction == "from_campus" else rider.stop ~ " street", "Your stop" if rider.direction == "from_campus" else "Campus", members | length - 1) }}
   <ol class="yr-stops">
     {% for m in members %}<li><b>{{ loop.index }}</b><span><strong>{{ m.stop }}{% if m.id == rider.id %} · Your stop{% endif %}</strong><small>{% if m.id == rider.id %}Estimated arrival · {{ plan.drop_times[m.id] | ampm }}{% else %}{{ m.name }}’s stop{% endif %}</small></span></li>{% endfor %}
     {% if rider.direction == "to_campus" %}<li><b>{{ members|length + 1 }}</b><span><strong>{{ university.campus }}</strong><small>Arrive by {{ plan.campus_arrival | ampm }}</small></span></li>{% endif %}

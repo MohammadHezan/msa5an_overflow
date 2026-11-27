@@ -6,7 +6,7 @@
   {% include "yalla/_captain.html" %}
   <div class="yr-code-card"><small>Show this to your captain</small><strong>{{ rider.ride_code }}</strong><span>Check the plate first: {{ car.plate }}</span></div>
   <ul class="yr-people">
-    <li>{{ ui.initial("You") }}<span><strong>You</strong><small>At {{ street }}</small></span><em>{{ "Ready" if rider.status == "confirmed" else "Not confirmed" }}</em>{{ ui.icon("check") }}</li>
+    <li>{{ ui.initial(rider.name) }}<span><strong>You</strong><small>At {{ street }}</small></span><em>{{ "Ready" if rider.status == "confirmed" else "Not confirmed" }}</em>{{ ui.icon("check") }}</li>
     {% set others = members | rejectattr("id", "equalto", rider.id) | list %}
     {% if others and rider.direction == "from_campus" %}
       <li>{{ ui.initial(others[0].name) }}<span><strong>{{ others | map(attribute="name") | join(" & ") }}</strong><small>Same pickup street</small></span><em>{{ "Ready" if others | selectattr("status", "ne", "confirmed") | list | length == 0 else "Confirming" }}</em>{{ ui.icon("check") }}</li>

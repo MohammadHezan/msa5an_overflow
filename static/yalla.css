@@ -236,3 +236,6 @@ a.yr-row:hover, label.yr-row:hover { border-color: #D3D3D3; }
 .yr-map svg { height: 100%; }
 .yr-map .lbl { font-size: 11px; }
 .yr-rate button { font-size: 2.3rem; }
+.yr-people li > .yr-initial { display: grid; place-items: center; flex-direction: initial; }
+.yr-facts { gap: 22px; margin: 14px 0; }
+.yr-rate { margin-top: 10px; }
