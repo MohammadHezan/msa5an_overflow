@@ -136,7 +136,7 @@ def rider_json(batch, rider):
             "walkMinutes": round(plan.get("walk_m", {}).get(rider["id"], 0) / 1.4 / 60, 1),
             "yourPickupTime": plan.get("rider_times", {}).get(rider["id"], plan["pickup"]),
             "yourDropOffTime": plan.get("drop_times", {}).get(rider["id"]),
-            "arriveBy": rider["class_start"] if rider["direction"] == "to_campus" else None,
+            "arriveBy": plan.get("campus_arrival") if rider["direction"] == "to_campus" else None,
             "carFare": money(plan["car_fare"]), "jeenyCover": money(plan.get("jeeny_cover", 0)),
             "segmentBreakdown": plan.get("segment_breakdown", {}).get(rider["id"], []),
             "riders": [first_name(m["name"]) for m in plan["members"] if m["id"] != rider["id"]],
@@ -282,7 +282,7 @@ def verify_code(batch_id):
         return jsonify({"valid": False})
     return jsonify({"valid": True, "rider": {
         "firstName": first_name(rider["name"]), "stop": rider["stop"], "carId": rider["car"],
-        "pickupTime": rider["plan"]["pickup"],
+        "pickupTime": rider["plan"].get("rider_times", {}).get(rider["id"], rider["plan"]["pickup"]),
     }})
 
 

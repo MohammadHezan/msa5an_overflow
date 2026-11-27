@@ -46,6 +46,7 @@
       <form action="{{ url_for('reset') }}" method="post" class="side-reset">
         {{ token() }}
         <button name="mode" value="seeded" type="submit">Reload sample afternoon</button>
+        <button name="mode" value="morning" type="submit">Load morning sample</button>
         <button name="mode" value="busy" type="submit">Load 28 students</button>
         <button name="mode" value="empty" type="submit">Start empty</button>
       </form>
@@ -299,7 +300,7 @@
               <p class="eyebrow">Your shared ride</p>
               <h2>{% if selected.direction == "to_campus" %}Pickup near {{ selected.stop }} at {{ plan.rider_times[selected.id] }}{% else %}Car at your campus street at {{ plan.rider_times[selected.id] }}{% endif %}</h2>
               <p class="street-meta">{{ selected.stop }} corridor · {{ selected.km | round(1) }} km · Walk {{ (plan.walk_m[selected.id] / 1.4 / 60) | round(0, "ceil") | int }} min to the street</p>
-              {% if selected.direction == "to_campus" %}<p class="street-meta">Arrive at campus by {{ selected.class_start }}.</p>{% endif %}
+              {% if selected.direction == "to_campus" %}<p class="street-meta">Arrive at campus by {{ plan.campus_arrival }} · class starts {{ selected.class_start }}.</p>{% endif %}
               {% if selected.hold_until %}<p class="warn">Your seat is held for {{ ((selected.hold_until - now).total_seconds() / 60) | round(0, "ceil") | int }} more min. Confirm before then or it goes back to the others.</p>{% endif %}
             {% endif %}
             <div class="riders">
@@ -322,7 +323,7 @@
                   <span class="amt">{{ plan.shares[m.id] | jod }}</span>
                 </li>
               {% endfor %}
-              {% if selected.direction == "to_campus" %}<li class="pick"><span class="pin"></span><span><strong>{{ plan.gate }}</strong><small>Arrive by {{ selected.class_start }}</small></span></li>{% endif %}
+              {% if selected.direction == "to_campus" %}<li class="pick"><span class="pin"></span><span><strong>{{ plan.gate }}</strong><small>Arrive by {{ plan.campus_arrival }}</small></span></li>{% endif %}
             </ol>
             {% set total_km = plan.members | sum(attribute="km") %}
             <details class="how" open>

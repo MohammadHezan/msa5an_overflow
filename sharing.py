@@ -226,7 +226,10 @@ def plan_car(members):
                 plan.pickup_time if engine_rider.direction == "from_campus"
                 else plan.arrival[rider_id]
             ).astimezone(config.TZ).strftime("%H:%M")
-            drop_times[member["id"]] = plan.arrival[rider_id].astimezone(config.TZ).strftime("%H:%M")
+            drop_times[member["id"]] = (
+                campus_arrival if engine_rider.direction == "to_campus"
+                else plan.arrival[rider_id].astimezone(config.TZ).strftime("%H:%M")
+            )
             walk_m[member["id"]] = min(int(member.get("start_side_m") or 0), config.MAX_WALK_M)
         ordered = [by_id[r.request_id] for r in plan.riders]
         corridor = plan.riders[0].corridor

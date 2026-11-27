@@ -192,6 +192,42 @@ def test_seeded_batch_matches_the_sample_afternoon(client):
     assert next(r for r in body["riders"] if r["name"] == "Kareem")["status"] == "no_match"
 
 
+def test_morning_sample_forms_shared_cars_with_individual_pickup_times(client):
+    batch = new_batch(client, "morning")
+    body = match(client, batch).get_json()["batch"]
+    assert len(body["riders"]) == 9
+    assert any(len(car["riders"]) > 1 for car in body["cars"])
+    with campus.app.app_context():
+        saved = campus.get_batch(campus.database(), batch["id"])
+        riders, cars = campus.load_riders(campus.database(), saved)
+    assert all(r["direction"] == "to_campus" for r in riders)
+    for car in cars:
+        members = car["members"]
+        assert [m["start_km"] for m in members] == sorted(
+            (m["start_km"] for m in members), reverse=True)
+        assert car["campus_arrival"] <= min(m["class_start"] for m in members)
+        assert all(car["rider_times"][m["id"]] < car["campus_arrival"] for m in members)
+        assert sum(car["shares"].values()) == car["car_fare"]
+
+
+def test_to_campus_booking_accepts_class_start_without_class_end(client):
+    batch = new_batch(client)
+    token = join(client, batch["joinCode"])
+    response = client.post(f"/api/v1/batches/{batch['id']}/riders", headers=auth(token), json={
+        "name": "Demo student", "direction": "to_campus", "classStart": "08:30",
+        "stop": "Dabouq", "gender": "woman", "preference": "mixed",
+        "clientRequestId": "morning-request-0001",
+    })
+    assert response.status_code == 201, response.get_json()
+    rider = response.get_json()
+    assert rider["request"]["direction"] == "to_campus"
+    assert match(client, batch).status_code == 200
+    with client.session_transaction() as session:
+        session["batch"] = batch["id"]
+    page = client.get(f"/?rider={rider['id']}").get_data(as_text=True)
+    assert "08:30" in page
+
+
 def test_phone_and_dashboard_share_one_batch(client):
     """The dashboard shows a join code; a phone books into that batch; dashboard matching changes the phone's plan."""
     page = client.get("/?view=match").get_data(as_text=True)
