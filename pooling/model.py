@@ -21,6 +21,7 @@ class Rider:
     leave_after: datetime
     leave_before: datetime
     quoted_share: int | None = None  # set once confirmed; later groupings may never charge more
+    woman: bool = False  # a women-only rider can only share with riders where this is True
 
 
 @dataclass(frozen=True)
@@ -48,17 +49,19 @@ def _shared_window(riders: Sequence[Rider]) -> tuple[datetime, datetime] | None:
     return start, end
 
 
-def evaluate(riders: Sequence[Rider]) -> GroupPlan | None:
-    """Return the shortest feasible plan for exactly these riders, or None if no order works."""
+def evaluate(riders: Sequence[Rider], strict: bool = True) -> GroupPlan | None:
+    """Return the shortest feasible plan for exactly these riders, or None if no order works.
+
+    strict=False skips the detour, savings and quote checks (but never the seats, meeting point,
+    women-only or window rules). It only prices an existing car that lost a rider.
+    """
     riders = tuple(riders)
     if not 1 <= len(riders) <= config.MAX_RIDERS:
         return None
     first = riders[0]
-    if any(
-        (r.campus_id, r.meeting_point_id) != (first.campus_id, first.meeting_point_id)
-        or r.women_only != first.women_only
-        for r in riders
-    ):
+    if any((r.campus_id, r.meeting_point_id) != (first.campus_id, first.meeting_point_id) for r in riders):
+        return None
+    if any(r.women_only for r in riders) and not all(r.woman for r in riders):
         return None
     if len({r.request_id for r in riders}) != len(riders):
         return None
@@ -81,7 +84,7 @@ def evaluate(riders: Sequence[Rider]) -> GroupPlan | None:
             in_car[r.request_id] = km
         if best is not None and km >= best.route_km:
             continue
-        if any(
+        if strict and any(
             in_car[rid] > min(solo * config.DETOUR_RATIO, solo + config.DETOUR_EXTRA_KM) + 1e-9
             for rid, solo in solo_km.items()
         ):
@@ -91,11 +94,11 @@ def evaluate(riders: Sequence[Rider]) -> GroupPlan | None:
             (r.request_id for r in order),
             split_fare(fare, [solo_km[r.request_id] for r in order]),
         ))
-        if len(order) > 1 and any(
+        if strict and len(order) > 1 and any(
             shares[rid] > (1 - config.MIN_SAVING) * solo_fare[rid] for rid in shares
         ):
             continue
-        if any(r.quoted_share is not None and shares[r.request_id] > r.quoted_share for r in order):
+        if strict and any(r.quoted_share is not None and shares[r.request_id] > r.quoted_share for r in order):
             continue
         best = GroupPlan(
             riders=order,

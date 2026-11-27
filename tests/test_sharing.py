@@ -3,7 +3,7 @@ import itertools
 
 import pytest
 
-from sharing import MIN_SHARE, SEATS, STOPS, compatible, group_riders, plan_car, solo_fare
+from sharing import SEATS, STOPS, compatible, group_riders, plan_car, solo_fare
 
 from store import FIXTURE
 
@@ -29,12 +29,16 @@ def cars_by_name(riders, groups):
     return [sorted(names[i] for i in car) for car in groups]
 
 
-def test_sara_pays_150_instead_of_450(sample):
+def test_sara_pays_167_instead_of_450(sample):
+    # Regulated app tariff: 468 + 336 x 12 km = 4500 fils alone. Shared to Wadi As-Seer (16 km):
+    # car fare 468 + 336 x 16 = 5844, split 12:14:16 by distance -> Sara 1670 (63% saved).
     riders = by_name(sample)
     assert solo_fare("Dabouq") == 4500
     car = plan_car([riders["Sara"], riders["Rama"], riders["Huda"]])
     assert car["shared"] is True
-    assert car["shares"][riders["Sara"]["id"]] == 1500
+    assert car["car_fare"] == 5844
+    assert car["shares"][riders["Sara"]["id"]] == 1670
+    assert sum(car["shares"].values()) == car["car_fare"]
     assert car["women_only"] is True
 
 
@@ -113,7 +117,7 @@ def test_nobody_pays_more_than_riding_alone():
                 for rider in members:
                     share = car["shares"][rider["id"]]
                     assert share <= solo_fare(rider["stop"])
-                    assert share >= min(MIN_SHARE, solo_fare(rider["stop"]))
+                assert sum(car["shares"].values()) == car["car_fare"]
 
 
 def test_solo_rider_pays_solo_fare():

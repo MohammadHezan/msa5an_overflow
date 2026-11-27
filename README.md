@@ -21,9 +21,9 @@ Open [http://localhost:5000](http://localhost:5000). The demo stores batches und
 
 1. The app opens with a sample afternoon of ten students. Open **Matching** and click **Match 10 students**.
 2. On **Trips**, see the five cars, each pickup time and gate, and each student's share compared with riding alone.
-3. Open **Sara**. Her class ends at 16:00. She meets Rama and Huda at the main gate at 16:15, shares one women-only car, and pays JOD 1.50 instead of JOD 4.50.
+3. Open **Sara**. Her class ends at 16:00. She meets Rama and Huda at the main gate at 16:15, shares one women-only car, and pays JOD 1.67 instead of JOD 4.50.
 4. Click **Decline** as Rama. Sara and Huda now see an updated plan and are asked to confirm again.
 5. Kareem finishes at the same time and heads the same way, but the car is women-only, so he is offered a solo ride.
 6. Choose **Start empty batch** to book your own requests from the **Book** page.
 
-Distances, fares and gates are simulated. A shared car costs 85% of JOD 0.90 + JOD 0.30/km to the last stop + JOD 0.25 per extra stop. Each student pays in proportion to their distance and never more than riding alone. The app makes no bookings or payments.
+Distances, fares and gates are simulated. Each car is one regular ride at the regulated Jeeny app fare (JOD 0.468 + JOD 0.336/km over the whole route, LTRC tariff of 11 May 2026). Each student pays in proportion to their own distance, the shares add up to exactly that fare, and a student only shares if they save at least 20%. Matching and pricing come from the `pooling/` engine; `sharing.py` adapts it to this app. The app makes no bookings or payments.

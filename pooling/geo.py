@@ -14,8 +14,18 @@ def _haversine_km(a: Stop, b: Stop) -> float:
 
 
 def road_km(a: Stop, b: Stop) -> float:
-    """Estimated road distance. Stops closer than MERGE_KM count as the same stop."""
-    km = _haversine_km(a, b) * config.ROAD_FACTOR
+    """Estimated road distance. Stops closer than MERGE_KM count as the same stop.
+
+    Corridor stops (km set) follow their corridor: a gate (km 0, no corridor) to a stop is the
+    stop's km; two stops on one corridor are |km difference|; different corridors go via campus.
+    """
+    if a.km is not None and b.km is not None:
+        if a.corridor is None or b.corridor is None or a.corridor == b.corridor:
+            km = abs(a.km - b.km)
+        else:
+            km = a.km + b.km
+    else:
+        km = _haversine_km(a, b) * config.ROAD_FACTOR
     return 0.0 if km < config.MERGE_KM else km
 
 

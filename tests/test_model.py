@@ -29,6 +29,19 @@ def test_women_only_must_not_mix():
     assert evaluate([rider("a", "sweileh", women_only=True), rider("b", "sweileh")]) is None
 
 
+def test_women_only_rider_can_ride_with_a_woman_who_did_not_ask():
+    assert evaluate([rider("a", "sweileh", women_only=True), rider("b", "sweileh", woman=True)]) is not None
+
+
+def test_corridor_distance_follows_the_corridor():
+    from pooling.geo import road_km
+    from pooling.places import CAMPUSES, STOPS
+    gate = CAMPUSES["campus"].meeting_points["Main gate"]
+    assert road_km(gate, STOPS["Dabouq"]) == 12
+    assert road_km(STOPS["Khalda"], STOPS["Dabouq"]) == 4
+    assert road_km(STOPS["Khalda"], STOPS["Abdoun"]) == 20  # different corridors go via campus
+
+
 def test_disjoint_windows_refused():
     assert evaluate([rider("a", "sweileh"), rider("b", "sweileh", after="16:40", before="17:00")]) is None
 

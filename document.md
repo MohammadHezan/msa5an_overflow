@@ -4,7 +4,7 @@
 
 Campus Connect is a proposed Jeeny feature for shared rides home from campus. A student books a ride before class ends with a name, class end time, drop-off area and an optional women-only preference. After booking closes, Campus Connect groups students heading the same direction at about the same time into as few cars as possible. Each student then reviews a plan with a meeting gate, pickup time, the other riders, the drop-off order, and the price for their own share compared with riding alone. The student confirms or declines. If someone declines, the remaining riders in that car see the updated plan and confirm again.
 
-The pitch deck's first pilot covers one Amman campus. Sara's after-class ride home is the main demo story: her class ends at 16:00, she shares a women-only car with Rama and Huda from the main gate at 16:15, and pays JOD 1.50 instead of JOD 4.50 alone. Record interviews, campus selection and business assumptions in [agent.md](agent.md).
+The pitch deck's first pilot covers one Amman campus. Sara's after-class ride home is the main demo story: her class ends at 16:00, she shares a women-only car with Rama and Huda from the main gate at 16:15, and pays JOD 1.67 instead of JOD 4.50 alone. Record interviews, campus selection and business assumptions in [agent.md](agent.md).
 
 The first mobile milestone is one demo student booking from a physical phone, an operator running matching in the web dashboard, and the same phone showing the student's plan so they can confirm or decline it. The ten-student sample afternoon remains the repeatable demonstration.
 
@@ -38,12 +38,12 @@ All amounts are in fils (1 JOD = 1,000 fils). Distances and fares are simulated.
 
 | Rule | Value |
 | --- | --- |
-| Solo fare | 900 fils + 300 fils per km to the student's drop-off |
-| Shared car fare | 85% of (900 fils + 300 fils per km to the farthest drop-off + 250 fils per extra drop-off) |
-| Each rider's share | Car fare × the rider's km ÷ total km of all riders, rounded to the nearest 50 fils |
-| Floor and cap | At least 500 fils, and never more than that student's solo fare |
+| Solo fare | LTRC smart-app tariff (11 May 2026): 468 fils + 336 fils per km to the student's drop-off |
+| Shared car fare | One regular ride at the same tariff over the whole route: 468 + 336 × route km |
+| Each rider's share | Car fare × the rider's km ÷ total km of all riders, with largest-remainder rounding so the shares add up to the car fare exactly |
+| When a student shares | Only if every rider saves at least 20% versus riding alone and no rider's in-car distance exceeds min(1.5 × own km, own km + 4 km) |
 
-Example: Sara (Dabouq, 12 km), Rama (Al Bayader, 14 km) and Huda (Wadi As-Seer, 16 km) share a West car. The car fare is 0.85 × (900 + 300 × 16 + 250 × 2) = 5,270 fils. Sara pays 5,270 × 12/42 ≈ 1,500 fils instead of 4,500 alone. Rama pays 1,750 instead of 5,100, and Huda pays 2,000 instead of 5,700.
+Example: Sara (Dabouq, 12 km), Rama (Al Bayader, 14 km) and Huda (Wadi As-Seer, 16 km) share a West car. The car fare is 468 + 336 × 16 = 5,844 fils. Sara pays 5,844 × 12/42 = 1,670 fils instead of 4,500 alone. Rama pays 1,948 instead of 5,172, and Huda pays 2,226 instead of 5,844. Everyone saves about 63%.
 
 The booking page shows each drop-off's solo fare and a sample share for three riders before the student books.
 
@@ -69,11 +69,11 @@ The fixture produces five cars:
 
 | Car | Riders and share (solo fare) |
 | --- | --- |
-| West · Main gate · 16:15 · women-only | Sara 1.50 (4.50), Rama 1.75 (5.10), Huda 2.00 (5.70) |
-| West · Main gate · 16:20 | Kareem 3.30 alone. He matches by direction and time, but the car above is women-only. |
-| North · North gate · 16:35 | Lina 0.55 (1.80), Omar 1.30 (3.00), Yazan 1.85 (3.90) |
-| South · Main gate · 13:25 | Leen 1.50 (3.00), Dana 2.55 (4.50) |
-| East · East gate · 18:15 | Zaid 4.80 alone. No one else heads east near 18:00. |
+| West · Main gate · 16:15 · women-only | Sara 1.67 (4.50), Rama 1.95 (5.17), Huda 2.23 (5.84) |
+| West · Main gate · 16:20 | Kareem 3.16 alone. He matches by direction and time, but the car above is women-only. |
+| North · North gate · 16:35 | Lina 0.57 (1.48), Omar 1.34 (2.82), Yazan 1.91 (3.83) |
+| South · Main gate · 13:25 | Leen 1.66 (2.82), Dana 2.84 (4.50) |
+| East · East gate · 18:15 | Zaid 4.84 alone. No one else heads east near 18:00. |
 
 ## Current implementation and proposed split
 
@@ -136,7 +136,7 @@ The API lives in `api.py`; the HTML routes in `app.py` and the API both call the
 
 ## Repeatable scenarios
 
-The sample afternoon is the fixed regression check: ten students, five cars, Sara's share JOD 1.50 versus JOD 4.50 alone, and Kareem offered a solo ride because the West car is women-only.
+The sample afternoon is the fixed regression check: ten students, five cars, Sara's share JOD 1.67 versus JOD 4.50 alone, and Kareem offered a solo ride because the West car is women-only.
 
 For additional scenarios, generate requests from a recorded random seed. Vary the number of students per corridor, how spread out class end times are, the share of women-only requests, and declines after matching. Report the number of cars, the share of students who found a match, the total paid versus everyone riding alone, and each student's saving. Label all results **simulated**; real distances, fares, demand and decline rates are pilot questions.
 
@@ -161,6 +161,6 @@ For additional scenarios, generate requests from a recorded random seed. Vary th
 - [ ] Run matching in the web dashboard. Refresh or reopen the phone app and see the gate, pickup time, other riders, drop-off order and share versus solo fare.
 - [ ] Confirm the plan. Decline as another rider in the same car from the dashboard or a second device, and see the phone switch to **plan changed** and ask to confirm again.
 - [ ] Check a women-only request is never matched with a man, a solo-ride offer, a closed batch, and no access to another student's plan.
-- [ ] Replay the sample afternoon and confirm five cars and Sara's JOD 1.50 share.
+- [ ] Replay the sample afternoon and confirm five cars and Sara's JOD 1.67 share.
 
 Record agreed product decisions in [agent.md](agent.md). Update this document when the API, fare rules, estimates or repository layout change.

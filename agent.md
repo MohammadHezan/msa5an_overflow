@@ -22,10 +22,10 @@ Fill in the **Team answer** column as decisions are made. The working defaults l
 | Q2 | Is the first use case leaving campus, arriving on campus, or both? | Rides **home from campus** after class. Trips to campus are later work. | _Pending_ |
 | Q3 | Which directions, gates and drop-offs belong in the demo? | West (main gate): Sweileh, Khalda, Dabouq, Al Bayader, Wadi As-Seer. North (north gate): Al Jubeiha, Shafa Badran, Abu Nseir. South (main gate): Tla' Al Ali, Um Al Summaq, Abdoun. East (east gate): Tabarbour, Marka. Distances are simulated. | _Pending_ |
 | Q4 | Who can share a car? | Same direction, class end times within 20 minutes of each other, up to 4 students per car, and women-only requests matched only with women students. | _Pending_ |
-| Q5 | How is the price split? | Shared car fare is 85% of JOD 0.90 + JOD 0.30/km to the farthest drop-off + JOD 0.25 per extra drop-off. Each student pays in proportion to their km, rounded to JOD 0.05, at least JOD 0.50, and never more than riding alone. | _Pending_ |
+| Q5 | How is the price split? | Each car is one regular ride at the regulated app fare (468 fils + 336 fils/km over the whole route). Each student pays in proportion to their km, the shares add up to the car fare exactly, and a student only shares if they save at least 20%. | _Pending_ |
 | Q6 | What should students see before confirming? | Meeting gate, pickup time (15 minutes after the latest class end, rounded up to 5 minutes), other riders' names, drop-off order, their share and the solo fare. | _Pending_ |
 | Q7 | What happens when someone declines or nobody matches? | A decline removes that rider and re-plans the car. Riders who already confirmed must confirm the new plan. A student with no compatible partner is offered a solo ride at the solo fare. | _Pending_ |
-| Q8 | How will we judge success, and who will check it? | Replay the sample afternoon (five cars, Sara pays JOD 1.50 instead of JOD 4.50), run a live booking end to end in Preview, and record who verified it and when. | _Pending_ |
+| Q8 | How will we judge success, and who will check it? | Replay the sample afternoon (five cars, Sara pays JOD 1.67 instead of JOD 4.50), run a live booking end to end in Preview, and record who verified it and when. | _Pending_ |
 | Q9 | Who owns the Replit project, GitHub access and demo presentation? | Team to assign. Verify shared project access before judging. | _Pending_ |
 
 ## Student interview form
@@ -71,5 +71,5 @@ The hackathon scope uses simulated distances, fares and gates. Live dispatch, pa
 - [ ] **Match.** Matching groups only students in the same direction with class end times at most 20 minutes apart, at most 4 per car. A women-only student is never matched with a man. Repeating matching returns the same cars, and a request after matching is rejected.
 - [ ] **Prices.** Each share is at least JOD 0.50, a multiple of JOD 0.05, never more than the student's solo fare, and larger for students who ride farther in the same car.
 - [ ] **Confirm and decline.** Confirm Sara's plan, then decline as Rama. Sara sees **plan changed** with a new share and confirms again. A confirmation of an outdated plan is rejected.
-- [ ] **Sample afternoon.** Load the ten students and match. There are five cars. Sara, Rama and Huda share a women-only West car from the main gate at 16:15, and Sara pays **JOD 1.50** instead of **JOD 4.50**. Kareem is offered a solo ride. Zaid rides alone east.
+- [ ] **Sample afternoon.** Load the ten students and match. There are five cars. Sara, Rama and Huda share a women-only West car from the main gate at 16:15, and Sara pays **JOD 1.67** instead of **JOD 4.50**. Kareem is offered a solo ride. Zaid rides alone east.
 - [ ] **Judge walkthrough.** In Replit Preview, complete the Book → Matching → Trips flow on phone and desktop widths. The judge can open an individual student's plan from Trips.

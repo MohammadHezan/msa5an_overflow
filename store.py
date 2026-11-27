@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 from flask import current_app, g
 
 from sharing import (
-    BASE_FARE, MAX_GAP, MIN_SHARE, PER_KM, SEATS, SHARED_RATE, STOP_FEE, STOPS, WALK,
+    BASE_FARE, MAX_GAP, MIN_SAVING_PCT, PER_KM, SEATS, STOPS, WALK,
     group_riders, plan_car, sample_share, solo_fare,
 )
 
@@ -321,4 +321,4 @@ def fare_estimates():
 
 
 RULES = {"seats": SEATS, "gap": MAX_GAP, "walk": WALK, "base": BASE_FARE, "per_km": PER_KM,
-         "stop_fee": STOP_FEE, "rate": round(SHARED_RATE * 100), "min_share": MIN_SHARE}
+         "min_saving": MIN_SAVING_PCT}

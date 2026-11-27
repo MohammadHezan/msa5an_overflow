@@ -67,8 +67,9 @@ def test_health_and_stops(client):
     dabouq = next(s for s in west["stops"] if s["name"] == "Dabouq")
     assert west["gate"] == "Main gate"
     assert dabouq == {"name": "Dabouq", "km": 12, "soloFare": {"fils": 4500, "currency": "JOD"},
-                      "sampleShare": {"fils": 1400, "currency": "JOD"}}
+                      "sampleShare": {"fils": 1500, "currency": "JOD"}}
     assert body["rules"]["seatsPerCar"] == 4 and body["rules"]["maxClassEndGapMinutes"] == 20
+    assert body["rules"]["baseFare"]["fils"] == 468 and body["rules"]["minSavingPercent"] == 20
 
 
 def test_booking_returns_waiting_and_retry_returns_same_rider(client):
@@ -133,7 +134,7 @@ def test_plan_shows_shared_car_without_other_riders_details(client, west_car):
     assert sara["status"] == "review"
     assert plan["gate"] == "Main gate" and plan["pickupTime"] == "16:15" and plan["womenOnly"]
     assert plan["pickupAt"].endswith("T16:15:00+03:00")
-    assert plan["share"] == {"fils": 1500, "currency": "JOD"} and plan["soloFare"]["fils"] == 4500
+    assert plan["share"] == {"fils": 1670, "currency": "JOD"} and plan["soloFare"]["fils"] == 4500
     assert sorted(plan["riders"]) == ["Huda", "Rama"]
     assert [d["stop"] for d in plan["dropOffs"]] == ["Dabouq", "Al Bayader", "Wadi As-Seer"]
     assert "share" not in plan["dropOffs"][1]
@@ -167,7 +168,7 @@ def test_stale_confirm_returns_plan_changed_then_decline_marks_changed(client, w
 
     sara = client.get(f"/api/v1/riders/{sara_id}", headers=auth(sara_token)).get_json()
     assert sara["status"] == "changed"
-    assert sara["plan"]["share"]["fils"] == 2100 and sara["plan"]["riders"] == ["Rama"]
+    assert sara["plan"]["share"]["fils"] == 2387 and sara["plan"]["riders"] == ["Rama"]
     old = client.post(f"/api/v1/riders/{sara_id}/confirm", headers=auth(sara_token), json={"signature": signature})
     assert old.status_code == 409 and old.get_json()["rider"]["status"] == "changed"
     again = client.post(f"/api/v1/riders/{sara_id}/confirm", headers=auth(sara_token),
@@ -180,7 +181,7 @@ def test_seeded_batch_matches_the_sample_afternoon(client):
     body = match(client, batch).get_json()["batch"]
     assert len(body["cars"]) == 5
     sara = next(r for r in body["riders"] if r["name"] == "Sara")
-    assert sara["status"] == "review" and sara["share"]["fils"] == 1500
+    assert sara["status"] == "review" and sara["share"]["fils"] == 1670
     assert next(r for r in body["riders"] if r["name"] == "Kareem")["status"] == "no_match"
 
 

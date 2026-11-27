@@ -231,8 +231,8 @@ def stops():
         "rules": {
             "seatsPerCar": RULES["seats"], "maxClassEndGapMinutes": RULES["gap"], "walkToGateMinutes": RULES["walk"],
             "classEndEarliest": "08:00", "classEndLatest": "21:00", "sampleShareRiders": SAMPLE_RIDERS,
-            "baseFare": money(RULES["base"]), "perKm": money(RULES["per_km"]), "extraStopFee": money(RULES["stop_fee"]),
-            "sharedRatePercent": RULES["rate"], "minShare": money(RULES["min_share"]),
+            "baseFare": money(RULES["base"]), "perKm": money(RULES["per_km"]),
+            "minSavingPercent": RULES["min_saving"],
         },
     })
 

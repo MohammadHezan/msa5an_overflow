@@ -186,7 +186,7 @@
             <li><strong>Same time.</strong> Classes in one car end within {{ rules.gap }} minutes of each other. Pickup is {{ rules.walk }} minutes after the last class ends.</li>
             <li><strong>Up to {{ rules.seats }} students per car</strong>, using as few cars as possible.</li>
             <li><strong>Women only.</strong> Students who ask for it are only matched with women students.</li>
-            <li><strong>Fair split.</strong> A shared car costs {{ rules.rate }}% of {{ rules.base | jod }} + {{ rules.per_km | jod }}/km to the last stop + {{ rules.stop_fee | jod }} per extra stop. Each student pays in proportion to their distance and never more than riding alone.</li>
+            <li><strong>Fair split.</strong> Each car is one regular Jeeny ride at the regulated app fare: {{ rules.base | jod }} + {{ rules.per_km | jod }}/km over the whole route. Each student pays in proportion to their own distance, the shares add up to exactly that fare, and a student only shares a car if they save at least {{ rules.min_saving }}% compared with riding alone.</li>
           </ul>
           {% if batch.matched %}
             <p>Matching has run for this batch.</p>

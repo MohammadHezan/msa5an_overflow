@@ -39,12 +39,12 @@ def matched(client):
     return client
 
 
-def test_matching_gives_sara_a_shared_ride_at_150(matched):
+def test_matching_gives_sara_a_shared_ride_at_167(matched):
     riders, cars = state(matched)
     assert len(cars) == 5
     sara = riders["Sara"]
     assert sara["status"] == "review"
-    assert sara["share"] == 1500 and sara["solo"] == 4500
+    assert sara["share"] == 1670 and sara["solo"] == 4500
     assert {m["name"] for m in sara["plan"]["members"]} == {"Sara", "Rama", "Huda"}
     assert riders["Zaid"]["status"] == "no_match"
 
@@ -52,7 +52,7 @@ def test_matching_gives_sara_a_shared_ride_at_150(matched):
 def test_page_shows_sara_price(matched):
     riders, _ = state(matched)
     page = matched.get(f"/?view=trips&rider={riders['Sara']['id']}").get_data(as_text=True)
-    assert "JOD 1.50" in page
+    assert "JOD 1.67" in page
 
 
 def test_confirm_records_the_plan(matched):
@@ -77,8 +77,8 @@ def test_decline_reprices_the_rest_of_the_car(matched):
     assert riders["Huda"]["status"] == "declined"
     assert riders["Huda"]["plan"] is None
     assert {m["name"] for m in riders["Sara"]["plan"]["members"]} == {"Sara", "Rama"}
-    assert riders["Sara"]["share"] == 2100
-    assert riders["Rama"]["share"] == 2450
+    assert riders["Sara"]["share"] == 2387
+    assert riders["Rama"]["share"] == 2785
     assert riders["Sara"]["status"] == "changed"  # her confirmation no longer matches the new price
     for name in ("Sara", "Rama"):
         assert riders[name]["share"] <= riders[name]["solo"]
