@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#EC008C">
+  <title>Jeeny · Campus Connect</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="{{ url_for('static', filename='jeeny-icon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='jeeny.css') }}">
+  <script src="{{ url_for('static', filename='trip.js') }}" defer></script>
+</head>
+<body class="jeeny">
+  {% macro token() %}<input type="hidden" name="csrf" value="{{ session.csrf }}">{% endmacro %}
+  {% macro avatar(rider, you=false) %}<span class="avatar{% if you %} you{% endif %}{% if rider.woman %} w{% endif %}" title="{{ rider.name }}">{{ rider.name[0] }}</span>{% endmacro %}
+  {% set plan = selected.plan if selected and batch.matched else none %}
+
+  <div class="stage">
+    <aside class="side">
+      <img class="logo" src="{{ url_for('static', filename='jeeny-logo.png') }}" alt="Jeeny">
+      <h1>Campus Connect</h1>
+      <p>A proposed shared-ride option in Jeeny's ride section. Students leaving the same campus in the same direction share one car and split the fare.</p>
+      <div class="side-card">
+        <p class="side-label">View the app as</p>
+        <div class="people">
+          <a href="{{ url_for('index') }}" class="person{% if not selected %} on{% endif %}">New student</a>
+          {% for rider in riders %}
+            <a href="{{ url_for('index', rider=rider.id) }}" class="person{% if selected and rider.id == selected.id %} on{% endif %}">{{ rider.name }}</a>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="side-links">
+        <a href="{{ url_for('index', view='match') }}">Operator: matching</a>
+        <a href="{{ url_for('index', view='trips') }}">Operator: all cars</a>
+      </div>
+      <form action="{{ url_for('reset') }}" method="post" class="side-reset">
+        {{ token() }}
+        <button name="mode" value="seeded" type="submit">Reload sample afternoon</button>
+        <button name="mode" value="empty" type="submit">Start empty</button>
+      </form>
+      <p class="fine">Demo · simulated map, distances and fares · no real rides or payments</p>
+    </aside>
+
+    <div class="phone" role="main">
+      <div class="screen">
+        <div class="statusbar"><span>{{ "16:02" }}</span><span class="sb-icons" aria-hidden="true">▂▄▆ ◔ ▮</span></div>
+
+        {# ---------- Map ---------- #}
+        <div class="map" aria-hidden="{{ 'false' if plan else 'true' }}">
+          <svg class="streets" viewBox="0 0 390 520" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <rect width="390" height="520" fill="#EEF0EC"/>
+            <path d="M-10 120 Q120 140 200 90 T400 60" class="road big"/>
+            <path d="M40 -10 Q70 200 30 530" class="road"/>
+            <path d="M-10 300 Q150 280 240 330 T400 360" class="road big"/>
+            <path d="M260 -10 Q230 160 300 260 T280 530" class="road"/>
+            <path d="M120 -10 L150 530" class="road thin"/>
+            <path d="M-10 210 L400 190" class="road thin"/>
+            <path d="M-10 430 L400 450" class="road thin"/>
+            <path d="M330 -10 L360 530" class="road thin"/>
+            <ellipse cx="320" cy="150" rx="46" ry="30" class="park"/>
+            <ellipse cx="80" cy="390" rx="40" ry="26" class="park"/>
+            <rect x="170" y="200" width="60" height="44" rx="8" class="block"/>
+          </svg>
+          {% if plan %}
+            {% set m = route_map(plan.gate, plan.members | map(attribute="stop") | list, width=390, height=210, pad=40) %}
+            <svg class="route-layer" viewBox="0 0 {{ m.width }} {{ m.height }}" role="img"
+                 aria-label="Simulated map: pickup at {{ plan.gate }}, then {{ plan.members | map(attribute='stop') | join(', ') }}">
+              <polyline points="{{ m.path }}" class="leg"/>
+              {% for point in m.points %}
+                {% set member = plan.members[loop.index0 - 1] if not loop.first else none %}
+                {% set right = point.x > m.width * 0.6 %}
+                <g class="{{ 'gate' if loop.first else 'stop' }}{% if member and member.id == selected.id %} you{% endif %}">
+                  <circle cx="{{ point.x }}" cy="{{ point.y }}" r="{{ 9 if loop.first else 10 }}"/>
+                  {% if not loop.first %}<text x="{{ point.x }}" y="{{ point.y + 4 }}" class="num">{{ loop.index0 }}</text>{% endif %}
+                  <text x="{{ point.x + (-15 if right else 15) }}" y="{{ point.y + 4 }}" text-anchor="{{ 'end' if right else 'start' }}" class="label">{{ point.name }}</text>
+                </g>
+              {% endfor %}
+            </svg>
+          {% else %}
+            <div class="you-pin" aria-hidden="true"><span></span></div>
+            <span class="car c1" aria-hidden="true"></span><span class="car c2" aria-hidden="true"></span><span class="car c3" aria-hidden="true"></span>
+          {% endif %}
+        </div>
+
+        {# ---------- Top bar ---------- #}
+        <div class="topbar">
+          {% if selected or screen == "book" %}
+            <a class="round" href="{{ url_for('index') }}" aria-label="Back">←</a>
+          {% else %}
+            <span class="round" aria-hidden="true">◡</span>
+          {% endif %}
+          <div class="pill">
+            <span class="dot"></span>
+            <span><strong>{{ plan.gate if plan else "Main gate" }}</strong><small>Amman campus</small></span>
+          </div>
+        </div>
+
+        {% for message in get_flashed_messages() %}<p class="toast" role="status">{{ message }}</p>{% endfor %}
+
+        {# ---------- Bottom sheets ---------- #}
+        {% if not selected and screen != "book" %}
+          <section class="sheet home">
+            <div class="services">
+              <a class="service new" href="{{ url_for('index', screen='book') }}">
+                <span class="ico" aria-hidden="true">
+                  <svg viewBox="0 0 48 48"><circle cx="17" cy="18" r="6"/><circle cx="31" cy="18" r="6"/><path d="M6 38c1-7 6-11 11-11s10 4 11 11M20 38c1-7 6-11 11-11s10 4 11 11"/></svg>
+                </span>
+                <span>Campus</span><em>New</em>
+              </a>
+              <span class="service"><span class="ico" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M8 30l4-10c1-2 2-3 4-3h16c2 0 3 1 4 3l4 10v7H8z"/><circle cx="15" cy="35" r="3.5" class="f"/><circle cx="33" cy="35" r="3.5" class="f"/></svg></span><span>Economy</span></span>
+              <span class="service"><span class="ico" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M10 18l14-7 14 7v16l-14 7-14-7z M10 18l14 7 14-7 M24 25v16"/></svg></span><span>Send</span></span>
+              <span class="service"><span class="ico" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M10 18l14-7 14 7v16l-14 7-14-7z M24 11v14 M18 19l6 6 6-6"/></svg></span><span>Receive</span></span>
+            </div>
+            <a class="promo" href="{{ url_for('index', screen='book') }}">
+              <span class="promo-ico" aria-hidden="true">%</span>
+              <span><strong>Heading home after class?</strong><small>Share a car with students going your way and pay less.</small></span>
+              <span aria-hidden="true">›</span>
+            </a>
+            <a class="whereto" href="{{ url_for('index', screen='book') }}"><span aria-hidden="true">⌕</span> Where to? <span class="skip">Skip</span></a>
+          </section>
+
+        {% elif not selected %}
+          <section class="sheet tall">
+            <span class="grab" aria-hidden="true"></span>
+            {% if batch.matched %}
+              <h2>Booking is closed</h2>
+              <p class="sub">Today's cars are already matched. Pick a student on the left, or start a new batch.</p>
+            {% else %}
+              <div class="sheet-head">
+                <h2>Campus Connect</h2>
+                <span class="badge">Shared</span>
+              </div>
+              <p class="sub">One pickup at the gate. One car. Pay only for your part of the trip.</p>
+              <form action="{{ url_for('submit_request') }}" method="post" id="trip-form" class="book">
+                {{ token() }}
+                <div class="trip-input">
+                  <span class="line" aria-hidden="true"><i class="a"></i><i class="b"></i></span>
+                  <div class="fields-col">
+                    <div class="from"><small>Pickup</small>Campus gate · we'll tell you which one</div>
+                    <label class="to"><small>Drop-off</small>
+                      <select name="stop" required>
+                        {% for direction, corridor in corridors.items() %}
+                          <optgroup label="{{ direction }} · {{ corridor.gate }}">
+                            {% for stop in corridor.stops %}<option value="{{ stop }}"{% if stop == "Dabouq" %} selected{% endif %}>{{ stop }}</option>{% endfor %}
+                          </optgroup>
+                        {% endfor %}
+                      </select>
+                    </label>
+                  </div>
+                </div>
+                <div class="row2">
+                  <label class="box"><small>Your name</small><input name="name" maxlength="40" placeholder="Sara" required></label>
+                  <label class="box"><small>Class ends</small><input type="time" name="class_end" value="16:00" min="08:00" max="21:00" required></label>
+                </div>
+                <p class="estimate-note">Prices shown are estimates and may vary</p>
+                <ul class="options">
+                  <li class="opt on">
+                    <span class="opt-ico" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="17" cy="18" r="6"/><circle cx="31" cy="18" r="6"/><path d="M6 38c1-7 6-11 11-11s10 4 11 11M20 38c1-7 6-11 11-11s10 4 11 11"/></svg></span>
+                    <span class="opt-name">Campus Connect<small>Shared with 2 students going your way</small></span>
+                    <span class="opt-price">~<span id="shared">—</span><small>one pickup</small></span>
+                  </li>
+                  <li class="opt">
+                    <span class="opt-ico" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M8 30l4-10c1-2 2-3 4-3h16c2 0 3 1 4 3l4 10v7H8z"/><circle cx="15" cy="35" r="3.5" class="f"/><circle cx="33" cy="35" r="3.5" class="f"/></svg></span>
+                    <span class="opt-name">Economy<small>Riding alone</small></span>
+                    <span class="opt-price muted">~<span id="solo">—</span><small>for comparison</small></span>
+                  </li>
+                </ul>
+                <script type="application/json" id="estimates">{{ estimates | tojson }}</script>
+                <div class="toggles">
+                  <label class="toggle"><span>I'm a woman student</span><input type="checkbox" name="woman" value="yes" id="woman"><i></i></label>
+                  <label class="toggle"><span>Ride with women students only</span><input type="checkbox" name="women_only" value="yes" id="women-only" disabled><i></i></label>
+                </div>
+                <div class="payrow"><span>💵 Cash ›</span><span class="sep"></span><span>🏷 Add promo</span></div>
+                <button class="cta" type="submit">Find students going my way</button>
+              </form>
+            {% endif %}
+          </section>
+
+        {% elif not batch.matched %}
+          <section class="sheet">
+            <span class="grab" aria-hidden="true"></span>
+            <div class="searching" aria-hidden="true"><span></span><span></span><span></span></div>
+            <h2>Finding students going your way</h2>
+            <p class="sub">{{ selected.name }}, your class ends at {{ selected.class_end }}. We're grouping students heading toward {{ selected.stop }}. You'll see your pickup and price before you pay anything.</p>
+            <div class="summary">
+              <div><small>Drop-off</small><strong>{{ selected.stop }}</strong></div>
+              <div><small>Riding alone</small><strong>{{ selected.solo | jod }}</strong></div>
+              {% if selected.women_only %}<div><small>Riders</small><strong>Women only</strong></div>{% endif %}
+            </div>
+            <a class="ghost" href="{{ url_for('index', view='match') }}">Demo: run matching as the operator ›</a>
+          </section>
+
+        {% elif selected.status == "declined" %}
+          <section class="sheet">
+            <span class="grab" aria-hidden="true"></span>
+            <h2>You left this ride</h2>
+            <p class="sub">The other students were shown an updated plan.</p>
+            <a class="cta" href="{{ url_for('index') }}">Back to home</a>
+          </section>
+
+        {% elif plan.shared %}
+          <section class="sheet tall">
+            <span class="grab" aria-hidden="true"></span>
+            {% if selected.status in ("confirmed",) %}
+              <div class="booked">✓ Booked</div>
+              <h2>See you at the {{ plan.gate | lower }} at {{ plan.pickup }}</h2>
+            {% else %}
+              <p class="eyebrow">Your shared ride</p>
+              <h2>Meet at the {{ plan.gate | lower }} at {{ plan.pickup }}</h2>
+            {% endif %}
+            <div class="riders">
+              <span class="stack">{% for m in plan.members %}{{ avatar(m, m.id == selected.id) }}{% endfor %}</span>
+              <span>With {{ plan.members | rejectattr("id", "equalto", selected.id) | map(attribute="name") | names }}{% if plan.women_only %} · <b class="w-tag">Women only</b>{% endif %}</span>
+            </div>
+            <div class="price-card">
+              <div><small>Your share</small><strong>{{ selected.share | jod }}</strong></div>
+              <div class="was"><small>Alone</small><s>{{ selected.solo | jod }}</s></div>
+              <div class="saved">You save {{ (selected.solo - selected.share) | jod }}</div>
+            </div>
+            <ol class="stops">
+              <li class="pick"><span class="pin"></span><span><strong>{{ plan.gate }}</strong><small>Pickup {{ plan.pickup }} · everyone gets in together</small></span></li>
+              {% for m in plan.members %}
+                <li{% if m.id == selected.id %} class="me"{% endif %}>
+                  <span class="pin">{{ loop.index }}</span>
+                  <span><strong>{{ m.stop }}</strong><small>{{ m.name }}{% if m.id == selected.id %} (you){% endif %} · {{ m.km }} km</small></span>
+                  <span class="amt">{{ plan.shares[m.id] | jod }}</span>
+                </li>
+              {% endfor %}
+            </ol>
+            <p class="fine-print">The car fare of {{ plan.car_fare | jod }} is split by distance, so students who get out earlier pay less.</p>
+            {% if selected.status == "changed" %}<p class="warn">Someone left this car, so your plan changed. Review it and confirm again.</p>{% endif %}
+            {% if selected.status in ("review", "changed") %}
+              <div class="sheet-actions">
+              <form action="{{ url_for('respond', rider_id=selected.id, action='confirm') }}" method="post">{{ token() }}
+                <input type="hidden" name="plan" value="{{ selected.signature }}">
+                <button class="cta" type="submit">Confirm for {{ selected.share | jod }}</button>
+              </form>
+              <form action="{{ url_for('respond', rider_id=selected.id, action='decline') }}" method="post">{{ token() }}
+                <button class="link-btn" type="submit">Decline</button>
+              </form>
+              </div>
+            {% endif %}
+          </section>
+
+        {% else %}
+          <section class="sheet">
+            <span class="grab" aria-hidden="true"></span>
+            {% if selected.status == "solo_confirmed" %}
+              <div class="booked">✓ Booked</div>
+              <h2>Economy ride at {{ plan.pickup }}</h2>
+              <p class="sub">Your driver will meet you at the {{ plan.gate | lower }}.</p>
+            {% else %}
+              <h2>No one's going your way yet</h2>
+              <p class="sub">No student heading toward {{ selected.stop }} finishes within {{ rules.gap }} minutes of {{ selected.class_end }}{% if selected.women_only %} with women-only matching{% endif %}.</p>
+            {% endif %}
+            <ul class="options single">
+              <li class="opt on">
+                <span class="opt-ico" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M8 30l4-10c1-2 2-3 4-3h16c2 0 3 1 4 3l4 10v7H8z"/><circle cx="15" cy="35" r="3.5" class="f"/><circle cx="33" cy="35" r="3.5" class="f"/></svg></span>
+                <span class="opt-name">Economy<small>{{ plan.gate }} · {{ plan.pickup }}</small></span>
+                <span class="opt-price">{{ selected.solo | jod }}</span>
+              </li>
+            </ul>
+            {% if selected.status in ("no_match", "changed") %}
+              <form action="{{ url_for('respond', rider_id=selected.id, action='confirm') }}" method="post">{{ token() }}
+                <input type="hidden" name="plan" value="{{ selected.signature }}">
+                <button class="cta" type="submit">Book Economy for {{ selected.solo | jod }}</button>
+              </form>
+              <form action="{{ url_for('respond', rider_id=selected.id, action='decline') }}" method="post">{{ token() }}
+                <button class="link-btn" type="submit">Not now</button>
+              </form>
+            {% endif %}
+          </section>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

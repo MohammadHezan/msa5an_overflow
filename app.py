@@ -36,7 +36,7 @@ FIXTURE = (
     ("Zaid", "18:00", "Marka", False, False),
 )
 MAX_REQUESTS = 40
-VIEWS = {"book": "Book", "match": "Matching", "trips": "Trips"}
+VIEWS = {"book": "Student app", "match": "Matching", "trips": "Trips"}
 
 
 def database():
@@ -172,7 +172,7 @@ def index():
         "confirmed": sum(1 for r in riders if r["status"] in ("confirmed", "solo_confirmed")),
     }
     return render_template(
-        "index.html", batch=batch, date_label=date.fromisoformat(batch["trip_date"]).strftime("%a, %d %b"),
+        "phone.html" if active == "book" else "index.html", screen=request.args.get("screen", "home"), batch=batch, date_label=date.fromisoformat(batch["trip_date"]).strftime("%a, %d %b"),
         riders=riders, cars=cars, active=active, views=VIEWS, selected=selected, summary=summary,
         corridors=CORRIDORS, estimates={stop: {"solo": solo_fare(stop), "shared": sample_share(stop)} for stop in STOPS},
         rules={"seats": SEATS, "gap": MAX_GAP, "walk": WALK, "base": BASE_FARE, "per_km": PER_KM,
