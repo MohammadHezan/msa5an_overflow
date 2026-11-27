@@ -1,10 +1,11 @@
 import os
+import re
 import secrets
 from datetime import date
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
+from flask import Flask, abort, flash, jsonify, redirect, render_template, request, session, url_for
 
 from api import api
 from sharing import CORRIDORS, route_map
@@ -102,6 +103,7 @@ def index():
         driver_check=session.pop("driver_check", None) if active == "trips" else None,
         captains=captain_sheets(riders, cars) if active == "captains" else None, now=clock(batch),
         simulation=run_simulation() if active == "simulation" else None,
+        student_verified=session.get("student_verified", True), student_name="Sara",
     )
 
 
@@ -117,6 +119,12 @@ def check_form():
 @app.post("/requests")
 def submit_request():
     form = request.form
+    if form.get("ride", "campus") != "campus":
+        flash("Demo only. This prototype books Campus Connect rides only.")
+        return redirect(url_for("index", screen="book"))
+    if not session.get("student_verified", True):
+        flash("Verify your university email to choose Campus Connect. This is a demo check only.")
+        return redirect(url_for("index", screen="book", ride="campus"))
     direction = form.get("direction", "from_campus")
     class_end, class_start, stop = form.get("class_end", ""), form.get("class_start", ""), form.get("stop", "")
     # Older forms sent woman/women_only checkboxes instead of gender/preference
@@ -153,6 +161,19 @@ def submit_request():
     elif rider["status"] == "review":
         flash(f"{name} matched with a student who was waiting.")
     return redirect(url_for("index", rider=rider_id))
+
+
+@app.post("/demo/student-verification")
+def demo_student_verification():
+    """Session-only prototype check. No email is stored or sent; this is not real identity verification."""
+    if request.form.get("action") == "reset":
+        session["student_verified"] = False
+        return jsonify(verified=False)
+    email = request.form.get("email", "").strip()
+    if len(email) > 254 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        return jsonify(error="Enter a valid university email for the demo."), 400
+    session["student_verified"] = True
+    return jsonify(verified=True)
 
 
 @app.post("/match")

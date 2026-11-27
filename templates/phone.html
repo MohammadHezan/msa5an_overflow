@@ -122,18 +122,24 @@
         {% for message in get_flashed_messages() %}<p class="toast" role="status">{{ message }}</p>{% endfor %}
 
         {# ---------- Bottom sheets ---------- #}
-        {% if not selected and screen != "book" %}
+        {% if not selected and screen == "menu" %}
+          <section class="sheet app-menu">
+            <span class="grab" aria-hidden="true"></span>
+            <div class="menu-profile"><span class="profile-mark">{{ (student_name|default("Sara"))[0] }}</span><span><strong>{{ student_name|default("Sara") }}</strong><small>{{ "Verified student · Cedar Campus" if student_verified|default(true) else "Student profile" }}</small></span></div>
+            <nav class="menu-links" aria-label="App menu">
+              <a href="{{ url_for('index', screen='book') }}">My Rides <span>›</span></a><a href="{{ url_for('index', screen='book') }}">Notifications <span>›</span></a><a href="{{ url_for('index', screen='book') }}">Promotions <span>›</span></a><a href="{{ url_for('index', screen='book') }}">Wallet <span>›</span></a><a href="{{ url_for('index', screen='book') }}">Help Center <span>›</span></a>
+            </nav>
+            <a class="campus-menu-card" href="{{ url_for('index', screen='book', ride='campus') }}"><span class="campus-cap">CC</span><span><strong>Campus Connect</strong><small>Shared rides for students</small><em>NEW</em></span><b>›</b></a>
+            <a class="menu-back" href="{{ url_for('index') }}">‹ Back to Jeeny</a>
+          </section>
+        {% elif not selected and screen != "book" %}
           <section class="sheet home">
+            <div class="home-head"><a class="home-menu" href="{{ url_for('index', screen='menu') }}" aria-label="Open menu"><span></span><span></span><span></span></a><img src="{{ url_for('static', filename='jeeny-logo.png') }}" alt="Jeeny"><a class="home-bell" href="{{ url_for('index', screen='menu') }}" aria-label="Notifications">⌑</a></div>
+            <div class="home-promo-strip"><b>MAX</b><strong>Save up to 80 JOD</strong><span>›</span></div>
             <div class="services">
-              <a class="service new" href="{{ url_for('index', screen='book') }}">
-                <span class="ico" aria-hidden="true">
-                  <svg viewBox="0 0 48 48"><circle cx="17" cy="18" r="6"/><circle cx="31" cy="18" r="6"/><path d="M6 38c1-7 6-11 11-11s10 4 11 11M20 38c1-7 6-11 11-11s10 4 11 11"/></svg>
-                </span>
-                <span>Campus</span><em>New</em>
-              </a>
-              <span class="service"><span class="ico" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M8 30l4-10c1-2 2-3 4-3h16c2 0 3 1 4 3l4 10v7H8z"/><circle cx="15" cy="35" r="3.5" class="f"/><circle cx="33" cy="35" r="3.5" class="f"/></svg></span><span>Economy</span></span>
-              <span class="service"><span class="ico" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M10 18l14-7 14 7v16l-14 7-14-7z M10 18l14 7 14-7 M24 25v16"/></svg></span><span>Send</span></span>
-              <span class="service"><span class="ico" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M10 18l14-7 14 7v16l-14 7-14-7z M24 11v14 M18 19l6 6 6-6"/></svg></span><span>Receive</span></span>
+              {% for service, ride in [("Ride", "economy"), ("Comfort", "comfort"), ("Airport", "taxi"), ("Box", "box")] %}
+              <a class="service" href="{{ url_for('index', screen='book') }}"><span class="ico"><img src="{{ url_for('static', filename='rides/' ~ ride ~ '.webp') }}" alt=""></span><span>{{ service }}</span></a>
+              {% endfor %}
             </div>
             <a class="promo" href="{{ url_for('index', screen='book') }}">
               <span class="promo-ico" aria-hidden="true">%</span>
@@ -141,9 +147,68 @@
               <span aria-hidden="true">›</span>
             </a>
             <a class="whereto" href="{{ url_for('index', screen='book') }}"><span aria-hidden="true">⌕</span> Where to? <span class="skip">Skip</span></a>
+            <div class="home-recent"><span>◷</span><span><strong>Cedar Campus</strong><small>Amman, Jordan</small></span><button type="button" aria-label="Save Cedar Campus">♡</button></div>
+            <a class="campus-home-entry" href="{{ url_for('index', screen='book', ride='campus') }}"><span class="campus-cap">CC</span><span><strong>Campus Connect</strong><small>Shared rides for students</small></span><b>›</b></a>
           </section>
 
-        {% elif not selected %}
+        {% elif not selected and screen == "book" %}
+          <form action="{{ url_for('submit_request') }}" method="post" id="trip-form" class="sheet rides">
+            {{ token() }}
+            <div class="ride-sheet-head">
+              <a class="round square rides-back" href="{{ url_for('index') }}" aria-label="Back to home">‹</a>
+              <div><strong>Where to?</strong><small>Choose a destination to see fares</small></div>
+              <a class="profile-reset" href="#" id="profile-control" aria-label="Reset demo verification for {{ student_name|default('Sara') }}">{{ student_name|default("Sara") }}</a>
+            </div>
+            <label class="destination-box" for="trip-stop"><span class="destination-pin" aria-hidden="true"></span><span><small>Drop-off</small><select name="stop" id="trip-stop" required>
+              {% for direction, corridor in corridors.items() %}<optgroup label="{{ direction }} · {{ corridor.gate }}">{% for stop in corridor.stops %}<option value="{{ stop }}"{% if stop == "Dabouq" %} selected{% endif %}>{{ stop }}</option>{% endfor %}</optgroup>{% endfor %}
+            </select></span><b aria-hidden="true">⌄</b></label>
+            <p class="rides-note">{% if batch.matched %}Cars are already matched: we'll add you to a car on its way or a student waiting for a match.{% else %}Choose a ride · prices are estimates{% endif %}</p>
+            <div class="ride-list">
+              {% set stop = "Dabouq" %}{% set initial = estimates.get(stop, {}) %}
+              {% for key, label, eta in [("economy", "Economy", "2 min"), ("taxi", "Taxi", "1 min"), ("comfort", "Jeeny Comfort", "7 min")] %}
+                {% if key == "economy" %}{% set price = initial.get("solo", 0) %}{% elif key == "taxi" %}{% set price = initial.get("taxi", initial.get("solo", 0)) %}{% else %}{% set price = initial.get("comfort", (initial.get("solo", 0) * 1.3)|int) %}{% endif %}
+                <label class="ride"><input type="radio" name="ride" value="{{ key }}"{% if loop.first %} checked{% endif %}><img src="{{ url_for('static', filename='rides/' ~ key ~ '.webp') }}" alt=""><span class="ride-name">{{ label }}</span><span class="ride-price"><b data-price="{{ key }}">{{ price | jod }}</b><small>{{ eta }}</small></span></label>
+              {% endfor %}
+              {% set campus_price = initial.get("shared", 0) %}
+              <label class="ride campus-ride{% if not student_verified|default(true) %} locked{% endif %}" id="campus-row">
+                {% if student_verified|default(true) %}<input type="radio" name="ride" value="campus" id="ride-campus"{% if request.args.get("ride") == "campus" %} checked{% endif %}>{% endif %}
+                <img src="{{ url_for('static', filename='rides/campus.webp') }}" alt=""><span class="ride-name">Campus Connect <em>Students</em><small>{% if student_verified|default(true) %}Share with students going your way{% else %}Verify your university email{% endif %}</small></span>
+                <span class="campus-price"><b>from <span id="shared">{{ campus_price | jod }}</span></b><s id="campus-solo">{{ initial.get("solo", 0) | jod }}</s><small id="campus-saving">save ~{{ initial.get("save_percent", ((100 * (initial.get("solo", 0) - campus_price) / initial.get("solo", 1))|round|int)) }}%</small></span>
+                {% if not student_verified|default(true) %}<button class="verify-row-button" type="button" id="open-verification">Verify</button>{% endif %}
+              </label>
+              {% set price = initial.get("box", initial.get("solo", 0)) %}
+              <label class="ride"><input type="radio" name="ride" value="box"><img src="{{ url_for('static', filename='rides/box.webp') }}" alt=""><span class="ride-name">Box</span><span class="ride-price"><b data-price="box">{{ price | jod }}</b><small>4 min</small></span></label>
+            </div>
+            <script type="application/json" id="estimates">{{ estimates | tojson }}</script>
+            <div class="rides-foot"><p class="demo-note" id="demo-note" role="status"></p><button class="cta" type="button" id="confirm">Confirm Economy</button></div>
+            <section class="campus-details" id="campus-details" aria-labelledby="details-title" hidden>
+              <div class="details-heading"><button type="button" class="round square" id="details-back" aria-label="Back to ride options">‹</button><div><h2 id="details-title">Campus Connect</h2><small>Verified student · Cedar Campus</small></div></div>
+              <div class="details-scroll">
+                <fieldset class="choice direction-choice"><legend>Direction</legend><label><input type="radio" name="direction" value="to_campus" disabled><span>To campus</span></label><label><input type="radio" name="direction" value="from_campus" checked disabled><span>From campus</span></label></fieldset>
+                <div class="row2"><label class="box"><small>Your name</small><input name="name" maxlength="40" value="{{ student_name|default('Sara') }}" required disabled></label><label class="box" id="class-end-wrap"><small>Class ends at</small><input type="time" name="class_end" value="16:00" min="08:00" max="21:00" required disabled></label><label class="box" id="class-start-wrap" hidden><small>Class starts at</small><input type="time" name="class_start" value="08:30" min="07:00" max="23:00" required disabled></label></div>
+                <div class="pickup-preview" id="pickup-preview">Walk 1 min to Cedar Campus Gate street</div>
+                <fieldset class="choice three gender-choice"><legend>I am</legend><label><input type="radio" name="gender" value="woman" checked disabled><span>Woman</span></label><label><input type="radio" name="gender" value="man" disabled><span>Man</span></label></fieldset>
+                <fieldset class="choice three"><legend>Ride with</legend><label><input type="radio" name="preference" value="mixed" checked disabled><span>Anyone</span></label><label><input type="radio" name="preference" value="women" id="pref-women" disabled><span>Women only</span></label><label><input type="radio" name="preference" value="men" id="pref-men" disabled><span>Men only</span></label></fieldset>
+                <p class="slow-note" id="slow-note" hidden>Matching may take longer.</p>
+                {% if not batch.matched %}
+                <fieldset class="choice three"><legend>Book with friends</legend><label><input type="radio" name="friends" value="" checked disabled><span>Just me</span></label><label><input type="radio" name="friends" value="start" disabled><span>Start a group</span></label><label><input type="radio" name="friends" value="join" disabled><span>Join a group</span></label></fieldset>
+                <div class="friends-start" id="friends-start" hidden><label class="toggle"><span>Let others fill empty seats</span><input type="checkbox" name="group_open" value="yes" checked disabled><i></i></label><p class="details-note">Share your group code with up to {{ rules.seats }} friends travelling the same way.</p></div>
+                <label class="box wide" id="friends-join" hidden><small>Group code</small><input name="group_code" maxlength="10" placeholder="GR-48" autocapitalize="characters" disabled></label>
+                {% endif %}
+                <div class="estimate-box"><strong>Your share about <b id="detail-shared">{{ campus_price | jod }}</b> <span>· alone <s id="detail-solo">{{ initial.get("solo", 0) | jod }}</s></span></strong><small>Exact share shown before you confirm. You never pay more than riding alone.</small></div>
+              </div>
+              <div class="details-actions"><button class="cta" id="find-shared" type="submit" disabled>Find my shared ride</button></div>
+            </section>
+          </form>
+          <form id="verification-form" class="verification-panel" hidden>
+            {{ token() }}
+            <div class="details-heading"><button type="button" class="round square" id="verification-back" aria-label="Close verification">‹</button><div><h2>Verify your student status</h2><small>Cedar Campus</small></div></div>
+            <label class="box wide"><small>University email</small><input id="verification-email" type="email" autocomplete="email" placeholder="sara@cedar.edu" required></label>
+            <p class="details-note">Demo verification only. No email will be sent.</p><p class="verification-message" id="verification-message" role="status"></p>
+            <button type="button" class="cta" id="verify-submit">Verify email</button>
+          </form>
+
+        {% elif false %}
           <form action="{{ url_for('submit_request') }}" method="post" id="trip-form" class="sheet rides">
             {{ token() }}
             <p class="rides-note">{% if batch.matched %}Cars are already matched: we'll add you to a car on its way or a student waiting for a match.{% else %}Prices shown are estimates and may vary{% endif %}</p>

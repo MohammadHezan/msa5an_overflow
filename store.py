@@ -4,6 +4,7 @@ Both the HTML form routes (app.py) and the JSON API (api.py) call these function
 so the web dashboard and the phone follow one set of rules on one batch.
 """
 import hashlib
+import math
 import random
 import secrets
 import sqlite3
@@ -797,9 +798,28 @@ def bind_token(db, token_hash, rider_id, client_request_id):
     )
 
 
-def fare_estimates():
-    """Each drop-off's solo fare and a sample share for three riders, in fils."""
-    return {stop: {"solo": solo_fare(stop), "shared": sample_share(stop)} for stop in STOPS}
+def fare_estimates(student_name="Sara"):
+    """Destination estimates for the chooser; comparison services never book rides."""
+    result = {}
+    for stop, info in STOPS.items():
+        solo, shared = solo_fare(stop), sample_share(stop)
+        pickups = {}
+        for direction in ("from_campus", "to_campus"):
+            corridor, _, side, _, _ = _street_location(student_name, stop, direction)
+            walk = min(side, config.MAX_WALK_M)
+            pickups[direction] = {
+                "walk_meters": walk,
+                "walk_minutes": math.ceil(walk / config.WALK_SPEED / 60),
+                "street": "Cedar Campus street" if direction == "from_campus" else f"{corridor} corridor street",
+            }
+        result[stop] = {
+            "solo": solo, "shared": shared,
+            "taxi": 390 + round(280 * info["km"]),
+            "comfort": round(solo * 13 / 10), "box": solo,
+            "save_percent": round((solo - shared) * 100 / solo) if solo else 0,
+            "pickups": pickups,
+        }
+    return result
 
 
 RULES = {"seats": SEATS, "gap": MAX_GAP, "walk": WALK, "base": BASE_FARE, "per_km": PER_KM,
