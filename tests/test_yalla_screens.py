@@ -135,3 +135,36 @@ def test_stale_confirm_is_refused(client):
 
 def test_ride_without_booking_goes_home(client):
     assert client.get("/yalla/ride").location == "/yalla"
+
+
+def test_leave_now_cap_then_students_join_on_the_way_and_fare_drops(client):
+    plan(client)
+    page = text(client.get("/yalla/now"))
+    assert "Leave now. Save if matched." in page
+    post(client, "/yalla/now")
+    rider = my_rider(client)
+    assert rider["plan"]["go"] and rider["share"] == rider["solo"]
+    assert "Meet on Cedar Campus street" in text(client.get("/yalla/ride"))
+    client.get("/yalla/ride/started")
+    assert "Heading to Khalda" in text(client.get("/yalla/ride"))
+    post(client, "/yalla/ride/demo-joiner")
+    assert "Share the ride with" in text(client.get("/yalla/ride"))
+    joined = my_rider(client)
+    assert joined["share"] < rider["solo"]
+    post(client, "/yalla/ride/seen")
+    assert "Two students. One ride." in text(client.get("/yalla/ride"))
+    post(client, "/yalla/ride/finish")
+    receipt = text(client.get("/yalla/ride"))
+    assert "Your share went down." in receipt and my_rider(client)["status"] == "arrived"
+
+
+def test_keep_my_route_turns_the_joiner_down(client):
+    plan(client)
+    post(client, "/yalla/now")
+    client.get("/yalla/ride/started")
+    post(client, "/yalla/ride/demo-joiner")
+    post(client, "/yalla/ride/keep")
+    rider = my_rider(client)
+    assert len(rider["plan"]["members"]) == 1 and rider["share"] == rider["solo"]
+    post(client, "/yalla/ride/finish")
+    assert "Home, at the fare you chose." in text(client.get("/yalla/ride"))

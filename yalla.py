@@ -508,6 +508,9 @@ def go_ride(batch, rider, context):
     seen = session.get("yalla_seen", [rider["id"]])
     joined = [m for m in plan["members"] if m["id"] not in seen]
     others = [m for m in plan["members"] if m["id"] != rider["id"]]
+    gate = CORRIDORS[plan["corridor"]]["gate"]
+    plan = {**plan, "boards": {rid: (pickup_street(rider) if board == gate else board) for rid, board in plan["boards"].items()}}
+    context["plan"] = plan
     context.update(others=others, cap=rider["solo"], street=plan["boards"][rider["id"]],
                    saving=round((rider["solo"] - rider["share"]) * 100 / rider["solo"]) if rider["solo"] else 0)
     if rider["status"] == "arrived":
@@ -532,6 +535,20 @@ def joined_seen():
     batch, rider = current_rider()
     if rider and rider["plan"]:
         session["yalla_seen"] = [m["id"] for m in rider["plan"]["members"]]
+    return redirect(url_for("yalla.ride"))
+
+
+@yalla.post("/ride/keep")
+def keep_route():
+    """Turn down students who asked to join on the way; the car keeps its current route and fare cap."""
+    batch, rider = current_rider()
+    if rider and (rider["plan"] or {}).get("go"):
+        seen = session.get("yalla_seen", [rider["id"]])
+        new = [m["id"] for m in rider["plan"]["members"] if m["id"] not in seen]
+        db = database()
+        with db:
+            db.executemany("UPDATE riders SET declined = 1, ride_code = NULL, confirmed_plan = NULL WHERE id = ? AND batch = ?",
+                           [(rid, batch["id"]) for rid in new])
     return redirect(url_for("yalla.ride"))
 
 
@@ -588,7 +605,7 @@ DEMO_SCREENS = {
     "05": ("destination", {}), "06": ("pickup_time", {}), "07": ("preferences", {}), "08": ("review", {}),
     "09": ("ride", {}), "10": ("ride", {}), "11": ("fare", {}), "12": ("ride", {}),
     "13": ("ride", {"step": "pickup"}), "14": ("ride", {"step": "code"}), "15": ("ride", {"step": "trip"}),
-    "16": ("ride", {"step": "receipt"}), "34": ("help_page", {}), "36": ("not_available", {"university": "hillcrest"}),
+    "16": ("ride", {"step": "receipt"}), "17": ("leave_now", {}), "34": ("help_page", {}), "36": ("not_available", {"university": "hillcrest"}),
 }
 
 

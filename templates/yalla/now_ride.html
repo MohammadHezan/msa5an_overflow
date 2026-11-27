@@ -1,0 +1,24 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ url_for('yalla.ride', step='pickup') }}{% endblock %}
+{% block body %}
+  {% set dest = rider.stop if rider.direction == "from_campus" else university.campus %}
+  {% if others %}
+    {{ ui.intro("Shared trip in progress", ["", "Two", "Three", "Four"][members | length - 1] ~ " students. One ride.", "You" ~ (", " if others | length > 1 else " & ") ~ (others | map(attribute="name") | join(" & ")) ~ (" · Quiet ride" if quiet else "")) }}
+  {% else %}
+    {{ ui.intro("You’re on your way", "Heading to " ~ dest, "Boarding verified · Sharing is on") }}
+  {% endif %}
+  {{ ui.map(university.campus, plan.boards[others[0].id] if others else "Campus street", dest, members | length - 1 if others else 1) }}
+  {% if others %}
+    {{ ui.price("Your approved maximum", rider.share | jod, ((cap - rider.share) | jod) ~ " less than your solo quote", "Save " ~ saving ~ "%") }}
+    {% if members | length > 2 %}<a class="yr-textlink" href="{{ url_for('yalla.ride', step='legs') }}">How each part of the ride is split</a>{% endif %}
+  {% else %}
+    {{ ui.price("Your current maximum", cap | jod, "It can go down when students join", "Fare cap") }}
+    {{ ui.info("people", "Open to students on your route", "If a compatible student asks for a pickup ahead, you’ll see the stop and your lower fare.") }}
+  {% endif %}
+  <div class="yr-demo-row">
+    <form method="post" action="{{ url_for('yalla.demo_joiner') }}">{{ ui.token() }}<button class="yr-textlink muted" type="submit">Demo: a student asks to join</button></form>
+    <form method="post" action="{{ url_for('yalla.finish_ride') }}">{{ ui.token() }}<button class="yr-textlink muted" type="submit">Demo: finish the ride</button></form>
+  </div>
+{% endblock %}
+{% block foot %}<div class="yr-foot yr-two"><button class="yr-cta ghost" type="button" data-share="{{ url_for('yalla.ride', _external=True) }}">Share trip</button>{{ ui.cta("Get help", url_for('yalla.help_page')) }}</div>{% endblock %}

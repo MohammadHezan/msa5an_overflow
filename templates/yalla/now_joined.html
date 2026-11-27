@@ -1,0 +1,16 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block body %}
+  {% set j = joined[0] %}
+  {{ ui.intro("Student match", "Share the ride with " ~ j.name ~ "?", "Verified student" ~ (" · Women-only group" if plan.only == "women" else " · Men-only group" if plan.only == "men" else "")) }}
+  {{ ui.price("Your new maximum", rider.share | jod, "Down from your approved " ~ (cap | jod) ~ " cap", "Save " ~ saving ~ "%") }}
+  <ul class="yr-people">
+    <li>{{ ui.initial(j.name) }}<span><strong>{{ j.name }}</strong><small>{{ plan.boards[j.id] }}</small></span><em>Joining</em>{{ ui.icon("check") }}</li>
+  </ul>
+  {{ ui.row("pin", "Pickup ahead", plan.boards[j.id] ~ " · on your route") }}
+  {{ ui.info("shield", "Everyone confirms first", "The captain checks " ~ j.name ~ "’s own code at the pickup.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">
+  <form method="post" action="{{ url_for('yalla.keep_route') }}">{{ ui.token() }}{{ ui.cta("Keep my current route", cls="ghost") }}</form>
+  <form method="post" action="{{ url_for('yalla.joined_seen') }}">{{ ui.token() }}{{ ui.cta("Accept pickup · Max " ~ (rider.share | jod)) }}</form>
+</div>{% endblock %}

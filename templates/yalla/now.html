@@ -1,0 +1,16 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block body %}
+  {{ ui.intro("On-the-go sharing", "Leave now. Save if matched.", "No need to wait for a group to fill.") }}
+  {{ ui.price("Your maximum fare", estimate.solo | jod, "If nobody joins, you pay this solo fare", "Fare cap") }}
+  {% if draft.direction == "from_campus" %}
+    {{ ui.row("cap", "From", university.campus ~ " · Campus street", url_for('yalla.destination', next='now')) }}
+    {{ ui.row("pin", "To", draft.stop, url_for('yalla.destination', next='now')) }}
+  {% else %}
+    {{ ui.row("pin", "From", draft.stop ~ " street", url_for('yalla.destination', next='now')) }}
+    {{ ui.row("cap", "To", university.campus, url_for('yalla.destination', next='now')) }}
+  {% endif %}
+  <div class="yr-chips"><span>{{ preference_name }}</span>{% if draft.quiet %}<span>Quiet ride</span>{% endif %}</div>
+  {{ ui.info("shield", "Only pickups on your route", "Students join only from streets the car still passes. Your fare can only go down.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot"><form method="post" action="{{ url_for('yalla.leave_now_book') }}">{{ ui.token() }}{{ ui.cta("Request ride · Max " ~ (estimate.solo | jod)) }}</form></div>{% endblock %}

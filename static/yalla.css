@@ -239,3 +239,4 @@ a.yr-row:hover, label.yr-row:hover { border-color: #D3D3D3; }
 .yr-people li > .yr-initial { display: grid; place-items: center; flex-direction: initial; }
 .yr-facts { gap: 22px; margin: 14px 0; }
 .yr-rate { margin-top: 10px; }
+.yr-demo-row { display: flex; justify-content: space-between; margin-top: auto; }

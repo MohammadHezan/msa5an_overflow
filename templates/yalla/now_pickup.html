@@ -1,0 +1,9 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block body %}
+  {{ ui.intro("Your captain is arriving", "Meet on " ~ street, "Your ride can start with just you.") }}
+  {% include "yalla/_captain.html" %}
+  <div class="yr-code-card"><small>Show only to your captain</small><strong>{{ rider.ride_code }}</strong><span>Your approved fare cap · {{ cap | jod }}</span></div>
+  {{ ui.info("people", "Sharing stays optional", "Compatible students may join from streets ahead. Your fare cap never goes up.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("I’m on the street", url_for('yalla.ride_started')) }}</div>{% endblock %}

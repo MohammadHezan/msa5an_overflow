@@ -1,0 +1,14 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ url_for('yalla.ride') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Fare details", "Pay for the legs you ride", "One " ~ (plan.car_fare | jod) ~ " fare, split as students join.") }}
+  <ol class="yr-stops">
+    {% for leg in legs %}<li><b>{{ loop.index }}</b><span><strong>{{ leg.from }} → {{ leg.to }}</strong><small>{{ leg.aboard | join(" + ") }} · {{ leg.km }} km{% if leg.aboard | length > 1 %} shared{% else %} alone{% endif %}</small></span></li>{% endfor %}
+  </ol>
+  <dl class="yr-facts">
+    {% for m in [rider] + others %}<div><dt>{{ "Your" if m.id == rider.id else m.name ~ "’s" }} total</dt><dd>{{ plan.shares[m.id] | jod }}</dd></div>{% endfor %}
+    <div><dt>Whole car fare</dt><dd>{{ plan.car_fare | jod }}</dd></div>
+  </dl>
+{% endblock %}
+{% block foot %}<div class="yr-foot">{{ ui.cta("Back to my ride", url_for('yalla.ride')) }}</div>{% endblock %}
