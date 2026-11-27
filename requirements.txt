@@ -3,3 +3,4 @@ ortools>=9.12,<10
 python-dotenv>=1.1,<2
 tzdata
 pytest>=8,<9
+segno>=1.6,<2

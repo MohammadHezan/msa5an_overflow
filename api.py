@@ -11,6 +11,8 @@ from datetime import date, datetime, time
 from flask import Blueprint, current_app, jsonify, request
 from werkzeug.exceptions import HTTPException
 
+from join_qr import make_join_qr
+
 from sharing import CORRIDORS, STOPS
 from pooling import config
 from store import (
@@ -466,6 +468,18 @@ def sample_estimate(stop, direction):
 def batch_detail(batch_id):
     db = database()
     return jsonify(batch_json(db, refresh(db, operator_batch(db, batch_id)["id"])))
+
+
+@api.get("/batches/<batch_id>/join-qr")
+def batch_join_qr(batch_id):
+    """Dashboard/operator: the join code as a scannable deep link."""
+    db = database()
+    batch = operator_batch(db, batch_id)
+    code, expires = join_code(db, batch["id"])
+    url, svg = make_join_qr(code)
+    response = jsonify(joinCode=code, joinCodeExpiresAt=expires.isoformat(), joinUrl=url, svg=svg)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @api.post("/batches/<batch_id>/verify-code")

@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from flask import Flask, abort, flash, jsonify, redirect, render_template, request, session, url_for
 
 from api import api
+from join_qr import make_join_qr
 from pooling import config
 from yalla import yalla
 from sharing import CORRIDORS, route_map
@@ -90,10 +91,11 @@ def index():
     except ValueError:
         selected_id = 0
     selected = next((r for r in riders if r["id"] == selected_id), None)
-    code, code_expires = None, None
+    code, code_expires, qr_svg = None, None, None
     if active == "match":
         try:
             code, code_expires = join_code(db, batch["id"])
+            _, qr_svg = make_join_qr(code)
         except Problem:  # The batch was reset by another request while this page loaded
             pass
     return render_template(
@@ -101,7 +103,7 @@ def index():
         batch=batch, date_label=date.fromisoformat(batch["trip_date"]).strftime("%a, %d %b"),
         riders=riders, cars=cars, active=active, views=VIEWS, selected=selected, summary=summarize(riders, cars),
         corridors=CORRIDORS, estimates=fare_estimates(), rules=RULES,
-        join_code=code, join_expires=code_expires, opened=batch["id"] != own_batch_id(),
+        join_code=code, join_expires=code_expires, join_qr_svg=qr_svg, opened=batch["id"] != own_batch_id(),
         api_ttl_hours=int(API_BATCH_TTL.total_seconds() // 3600),
         driver_check=session.pop("driver_check", None) if active == "trips" else None,
         captains=captain_sheets(riders, cars) if active == "captains" else None, now=clock(batch),

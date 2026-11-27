@@ -14,7 +14,7 @@ import { colors } from './src/theme';
 
 /** Join → Verify university → Book → Plan, chosen from what the phone has stored. */
 function Root() {
-  const { session, loaded, clear } = useSession();
+  const { session, loaded, clear, pendingJoin } = useSession();
   if (!loaded) {
     return (
       <View style={styles.center}>
@@ -22,7 +22,7 @@ function Root() {
       </View>
     );
   }
-  if (!session) return <JoinScreen />;
+  if (!session || pendingJoin) return <JoinScreen />;  // A scanned QR opens Join even over an old session
   // A phone that already booked keeps its plan; verification comes before a new booking.
   if (session.riderId === null && !session.verified) return <VerifyScreen session={session} onLeave={clear} />;
   if (session.riderId === null) return <BookScreen session={session} onLeave={clear} />;

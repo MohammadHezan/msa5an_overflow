@@ -174,6 +174,12 @@ The API lives in `api.py`; the HTML routes in `app.py` and the API both call the
 - **Profile gender.** The demo student profile (`/me`, join) has `gender`, `"man"` by default (`DEMO_STUDENT_GENDER` in `pooling/config.py`). The phone offers "Anyone" plus only that gender's option ("Men only" or "Women only") and sends `gender`, `preference` and `friends`. Gender defaults to the profile when not sent; older clients sending `woman`/`womenOnly` still work. Plans expose `only` (`"men"`, `"women"` or `null`); `womenOnly` equals `only == "women"`.
 - **Web demo.** The `/yalla` and dashboard phone student is a man (Omar K) by default. The designed-screen recreations (`/yalla/demo/<screen>`) still set Sara, a woman student.
 
+### As built (open a batch by QR code, 28 Nov 2026)
+
+- `GET /api/v1/batches/{id}/join-qr` (operator token) returns `joinCode`, `joinCodeExpiresAt`, `joinUrl` (`campus-connect://join?code=…`) and an inline `svg` QR. The dashboard's Matching view shows the same QR under the join code.
+- Scanning it with the phone's camera opens the student app at `/join`; the app fills in the code and joins once (`src/joinLink.ts` validates the link). A phone that already has a session can go back to it instead.
+- New dependency: `segno` (pure Python QR encoder).
+
 ### As built (gender locked to the verified profile, 28 Nov 2026)
 
 - `POST /api/v1/batches/{id}/riders` always uses the verified profile's `gender`; a client-sent `gender` or `woman` is ignored, so a man's profile can never ask for women-only (and the reverse). `preference` / `womenOnly` still come from the phone.
