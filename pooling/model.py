@@ -10,18 +10,21 @@ from pooling.places import CAMPUSES, STOPS
 from pooling.pricing import car_fare, split_fare
 
 
+PREFERENCES = {"mixed": None, "women": "woman", "men": "man"}  # ride option -> the gender everyone in the car must have
+
+
 @dataclass(frozen=True)
 class Rider:
     request_id: str
     first_name: str
-    women_only: bool
     campus_id: str
     meeting_point_id: str
     stop_id: str
     leave_after: datetime
     leave_before: datetime
     quoted_share: int | None = None  # set once confirmed; later groupings may never charge more
-    woman: bool = False  # a women-only rider can only share with riders where this is True
+    gender: str | None = None  # "woman" or "man"
+    preference: str = "mixed"  # "mixed" | "women" | "men"
 
 
 @dataclass(frozen=True)
@@ -49,25 +52,41 @@ def _shared_window(riders: Sequence[Rider]) -> tuple[datetime, datetime] | None:
     return start, end
 
 
-def evaluate(riders: Sequence[Rider], strict: bool = True) -> GroupPlan | None:
-    """Return the shortest feasible plan for exactly these riders, or None if no order works.
+def gender_ok(riders: Sequence[Rider]) -> bool:
+    """For every rider who asked for "women" or "men", every rider in the car has that gender."""
+    wanted = {PREFERENCES[r.preference] for r in riders} - {None}
+    return all(all(r.gender == g for r in riders) for g in wanted)
 
-    strict=False skips the detour, savings and quote checks (but never the seats, meeting point,
-    women-only or window rules). It only prices an existing car that lost a rider.
+
+def basic_ok(riders: Sequence[Rider]) -> tuple[datetime, datetime] | None:
+    """The rules that also hold for every sub-group (seats, meeting point, gender, window).
+
+    Returns the shared window, or None. regroup prunes on these only: the detour, savings and
+    quote checks are re-done on each full group, because a third rider can make a pair pass.
     """
-    riders = tuple(riders)
     if not 1 <= len(riders) <= config.MAX_RIDERS:
         return None
     first = riders[0]
     if any((r.campus_id, r.meeting_point_id) != (first.campus_id, first.meeting_point_id) for r in riders):
         return None
-    if any(r.women_only for r in riders) and not all(r.woman for r in riders):
+    if not gender_ok(riders):
         return None
     if len({r.request_id for r in riders}) != len(riders):
         return None
-    window = _shared_window(riders)
+    return _shared_window(riders)
+
+
+def evaluate(riders: Sequence[Rider], strict: bool = True) -> GroupPlan | None:
+    """Return the shortest feasible plan for exactly these riders, or None if no order works.
+
+    strict=False skips the detour, savings and quote checks (but never the seats, meeting point,
+    gender or window rules). It prices an existing car that lost a rider, or a friends group.
+    """
+    riders = tuple(riders)
+    window = basic_ok(riders)
     if window is None:
         return None
+    first = riders[0]
     pickup = window[0]
 
     origin = CAMPUSES[first.campus_id].meeting_points[first.meeting_point_id]

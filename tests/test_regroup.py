@@ -43,3 +43,61 @@ def test_regroup_respects_confirmed_quotes():
 
 def test_empty_input_returns_empty():
     assert regroup([]) == []
+
+
+# ---- Phase 0 fixes: one objective, never "everyone alone", prune only on hereditary rules ----
+
+import random
+import time
+
+from pooling import config
+from pooling.places import CORRIDORS, DEMO_CAMPUS
+
+
+def demo_rider(rid, stop, gender="man", preference="mixed", gate=None):
+    corridor = next(c for c in CORRIDORS.values() if stop in c["stops"])
+    return rider(rid, stop, after="16:15", before="16:40", gender=gender, preference=preference,
+                 campus=DEMO_CAMPUS, gate=gate or corridor["gate"])
+
+
+def busy_wave(seed, n=28):
+    rng = random.Random(seed)
+    stops = [s for c in CORRIDORS.values() for s in c["stops"]]
+    riders = []
+    for i in range(n):
+        gender = rng.choice(["woman", "man"])
+        preference = "women" if gender == "woman" and rng.random() < 0.3 else "mixed"
+        riders.append(demo_rider(f"r{i:02d}", rng.choice(stops), gender, preference))
+    return riders
+
+
+def test_busy_wave_of_28_forms_shared_cars_quickly():
+    for seed in range(15):
+        riders = busy_wave(seed)
+        started = time.perf_counter()
+        result = regroup([evaluate([r]) for r in riders])
+        elapsed = time.perf_counter() - started
+        solo = sum(1 for p in result if len(p.riders) == 1)
+        assert sorted(r.request_id for p in result for r in p.riders) == sorted(r.request_id for r in riders)
+        assert solo < 20, f"seed {seed}: {solo} solo cars"
+        assert elapsed < 3, f"seed {seed}: {elapsed:.1f}s"
+
+
+def test_trio_is_found_when_a_pair_inside_it_fails_the_savings_floor():
+    # Al Jubeiha 3 km + Abu Nseir 10 km: the Abu Nseir rider saves only 23% (< 25%), so that pair fails.
+    # With a second Abu Nseir rider, all three save at least 25%, so the trio is valid.
+    near, far1, far2 = demo_rider("near", "Al Jubeiha"), demo_rider("far1", "Abu Nseir"), demo_rider("far2", "Abu Nseir")
+    assert config.MIN_SAVING == 0.25
+    assert evaluate([near, far1]) is None
+    assert evaluate([near, far1, far2]) is not None
+    result = regroup([evaluate([near]), evaluate([far1]), evaluate([far2])])
+    assert [sorted(r.request_id for r in p.riders) for p in result] == [["far1", "far2", "near"]]
+
+
+def test_friends_group_rides_together_and_a_closed_group_takes_no_strangers():
+    a, b, c, d = (demo_rider(x, "Dabouq") for x in "abcd")
+    singles = [evaluate([r]) for r in (a, b, c, d)]
+    together = regroup(singles, together=[frozenset({"a", "c"})])
+    assert any({"a", "c"} <= {r.request_id for r in p.riders} for p in together)
+    closed = regroup(singles, together=[frozenset({"a", "b"})], closed=[frozenset({"a", "b"})])
+    assert sorted(sorted(r.request_id for r in p.riders) for p in closed) == [["a", "b"], ["c", "d"]]

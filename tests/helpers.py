@@ -9,10 +9,14 @@ def at(hhmm: str) -> datetime:
     return datetime(2026, 11, 28, h, m, tzinfo=TZ)
 
 
-def rider(rid, stop, after="16:00", before="16:30", women_only=False, quote=None, woman=None):
+def rider(rid, stop, after="16:00", before="16:30", women_only=False, quote=None, woman=None,
+          gender=None, preference=None, campus="ahu", gate="ahu-main-gate"):
+    """women_only/woman are shorthands for preference="women" / gender="woman"."""
+    if gender is None:
+        gender = "woman" if (women_only if woman is None else woman) else "man"
     return Rider(
-        request_id=rid, first_name=rid.title(), women_only=women_only,
-        campus_id="ahu", meeting_point_id="ahu-main-gate", stop_id=stop,
+        request_id=rid, first_name=rid.title(),
+        campus_id=campus, meeting_point_id=gate, stop_id=stop,
         leave_after=at(after), leave_before=at(before), quoted_share=quote,
-        woman=women_only if woman is None else woman,
+        gender=gender, preference=preference or ("women" if women_only else "mixed"),
     )

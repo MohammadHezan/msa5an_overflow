@@ -12,9 +12,9 @@ def test_shares_sum_to_car_fare():
     assert sum(p.shares.values()) == p.car_fare
 
 
-def test_pooled_riders_each_save_20pct():
+def test_pooled_riders_each_save_25pct():
     p = evaluate([rider("a", "sweileh"), rider("b", "al-jubeiha"), rider("c", "university-street")])
-    assert all(p.shares[r] <= 0.8 * p.solo_fare[r] for r in p.shares)
+    assert all(p.shares[r] <= 0.75 * p.solo_fare[r] for r in p.shares)
 
 
 def test_fifth_rider_refused():
@@ -66,3 +66,31 @@ def test_pickup_is_window_start():
 
 def test_quote_cap_blocks_higher_share():
     assert evaluate([rider("a", "sweileh", quote=1), rider("b", "sweileh")]) is None
+
+
+# ---- Ride options: mixed / women / men ----
+
+def test_mixed_woman_can_join_a_women_car():
+    assert evaluate([rider("a", "sweileh", preference="women", gender="woman"),
+                     rider("b", "sweileh", preference="mixed", gender="woman")]) is not None
+
+
+def test_man_never_joins_a_women_car():
+    assert evaluate([rider("a", "sweileh", preference="women", gender="woman"),
+                     rider("b", "sweileh", preference="mixed", gender="man")]) is None
+
+
+def test_woman_never_joins_a_men_car():
+    assert evaluate([rider("a", "sweileh", preference="men", gender="man"),
+                     rider("b", "sweileh", preference="mixed", gender="woman")]) is None
+    assert evaluate([rider("a", "sweileh", preference="men", gender="man"),
+                     rider("b", "sweileh", preference="mixed", gender="man")]) is not None
+
+
+def test_mixed_riders_of_both_genders_share():
+    assert evaluate([rider("a", "sweileh", gender="woman"), rider("b", "sweileh", gender="man")]) is not None
+
+
+def test_women_and_men_preferences_never_share():
+    assert evaluate([rider("a", "sweileh", preference="women", gender="woman"),
+                     rider("b", "sweileh", preference="men", gender="man")]) is None

@@ -1,18 +1,21 @@
 """Shared-ride rules for the Replit app, backed by the `pooling` engine.
 
 This module keeps the interface store.py, api.py and app.py already use (rider dicts with
-id, name, class_end, stop, woman, women_only). Every rule and price comes from pooling/:
+id, name, class_end, stop, gender, preference, and optionally friend_group/group_open).
+Every rule and price comes from pooling/:
 - fares: LTRC smart-app tariff (start + per km over the whole route), one fare per car;
 - split: proportional to each rider's own distance, shares add up to the car fare exactly;
-- a rider only shares if they save at least 20% and their detour stays within limits;
-- grouping: CP-SAT over every feasible car of up to 4 (fewest car-km, then fewest cars).
+- a rider only shares if they save at least 25% and their detour stays within limits;
+- ride options: "mixed", "women" or "men" (pooling.model.gender_ok);
+- grouping: CP-SAT over every feasible car of up to 4, minimizing total fares plus a penalty per
+  student left alone; friends groups ride in one car.
 Distances, gates and coordinates are simulated assumptions for the demo.
 """
 import math
 from datetime import date, datetime, timedelta
 
 from pooling import config
-from pooling.model import Rider, evaluate
+from pooling.model import PREFERENCES, Rider, evaluate
 from pooling.places import COORDS, CORRIDORS, DEMO_CAMPUS, GATES
 from pooling.pricing import car_fare
 from pooling.regroup import regroup
@@ -23,7 +26,7 @@ BASE_FARE = config.START_DAY  # Fils, regulated app tariff (day)
 PER_KM = config.PER_KM_DAY
 MIN_SAVING_PCT = round(config.MIN_SAVING * 100)
 SEATS = config.MAX_RIDERS
-MAX_GAP = 20  # Minutes between the earliest and latest class end in one car
+MAX_GAP = config.MAX_GAP_MIN  # Minutes between the earliest and latest class end in one car
 WALK = 15  # Minutes from the last class ending to pickup at the gate
 
 _DAY = date(2026, 11, 28)  # Prices only depend on the clock time; this fixes the date part.
@@ -69,7 +72,7 @@ def _rider(r):
     """
     ready = to_minutes(r["class_end"]) + WALK
     return Rider(
-        request_id=str(r["id"]), first_name=r["name"], women_only=bool(r["women_only"]), woman=bool(r["woman"]),
+        request_id=str(r["id"]), first_name=r["name"], gender=r["gender"], preference=r["preference"],
         campus_id=DEMO_CAMPUS, meeting_point_id=CORRIDORS[STOPS[r["stop"]]["corridor"]]["gate"],
         stop_id=r["stop"], leave_after=_at(ready), leave_before=_at(ready + MAX_GAP + config.MIN_WINDOW_MIN),
     )
@@ -81,7 +84,7 @@ def solo_fare(stop, at_minutes=16 * 60):
 
 def sample_share(stop, riders=3):
     """Typical share when riding with others going to the same stop."""
-    plan = evaluate([_rider({"id": i, "name": "x", "class_end": "16:00", "stop": stop, "woman": False, "women_only": False})
+    plan = evaluate([_rider({"id": i, "name": "x", "class_end": "16:00", "stop": stop, "gender": "man", "preference": "mixed"})
                      for i in range(riders)])
     return plan.shares["0"] if plan else solo_fare(stop)
 
@@ -91,12 +94,48 @@ def compatible(a, b):
 
 
 def group_riders(riders):
-    """Split riders into cars (fewest car-km, then fewest cars). Returns lists of rider ids."""
+    """Split riders into cars (cheapest total fares, fewest students alone). Returns lists of rider ids.
+
+    Riders sharing a `friend_group` always land in one car; if any of them has `group_open` False,
+    no one else joins that car.
+    """
     if not riders:
         return []
     by_id = {str(r["id"]): r["id"] for r in riders}
     singles = [evaluate([_rider(r)]) for r in riders]
-    return [[by_id[x.request_id] for x in plan.riders] for plan in regroup(singles)]
+    groups = {}
+    for r in riders:
+        if r.get("friend_group"):
+            groups.setdefault(r["friend_group"], []).append(r)
+    together = [frozenset(str(r["id"]) for r in members) for members in groups.values()]
+    closed = [frozenset(str(r["id"]) for r in members) for members in groups.values()
+              if not all(r.get("group_open", True) for r in members)]
+    return [[by_id[x.request_id] for x in plan.riders] for plan in regroup(singles, together=together, closed=closed)]
+
+
+def group_problem(members):
+    """Why these friends cannot share one car (gate, class-end gap, seats or ride option), or None."""
+    if len(members) > SEATS:
+        return f"A group has at most {SEATS} students."
+    gates = {CORRIDORS[STOPS[m["stop"]]["corridor"]]["gate"] for m in members}
+    if len(gates) > 1:
+        return "Everyone in a group leaves from the same gate."
+    ends = [to_minutes(m["class_end"]) for m in members]
+    if max(ends) - min(ends) > MAX_GAP:
+        return f"Everyone's class must end within {MAX_GAP} minutes of each other."
+    if evaluate([_rider(m) for m in members], strict=False) is None:
+        return "Someone in the group asked for a women-only or men-only car that the others can't join."
+    return None
+
+
+def only_label(members):
+    """"women" or "men" when every rider has that gender and at least one asked for it, else None."""
+    if len(members) < 2:
+        return None
+    for preference, gender in PREFERENCES.items():
+        if gender and all(m["gender"] == gender for m in members) and any(m["preference"] == preference for m in members):
+            return preference
+    return None
 
 
 def plan_car(members):
@@ -118,5 +157,6 @@ def plan_car(members):
         "car_fare": plan.car_fare, "route_km": plan.route_km,
         "shares": {by_id[rid]["id"]: share for rid, share in plan.shares.items()},
         "shared": shared,
-        "women_only": shared and all(m["woman"] for m in ordered) and any(m["women_only"] for m in ordered),
+        "only": only_label(ordered),
+        "women_only": only_label(ordered) == "women",
     }

@@ -16,10 +16,13 @@ NIGHT_END = time(6, 0)
 MAX_RIDERS = 4
 DETOUR_RATIO = 1.5      # in-car km <= solo km * ratio ...
 DETOUR_EXTRA_KM = 4.0   # ... and <= solo km + this
-MIN_SAVING = 0.2        # each pooled rider pays <= (1 - MIN_SAVING) * solo fare
+MIN_SAVING = 0.25       # each pooled rider pays <= (1 - MIN_SAVING) * solo fare
 MIN_WINDOW_MIN = 5      # shared departure window must be at least this long
+MAX_GAP_MIN = 10        # class ends in one car are at most this far apart (the app's departure windows)
 MERGE_KM = 0.4          # stops closer than this count as one stop
 ROAD_FACTOR = 1.35      # road km ~= straight-line km * factor
 SPEED_KMH = 25          # city average, for time estimates only
 LOCK_LEAD_MIN = 15
-SOLVER_SECONDS = 5.0
+SOLVER_SECONDS = 2.0
+SOLVER_WORKERS = 4
+SOLO_PENALTY = 1500      # fils: regroup will spend up to this much of the group's savings to keep one student from riding alone
