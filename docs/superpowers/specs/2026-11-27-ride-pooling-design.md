@@ -28,7 +28,7 @@ Campus Connect is a proposed feature inside Jeeny for university students from m
 
 The night window is a setting. Check: a 12 km daytime trip costs at least JOD 4.50.
 
-## Section 1: architecture and API (proposed, awaiting approval)
+## Section 1: architecture and API (approved)
 
 ### The algorithm package (no web code)
 
@@ -51,10 +51,43 @@ The night window is a setting. Check: a 12 km daytime trip costs at least JOD 4.
 | `GET /api/v1/rides/stats` | Pooled vs. everyone solo: cars, total JOD, average saving |
 | `POST /api/v1/rides/demo/seed` | Loads the Sara scenario |
 
+## Section 2: matching rules (proposed, awaiting approval)
+
+A new request can join an open group only if **all** of these hold. Every limit is a setting in `pooling/config.py`.
+
+| Rule | Default | Why |
+|---|---|---|
+| Same campus and meeting point | Exact match | One pickup |
+| Departure windows overlap | Each request gives "leave between". The group's window is the intersection and must be ≥ 5 min. | Avoids fixed-slot edges (a 9:14 request and a 9:16 request still match) |
+| Seats | ≤ 4 riders | D5 |
+| Women-only | A women-only request joins only a women-only group, and vice versa | D8 |
+| Detour per rider | In-car km ≤ min(1.5 × solo km, solo km + 4 km), checked for **every** rider after insertion | Nobody's trip gets much longer |
+| Savings per rider | Every rider's share ≤ 0.8 × solo fare, checked for **every** rider after insertion | D7 |
+| Group is still open | Status `open` and not locked | Locked groups are final |
+
+**Insertion step (`matcher.insert`)**
+
+1. Filter open groups by campus, window, seats and women-only.
+2. For each candidate group, try every drop-off order with the new rider (at most 4! = 24) and keep the shortest route.
+3. Reject the group if the detour or savings rule fails for anyone.
+4. Among the groups that pass, choose the smallest **added km**. On a tie, choose the fuller group.
+5. If none passes, open a new group of 1. Its quote shows the solo fare, marked "waiting for riders".
+
+**Nearby stops:** destinations within 400 m of each other count as one stop.
+
+**Pickup time:** the start of the group's shared window. It can only move later as riders join, and never past anyone's window end.
+
+**Lock (`regroup.run`)**, run at departure − 15 min, when a group is full, or on the demo button:
+
+1. Take all open groups for that campus and window.
+2. List every feasible group of 1–4 riders under the rules above.
+3. CP-SAT puts each rider in exactly one group, minimizing total car-km and then the number of cars.
+4. Commit the result, set status `locked` and issue ride codes. A rider left alone is told "no match, solo fare X" and can book solo.
+
+**Travel time:** km ÷ 25 km/h city average, as a setting. It is used only for the pickup and arrival estimates.
+
 ## Still to decide
 
-- The detour limit and the departure-time window
 - Request and response JSON field names and the error format
-- When groups lock (for example 15 minutes before departure)
 - The demo seed scenario and the numbers it must reproduce
 - Testing plan
