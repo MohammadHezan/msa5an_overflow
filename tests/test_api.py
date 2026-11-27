@@ -151,7 +151,7 @@ def test_matching_closes_batch_and_repeat_returns_saved_cars(client, west_car):
 
 
 def test_stale_confirm_returns_plan_changed_then_decline_marks_changed(client, west_car):
-    _, riders = west_car
+    batch, riders = west_car
     sara_token, sara_id = riders["Sara"]
     huda_token, huda_id = riders["Huda"]
     signature = client.get(f"/api/v1/riders/{sara_id}", headers=auth(sara_token)).get_json()["plan"]["signature"]

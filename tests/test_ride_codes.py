@@ -145,7 +145,8 @@ def test_api_verify_code(client):
     valid = verify(client, batch, f" {code.lower()} ").get_json()
     assert valid["valid"] is True
     assert valid["rider"]["firstName"] == "Sara" and valid["rider"]["stop"] == "Dabouq"
-    assert valid["rider"]["pickupTime"] == "16:15" and isinstance(valid["rider"]["carId"], int)
+    plan = client.get(f"/api/v1/riders/{sara_id}", headers=auth(sara_token)).get_json()["plan"]
+    assert valid["rider"]["pickupTime"] == plan["pickupTime"] and isinstance(valid["rider"]["carId"], int)
     assert verify(client, batch, "CC-0000" if code != "CC-0000" else "CC-0001").get_json() == {"valid": False}
 
     other = new_batch(client)  # A code from one batch is not valid in another

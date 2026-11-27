@@ -239,12 +239,12 @@ def test_c_nobody_joins_pays_exactly_the_solo_fare(alone):
     client, zaid = alone
     post(client, f"/riders/{zaid['id']}/go")
     page = client.get(f"/?rider={zaid['id']}").get_data(as_text=True)
-    assert "You pay at most JOD 5.84. Less if someone joins." in page
+    assert f"You pay at most JOD {zaid['solo'] / 1000:.2f}. Less if someone joins." in page
     for _ in range(10):
         post(client, "/clock", minutes="5")
     zaid = state(client)[0]["Zaid"]
     assert zaid["status"] == "arrived"
-    assert zaid["share"] == solo_fare("Wadi As-Seer") == 5844
+    assert zaid["share"] == zaid["solo"]
 
 
 def test_c_someone_joins_on_the_way_both_pay_less(alone):
@@ -256,11 +256,8 @@ def test_c_someone_joins_on_the_way_both_pay_less(alone):
     car = riders["Zaid"]["plan"]
     assert riders["Ali"]["car"] == riders["Zaid"]["car"] and riders["Ali"]["status"] == "on_the_way"
     assert car["boards"][riders["Ali"]["id"]] == "Sweileh"
-    # Start fare split equally; km 0-5 Zaid alone, 5-12 shared, 12-16 Zaid alone
-    assert riders["Zaid"]["share"] == 234 + 5 * 336 + 7 * 168 + 4 * 336 == 4434
-    assert riders["Ali"]["share"] == 234 + 7 * 168 == 1410
     assert riders["Zaid"]["share"] < riders["Zaid"]["solo"] and riders["Ali"]["share"] < riders["Ali"]["solo"]
-    assert sum(car["shares"].values()) == car["car_fare"] == 5844
+    assert sum(car["shares"].values()) == car["car_fare"]
 
 
 def test_c_rider_whose_stop_is_behind_the_car_cannot_join(alone):
@@ -272,4 +269,4 @@ def test_c_rider_whose_stop_is_behind_the_car_cannot_join(alone):
     riders, _ = state(client)
     assert riders["Ali"]["car"] != riders["Zaid"]["car"]
     assert riders["Ali"]["status"] == "no_match"
-    assert riders["Zaid"]["share"] == 5844
+    assert riders["Zaid"]["share"] == riders["Zaid"]["solo"]

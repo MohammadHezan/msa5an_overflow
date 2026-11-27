@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 from flask import current_app, g
 
 import go_now
+from pooling import config
 from pooling.codes import new_code
 from pooling.model import PREFERENCES
 from sharing import (
@@ -325,6 +326,10 @@ def _go_plan(members, car_row, at):
                   else go_now.pickup_point(corridor, m["board_km"] or 0.0)[0])
         for m in members
     }
+    walk_m = {m["id"]: min(int(m["start_side_m"] or 0), 200) for m in members}
+    rider_times = {m["id"]: (departed + timedelta(
+        hours=abs(position - float(m["board_km"] or 0.0)) / config.SPEED_KMH
+    )).astimezone(AMMAN).strftime("%H:%M") for m in members}
     return {
         "gate": CORRIDORS[corridor]["gate"], "corridor": corridor, "pickup": pickup,
         "members": ordered, "car_fare": fare, "route_km": route_km, "shares": shares,
@@ -332,6 +337,8 @@ def _go_plan(members, car_row, at):
         "go": True, "position_km": round(position, 1),
         "arrived": position <= 0 if direction == "to_campus" else position >= last_drop_km,
         "boards": boards, "direction": direction, "street": True,
+        "walk_m": walk_m, "rider_times": rider_times, "drop_times": {},
+        "segment_breakdown": {},
     }
 
 

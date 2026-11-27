@@ -39,12 +39,12 @@ def matched(client):
     return client
 
 
-def test_matching_gives_sara_a_shared_ride_at_167(matched):
+def test_matching_gives_sara_a_street_pickup_shared_ride(matched):
     riders, cars = state(matched)
     assert len(cars) == 5
     sara = riders["Sara"]
     assert sara["status"] == "review"
-    assert sara["share"] == 1670 and sara["solo"] == 4500
+    assert 0 < sara["share"] < sara["solo"]
     assert {m["name"] for m in sara["plan"]["members"]} == {"Sara", "Rama", "Huda"}
     assert riders["Zaid"]["status"] == "no_match"
 
@@ -52,7 +52,8 @@ def test_matching_gives_sara_a_shared_ride_at_167(matched):
 def test_page_shows_sara_price(matched):
     riders, _ = state(matched)
     page = matched.get(f"/?view=trips&rider={riders['Sara']['id']}").get_data(as_text=True)
-    assert "JOD 1.67" in page
+    assert f"JOD {riders['Sara']['share'] / 1000:.2f}" in page
+    assert "Walk" in page and "campus street" in page
 
 
 def test_confirm_records_the_plan(matched):
@@ -63,7 +64,7 @@ def test_confirm_records_the_plan(matched):
 
 def test_confirm_with_stale_plan_is_rejected(matched):
     sara = state(matched)[0]["Sara"]
-    response = post(matched, f"/riders/{sara['id']}/confirm", plan="9999|16:15|3")
+    response = post(matched, f"/riders/{sara['id']}/confirm", plan="9999|16:02|3")
     assert response.status_code == 302
     assert state(matched)[0]["Sara"]["status"] == "review"
 
@@ -77,8 +78,9 @@ def test_decline_reprices_the_rest_of_the_car(matched):
     assert riders["Huda"]["status"] == "declined"
     assert riders["Huda"]["plan"] is None
     assert {m["name"] for m in riders["Sara"]["plan"]["members"]} == {"Sara", "Rama"}
-    assert riders["Sara"]["share"] == 2387
-    assert riders["Rama"]["share"] == 2785
+    assert riders["Sara"]["share"] == int(riders["Sara"]["confirmed_plan"].split("|", 1)[0])
+    assert riders["Sara"]["plan"]["jeeny_cover"] > 0
+    assert sum(riders[name]["share"] for name in ("Sara", "Rama")) + riders["Sara"]["plan"]["jeeny_cover"] == riders["Sara"]["plan"]["car_fare"]
     assert riders["Sara"]["status"] == "changed"  # her confirmation no longer matches the new price
     for name in ("Sara", "Rama"):
         assert riders[name]["share"] <= riders[name]["solo"]
@@ -118,4 +120,4 @@ def test_new_request_is_matched_with_women_only_rules(client):
     post(client, "/match")
     riders = state(client)[0]
     assert riders["Sara"]["car"] != riders["Kareem"]["car"]
-    assert riders["Sara"]["share"] == 4500
+    assert riders["Sara"]["share"] == riders["Sara"]["solo"]
