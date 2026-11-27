@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
-import { BookingPayload, configuredApiUrl } from './api';
+import { BookingPayload, configuredApiUrl, Student } from './api';
 
 const STORAGE_KEY = 'campus-connect/session/v1';
 
@@ -12,7 +12,17 @@ const STORAGE_KEY = 'campus-connect/session/v1';
  *   so a retry after a lost response returns the same rider instead of booking twice.
  * - `sentPayload` is the last booking sent while the outcome was unknown; it lets the
  *   student resend exactly those details if the server already saved them.
+ * - `verified`/`student` record a confirmed university email; `verification` is a code that was
+ *   sent but not yet confirmed, so reopening the app returns to the code screen.
  */
+export type PendingVerification = {
+  universityId: number;
+  universityName: string;
+  maskedEmail: string;
+  expiresAt: string;
+  resendAvailableAt: string;
+};
+
 export type Session = {
   apiUrl: string;
   token: string;
@@ -21,6 +31,9 @@ export type Session = {
   clientRequestId: string;
   riderId: number | null;
   sentPayload: BookingPayload | null;
+  verified: boolean;
+  student: Student | null;
+  verification: PendingVerification | null;
 };
 
 type SessionContextValue = {
@@ -46,7 +59,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     AsyncStorage.getItem(STORAGE_KEY)
       .then((raw) => {
         if (cancelled || !raw) return;
-        const stored = JSON.parse(raw) as Session;
+        const parsed = JSON.parse(raw) as Partial<Session>;
+        // Sessions saved before verification existed have no verification fields.
+        const stored = {
+          ...parsed,
+          verified: parsed.verified ?? false,
+          student: parsed.student ?? null,
+          verification: parsed.verification ?? null,
+        } as Session;
         // A session belongs to one backend; drop it if the app now points somewhere else.
         if (stored.apiUrl === apiUrl) {
           current.current = stored;

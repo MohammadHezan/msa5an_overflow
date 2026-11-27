@@ -3,14 +3,18 @@
 No preview, join code, environment file, or persistent database is needed.
 The harness adds one test-only route, POST /__harness__/batches/<id>/delete, so the
 client test can expire a batch the way cleanup does; it never exists in the real app.
+It also makes this disposable server issue the verification code 123456 (the next code,
+after a resend, is 123457), because real codes are only written to the server log.
 """
 
 from pathlib import Path
+import secrets
 import socket
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
 from threading import Thread
+from types import SimpleNamespace
 
 from werkzeug.serving import make_server
 
@@ -19,6 +23,9 @@ sys.path.insert(0, str(ROOT))
 
 from app import app  # noqa: E402
 from store import database  # noqa: E402
+import student_verification  # noqa: E402
+
+HARNESS_CODE = 123456
 
 HARNESS_PREFIX = "/__harness__/batches/"
 
@@ -42,6 +49,10 @@ def with_harness_routes(wsgi_app):
 def main():
     with TemporaryDirectory(prefix="campus-mobile-api-") as directory:
         app.config.update(TESTING=True, DATABASE=Path(directory) / "test.sqlite")
+        # Deterministic codes in this process only; everything else still uses real randomness.
+        student_verification.secrets = SimpleNamespace(
+            randbelow=lambda limit: HARNESS_CODE % limit, token_hex=secrets.token_hex,
+        )
         # Keep an unused port reserved but not listening: a real, deterministic
         # connection refusal for the client's offline path, without mocking fetch.
         with socket.socket() as offline:

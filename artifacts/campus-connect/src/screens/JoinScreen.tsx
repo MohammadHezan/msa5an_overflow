@@ -49,6 +49,9 @@ export function JoinScreen() {
         clientRequestId: newClientRequestId(),
         riderId: null,
         sentPayload: null,
+        verified: joined.verified,
+        student: joined.student,
+        verification: null,
       });
     } catch (e) {
       const err = e instanceof ApiError ? e : new ApiError('offline', String(e), 0);

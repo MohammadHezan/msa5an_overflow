@@ -74,7 +74,28 @@ export type JoinResponse = {
   tripDate: string;
   timezone: string;
   matched: boolean;
+  verified: boolean;
+  student: Student | null;
 };
+
+export type University = { id: number; name: string; city: string; campus: string; gate: string; available: boolean };
+
+export type Student = { id: number; firstName: string; verified: boolean; verifiedAt: string | null; university: University };
+
+/** A code was issued. The code itself is only written to the backend's console log (demo). */
+export type VerificationChallenge = {
+  maskedEmail: string;
+  expiresAt: string;
+  resendAvailableAt: string;
+  delivery: 'console_demo';
+  message?: string;
+};
+
+export type VerificationStartResponse = VerificationChallenge | { alreadyVerified: true; nextScreen: string; student: Student };
+
+export type VerificationConfirmResponse = { token: string; tokenType: 'Bearer'; nextScreen: string; student: Student };
+
+export type NotifyResponse = { university: University; notificationRequested: true; message: string };
 
 export type BookingPayload = {
   name: string;
@@ -169,6 +190,34 @@ export const api = {
 
   join: (apiUrl: string, joinCode: string) =>
     request<JoinResponse>(apiUrl, '/demo-sessions/join', { method: 'POST', body: { joinCode } }).then((r) => r.data),
+
+  universities: (apiUrl: string, token: string, search = '') =>
+    request<{ universities: University[] }>(apiUrl, `/universities?search=${encodeURIComponent(search)}`, { token }).then(
+      (r) => r.data.universities,
+    ),
+
+  me: (apiUrl: string, token: string) =>
+    request<{ student: Student | null; verified: boolean; nextScreen: string }>(apiUrl, '/me', { token }).then((r) => r.data),
+
+  startVerification: (apiUrl: string, token: string, universityId: number, email: string) =>
+    request<VerificationStartResponse>(apiUrl, '/verification/start', {
+      method: 'POST',
+      token,
+      body: { universityId, email },
+    }).then((r) => r.data),
+
+  resendVerification: (apiUrl: string, token: string) =>
+    request<VerificationChallenge>(apiUrl, '/verification/resend', { method: 'POST', token, body: {} }).then((r) => r.data),
+
+  confirmVerification: (apiUrl: string, token: string, code: string) =>
+    request<VerificationConfirmResponse>(apiUrl, '/verification/confirm', { method: 'POST', token, body: { code } }).then(
+      (r) => r.data,
+    ),
+
+  notifyUniversity: (apiUrl: string, token: string, universityId: number) =>
+    request<NotifyResponse>(apiUrl, `/universities/${universityId}/notify`, { method: 'POST', token, body: {} }).then(
+      (r) => r.data,
+    ),
 
   stops: (apiUrl: string) => request<StopsResponse>(apiUrl, '/stops').then((r) => r.data),
 

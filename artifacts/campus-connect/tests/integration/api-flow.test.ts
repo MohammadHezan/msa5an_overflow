@@ -223,3 +223,55 @@ test('a session whose batch was deleted is told to rejoin', { timeout: 60000 }, 
   const again = await api.join(origin, fresh.joinCode);
   assert.equal((await api.book(origin, again.token, fresh.id, payload, 'gone-lina-0002')).status, 'waiting');
 });
+
+test('a phone searches campuses, verifies a university email and asks about unavailable campuses', { timeout: 60000 }, async (t) => {
+  const batch = await operator<{ id: string; joinCode: string }>('/batches', { mode: 'empty' });
+  const joined = await api.join(origin, batch.joinCode);
+  assert.equal(joined.verified, false);
+  assert.equal(joined.student, null);
+
+  const all = await api.universities(origin, joined.token);
+  assert.deepEqual(all.map((u) => [u.name, u.available]), [
+    ['Al-Balqa Applied University', true],
+    ['University of Jordan', false],
+    ['Yarmouk University', false],
+  ]);
+  const irbid = await api.universities(origin, joined.token, 'irbid');
+  assert.deepEqual(irbid.map((u) => u.name), ['Yarmouk University']);
+  assert.deepEqual(await api.universities(origin, joined.token, 'nowhere'), []);
+  const [balqa, jordan] = all;
+
+  // Unavailable campus: no code, but a notify-me request with the toast text.
+  await assert.rejects(api.startVerification(origin, joined.token, jordan.id, 'sara@ju.edu.jo'), errorWith('campus_unavailable', 409));
+  const notified = await api.notifyUniversity(origin, joined.token, jordan.id);
+  assert.equal(notified.notificationRequested, true);
+  assert.equal(notified.message, "We'll keep you posted");
+  assert.deepEqual(await api.notifyUniversity(origin, joined.token, jordan.id), notified, 'Notify me is idempotent');
+  await assert.rejects(api.notifyUniversity(origin, joined.token, balqa.id), errorWith('campus_available', 409));
+  t.diagnostic('Search, availability and notify-me passed');
+
+  await assert.rejects(api.startVerification(origin, joined.token, balqa.id, 'sara@gmail.com'), errorWith('email_not_university', 400));
+  await assert.rejects(api.resendVerification(origin, joined.token), errorWith('verification_not_started', 409));
+  const started = await api.startVerification(origin, joined.token, balqa.id, 'sara.a@bau.edu.jo');
+  assert.ok(!('alreadyVerified' in started));
+  assert.equal(started.maskedEmail, 's***@bau.edu.jo');
+  assert.equal(started.delivery, 'console_demo');
+  assert.ok(Date.parse(started.expiresAt) > Date.parse(started.resendAvailableAt));
+  await assert.rejects(api.resendVerification(origin, joined.token), errorWith('verification_resend_too_soon', 429));
+  await assert.rejects(api.confirmVerification(origin, joined.token, '000000'), errorWith('verification_code_invalid', 400));
+  assert.equal((await api.me(origin, joined.token)).verified, false);
+
+  const confirmed = await api.confirmVerification(origin, joined.token, '123456');
+  assert.equal(confirmed.tokenType, 'Bearer');
+  assert.equal(confirmed.student.firstName, 'Sara');
+  assert.equal(confirmed.student.verified, true);
+  assert.equal(confirmed.student.university.id, balqa.id);
+  assert.ok(!JSON.stringify(confirmed).includes('sara.a@'), 'The verified profile never returns the email');
+  const me = await api.me(origin, confirmed.token);
+  assert.equal(me.verified, true);
+  assert.equal(me.student?.firstName, 'Sara');
+
+  const again = await api.startVerification(origin, confirmed.token, balqa.id, 'sara.a@bau.edu.jo');
+  assert.ok('alreadyVerified' in again && again.alreadyVerified);
+  t.diagnostic('Masked email, cooldown, wrong code, confirm and already-verified passed');
+});

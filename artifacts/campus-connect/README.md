@@ -43,7 +43,8 @@ regression checks. See [the regression check notes](../../mobile/README.md) for 
 | Screen | Shown when | What it does |
 | --- | --- | --- |
 | Join | No stored session | Checks `GET /health`, exchanges the join code (`POST /demo-sessions/join`) for a student bearer token, stored on the device with AsyncStorage. |
-| Book | Joined, not booked yet | Loads drop-offs, solo fares and sample shares from `GET /stops`. Name, class end time (08:00–21:00, 5-minute steps), drop-off, woman student, women-only. `POST /batches/{id}/riders`. |
+| Verify | Joined, university not verified, not booked yet | Searches campuses (`GET /universities?search=`), available ones first. An unavailable campus offers "Notify me in Jeeny" (`POST /universities/{id}/notify`) and shows "We'll keep you posted". An available campus asks for the university email (`POST /verification/start`), then shows the masked address, a code-expiry countdown, a resend cooldown (`POST /verification/resend`) and "Use a different email". `POST /verification/confirm` returns a new token, which replaces the stored one. Demo only: no email is sent; the code is printed in the backend console. |
+| Book | Joined and verified, not booked yet | Loads drop-offs, solo fares and sample shares from `GET /stops`. Name, class end time (08:00–21:00, 5-minute steps), drop-off, woman student, women-only. `POST /batches/{id}/riders`. |
 | Plan | Booked | `GET /riders/{id}`: status, gate, pickup time, other riders' first names, drop-off order, share vs solo fare, shared vs solo. Confirm sends the plan `signature` the student is looking at; decline asks first. |
 
 The plan screen reloads every 10 s while open, when the app returns to the foreground, and on pull-to-refresh, so it picks up matching from the dashboard and declines by other riders.
