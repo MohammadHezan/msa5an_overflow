@@ -14,8 +14,9 @@ from pooling import config
 from store import (
     AMMAN, RULES, Problem, batch_for_join_code, bind_token, check_request, create_batch, database, fare_estimates,
     find_token, get_batch, insert_request, legacy_options, refresh, issue_token, join_code, load_riders, locked_batch, now,
-    respond_to_plan, run_matching, summarize, verify_ride_code,
+    choose, respond_to_plan, run_matching, summarize, verify_ride_code,
 )
+from yalla import car_details, leg_split
 from student_verification import (
     confirm_verification, public_student, request_notification, resend_verification,
     search_universities, start_verification,
@@ -231,8 +232,22 @@ def rider_json(batch, rider):
             ],
             "share": money(rider["share"]), "soloFare": money(rider["solo"]),
             "saving": money(rider["solo"] - rider["share"]), "signature": rider["signature"],
+            "savingPercent": round((rider["solo"] - rider["share"]) * 100 / rider["solo"]) if rider["solo"] else 0,
+            "captain": captain_json(plan),
         }
+        if plan.get("go"):  # Leave now & share: the fare cap and who paid for each leg (screens 17-25)
+            body["plan"]["fareCap"] = money(rider["solo"])
+            body["plan"]["legs"] = leg_split(plan, rider)
     return body
+
+
+def captain_json(plan):
+    """Screens 13-14: the assigned captain and car, or None before a captain is assigned."""
+    if not plan.get("captain"):
+        return None
+    car = car_details(plan)
+    return {"firstName": first_name(plan["captain"]["name"]), "rating": float(car["rating"]),
+            "ratingCount": car["ratings"], "car": car["car"], "plate": car["plate"]}
 
 
 def batch_json(db, batch):
@@ -455,4 +470,56 @@ def decline(rider_id):
     except Problem as problem:
         if problem.code != "rider_declined":  # A retried decline returns the declined rider
             raise
+    return jsonify(rider_json(*load_rider(db, batch_id, rider_id)))
+
+
+@api.get("/estimate")
+def estimate():
+    """Screen 08: solo fare and sample shared fare for a drop-off, before the student books."""
+    db = database()
+    student_session(db)
+    stop, direction = request.args.get("stop", ""), request.args.get("direction", "from_campus")
+    estimates = fare_estimates()
+    if stop not in estimates or direction not in ("from_campus", "to_campus"):
+        raise Problem("invalid_input", "Send a known `stop` and a `direction` of from_campus or to_campus.", 400)
+    e, pickup = estimates[stop], estimates[stop]["pickups"][direction]
+    return jsonify({"stop": stop, "direction": direction, "soloFare": money(e["solo"]),
+                    "sampleShare": money(e["shared"]), "savingPercent": e["save_percent"],
+                    "walkMeters": pickup["walk_meters"], "walkMinutes": pickup["walk_minutes"]})
+
+
+@api.post("/riders/<int:rider_id>/choice")
+def lone_rider_choice(rider_id):
+    """Screens 17-19, 29: a student riding alone waits for a match ("wait") or leaves now open to share ("go")."""
+    choice = field(json_body(), "choice", str)
+    if choice not in ("wait", "go"):
+        raise Problem("invalid_input", "`choice` must be `wait` or `go`.", 400)
+    db = database()
+    batch_id = rider_access(db, rider_id)
+    with db:
+        choose(db, locked_batch(db, batch_id), rider_id, choice)
+    return jsonify(rider_json(*load_rider(db, batch_id, rider_id)))
+
+
+@api.post("/riders/<int:rider_id>/keep-route")
+def keep_route(rider_id):
+    """Screens 20-21: turn down students who joined this leave-now car on the way; the route and fare cap stay."""
+    body = json_body()
+    ids = body.get("riderIds")
+    if not isinstance(ids, list) or not ids or not all(isinstance(i, int) and not isinstance(i, bool) for i in ids):
+        raise Problem("invalid_input", "`riderIds` must be a non-empty list of rider ids.", 400)
+    db = database()
+    batch_id = rider_access(db, rider_id)
+    with db:
+        batch = locked_batch(db, batch_id)
+        riders, _ = load_riders(db, batch)
+        me = next(r for r in riders if r["id"] == rider_id)
+        plan = me["plan"] or {}
+        if not plan.get("go") or me["status"] != "on_the_way":
+            raise Problem("not_on_the_way", "Only a leave-now car that is on its way can turn down a pickup.")
+        others = {m["id"] for m in plan["members"] if m["id"] > rider_id}  # Joiners book after the car's rider, so their ids are higher
+        if not set(ids) <= others:
+            raise forbidden()
+        db.executemany("UPDATE riders SET declined = 1, ride_code = NULL, confirmed_plan = NULL WHERE id = ? AND batch = ?",
+                       [(i, batch_id) for i in ids])
     return jsonify(rider_json(*load_rider(db, batch_id, rider_id)))
