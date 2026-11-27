@@ -6,9 +6,12 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from dotenv import load_dotenv
 from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
 
 from allocation import CREDIT, WINDOWS, first_come, optimize, summarize
+
+load_dotenv(Path(__file__).with_name(".env"), override=False)
 
 app = Flask(__name__, instance_relative_config=True)
 app.config.update(

@@ -2,6 +2,8 @@
 
 A one-campus Amman hackathon demo for booking private rides ahead of time. Students request a ride, operations runs the evening cutoff, and every request gets an outcome. SQLite stores each browser's demo batch, and OR-Tools CP-SAT allocates the ride credits.
 
+See [document.md](document.md) for the Expo and backend split, proposed API, task estimates, and simulation plan. Team questions and the original demo checklist are in [agent.md](agent.md).
+
 ## Run
 
 On Replit, import the project and click **Run**. The included configuration installs dependencies and starts the app. Open **Preview** to use it.
@@ -13,7 +15,7 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-Open [http://localhost:5000](http://localhost:5000). The demo stores batches under `instance/`. Set `SESSION_SECRET` to a stable random value if you want existing browser sessions to survive an app restart.
+Open [http://localhost:5000](http://localhost:5000). The demo stores batches under `instance/`. For local settings, copy `.env.example` to `.env`. Set `SESSION_SECRET` to a stable random value if you want existing browser sessions to survive an app restart. On Replit, set it in Secrets.
 
 ## Judge walkthrough
 
