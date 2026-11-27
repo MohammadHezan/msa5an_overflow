@@ -138,7 +138,7 @@ Response `201`:
   "group": {"id": "grp-3", "size": 3, "max_size": 4, "women_only": true, "status": "open"},
   "meeting_point": {"id": "ahu-main-gate", "name": "Main gate"},
   "pickup_time": "2026-11-28T16:15:00+03:00",
-  "drop_position": 3,
+  "drop_position": 2,
   "estimated_arrival": "2026-11-28T16:42:00+03:00",
   "fare": {"your_share_fils": 1620, "solo_fare_fils": 4500, "saved_pct": 64, "car_fare_fils": 4850},
   "ride_code": null
@@ -160,9 +160,9 @@ Both return the same shape as the create response, with `status` set to `confirm
   "pickup_time": "2026-11-28T16:15:00+03:00",
   "car_fare_fils": 4850, "route_km": 14.2,
   "riders": [
-    {"first_name": "Lina", "stop": "Tabarbour", "drop_position": 1, "share_fils": 1180, "status": "confirmed"},
-    {"first_name": "Noor", "stop": "Sweileh",   "drop_position": 2, "share_fils": 2050, "status": "confirmed"},
-    {"first_name": "Sara", "stop": "Sweileh",   "drop_position": 3, "share_fils": 1620, "status": "provisional"}
+    {"first_name": "Lina", "stop": "Tabarbour",  "drop_position": 1, "share_fils": 1210, "status": "confirmed"},
+    {"first_name": "Sara", "stop": "Sweileh",    "drop_position": 2, "share_fils": 1620, "status": "provisional"},
+    {"first_name": "Noor", "stop": "Al Jubeiha", "drop_position": 3, "share_fils": 2020, "status": "confirmed"}
   ]
 }
 ```
