@@ -1,0 +1,91 @@
+{% macro token() %}<input type="hidden" name="csrf" value="{{ session.csrf }}">{% endmacro %}
+
+{% set PATHS = {
+  "cap": '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/>',
+  "mail": '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+  "pin": '<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  "home": '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>',
+  "history": '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
+  "bookmark": '<path d="M6 3h12v18l-6-4-6 4z"/>',
+  "calendar": '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  "clock": '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  "nav": '<path d="M3 11l18-8-8 18-2-8z"/>',
+  "people": '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.5-4 3.3-6 6.5-6s6 2 6.5 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2 .7 3.3 2.6 3.5 6"/>',
+  "mute": '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l4 6M21 9l-4 6"/>',
+  "shield": '<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  "car": '<path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3z"/><circle cx="7.5" cy="13" r=".8"/><circle cx="16.5" cy="13" r=".8"/>',
+  "search": '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/>',
+  "check": '<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
+  "money": '<circle cx="12" cy="12" r="9"/><path d="M15 8.5c-.6-.9-1.7-1.5-3-1.5-1.7 0-3 1-3 2.4 0 3.2 6 1.8 6 5 0 1.4-1.3 2.6-3 2.6-1.4 0-2.6-.6-3.2-1.6M12 5v2M12 17v2"/>',
+  "route": '<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 6H15a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h6.5"/>',
+  "walk": '<circle cx="13" cy="4.5" r="1.8"/><path d="M10 21l2-6-2-3 1-5 3 3 3 1M8 11l2-4M12 15l3 6"/>',
+  "help": '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.3 2.4c-.6.3-.9.8-.9 1.4v.6M12 17h.01"/>',
+  "wallet": '<rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18M16 15h2"/>',
+  "users": '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.5-4 3.3-6 6.5-6s6 2 6.5 6"/>',
+} %}
+
+{% macro icon(name, cls="") %}<svg class="yr-ico {{ cls }}" viewBox="0 0 24 24" aria-hidden="true">{{ PATHS[name] | safe }}</svg>{% endmacro %}
+
+{% macro chevron() %}<svg class="yr-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>{% endmacro %}
+
+{% macro intro(eyebrow, title, sub="") %}
+  <p class="yr-eyebrow">{{ eyebrow }}</p>
+  <h2 class="yr-title">{{ title }}</h2>
+  {% if sub %}<p class="yr-sub">{{ sub }}</p>{% endif %}
+{% endmacro %}
+
+{# A tappable card row: icon, small label, value, chevron. #}
+{% macro row(ico, label, value, href=none, tag="a") %}
+  {% if href %}<a class="yr-row" href="{{ href }}">{% else %}<div class="yr-row">{% endif %}
+    {{ icon(ico) }}<span class="yr-row-text"><small>{{ label }}</small><strong>{{ value }}</strong></span>{% if href %}{{ chevron() }}{% endif %}
+  {% if href %}</a>{% else %}</div>{% endif %}
+{% endmacro %}
+
+{% macro info(ico, title, text) %}
+  <div class="yr-info">{{ icon(ico) }}<div><strong>{{ title }}</strong><p>{{ text }}</p></div></div>
+{% endmacro %}
+
+{% macro timeline(top, top_meta, bottom, bottom_meta) %}
+  <div class="yr-card yr-timeline">
+    <div><i class="dot pink"></i><span><strong>{{ top }}</strong><small>{{ top_meta }}</small></span></div>
+    <div><i class="dot ink"></i><span><strong>{{ bottom }}</strong><small>{{ bottom_meta }}</small></span></div>
+  </div>
+{% endmacro %}
+
+{% macro price(label, amount, note, badge="", badge_class="green") %}
+  <div class="yr-price">
+    <div class="yr-price-top"><span>{{ label }}</span>{% if badge %}<em class="yr-badge {{ badge_class }}">{{ badge }}</em>{% endif %}</div>
+    <strong>{{ amount }}</strong>
+    <small>{{ note }}</small>
+  </div>
+{% endmacro %}
+
+{% macro initial(name) %}<span class="yr-initial">{{ name[0] }}</span>{% endmacro %}
+
+{# Simulated map in the design's style: soft streets, pink route from the pickup street to the drop-offs. #}
+{% macro map(m, campus_label, you_stop=none, label_start="Pickup street") %}
+  {% set pts = m.points %}
+  <figure class="yr-map" aria-label="Simulated route map">
+    <svg viewBox="0 0 {{ m.width }} {{ m.height }}" preserveAspectRatio="xMidYMid meet" role="img" aria-hidden="true">
+      <path d="M40 -10 C70 60 20 120 60 200" class="st"/>
+      <path d="M{{ m.width - 60 }} -10 C{{ m.width - 90 }} 60 {{ m.width - 40 }} 120 {{ m.width - 70 }} 200" class="st"/>
+      <path d="M-10 {{ m.height - 30 }} C80 {{ m.height - 60 }} 200 {{ m.height }} {{ m.width + 10 }} {{ m.height - 50 }}" class="st"/>
+      <rect x="{{ pts[0].x - 20 }}" y="{{ pts[0].y - 18 }}" width="40" height="34" rx="6" class="zone"/>
+      <rect x="{{ pts[-1].x - 16 }}" y="{{ pts[-1].y - 14 }}" width="32" height="26" rx="6" class="zone green"/>
+      <polyline points="{{ m.path }}" class="route"/>
+      {% for p in pts %}
+        {% if loop.first %}<circle cx="{{ p.x }}" cy="{{ p.y }}" r="7" class="start"/>
+        {% elif loop.last %}<circle cx="{{ p.x }}" cy="{{ p.y }}" r="6" class="end"/>
+        {% else %}<circle cx="{{ p.x }}" cy="{{ p.y }}" r="4.5" class="mid"/>{% endif %}
+      {% endfor %}
+      <text x="{{ pts[0].x - 10 }}" y="{{ pts[0].y - 26 }}" class="lbl">{{ campus_label }}</text>
+      <text x="{{ pts[0].x - 4 }}" y="{{ pts[0].y + 24 }}" class="lbl pink" text-anchor="middle">{{ label_start }}</text>
+      <text x="{{ pts[-1].x }}" y="{{ pts[-1].y + 26 }}" class="lbl" text-anchor="middle">{{ you_stop or pts[-1].name }}</text>
+    </svg>
+  </figure>
+{% endmacro %}
+
+{% macro cta(label, href=none, type="submit", name="", value="", cls="") %}
+  {% if href %}<a class="yr-cta {{ cls }}" href="{{ href }}">{{ label }}</a>
+  {% else %}<button class="yr-cta {{ cls }}" type="{{ type }}"{% if name %} name="{{ name }}" value="{{ value }}"{% endif %}>{{ label }}</button>{% endif %}
+{% endmacro %}

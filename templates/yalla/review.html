@@ -1,0 +1,20 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ url_for('yalla.preferences') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Review · 3 of 3", "Ready to find your group?", "This is a request. You confirm the fare later.") }}
+  {{ ui.price("Estimated share", "JOD " ~ "%.2f"|format(estimate.shared / 1000) ~ "–" ~ "%.2f"|format(estimate.solo / 1000), "Exact fare shown when a group is found. You never pay more than riding alone.", "Estimate") }}
+  {% if draft.direction == "from_campus" %}
+    {{ ui.timeline(university.campus ~ " · " ~ pickup.street, "Pickup · about " ~ (start | ampm) ~ " · walk " ~ pickup.walk_minutes ~ " min", draft.stop, "Your drop-off · about " ~ (end | ampm)) }}
+  {% else %}
+    {{ ui.timeline(draft.stop ~ " · " ~ pickup.street, "Pickup · about " ~ (start | ampm) ~ " · walk " ~ pickup.walk_minutes ~ " min", university.campus, "Arrive by " ~ (end | ampm)) }}
+  {% endif %}
+  <div class="yr-chips">
+    <span>{{ preference_name }}</span>{% if draft.quiet %}<span>Quiet ride</span>{% endif %}
+    {% if draft.friends == "start" %}<span>New friends group</span>{% elif draft.friends == "join" %}<span>Group {{ draft.group_code }}</span>{% endif %}
+  </div>
+  {{ ui.row("wallet", "Payment method", "Cash") }}
+  {{ ui.row("users", "Booking as", name, url_for('yalla.verify')) }}
+  <p class="yr-fine">No payment is taken while we look for a match.</p>
+{% endblock %}
+{% block foot %}<div class="yr-foot"><form method="post" action="{{ url_for('yalla.book') }}">{{ ui.token() }}{{ ui.cta("Find my group") }}</form></div>{% endblock %}

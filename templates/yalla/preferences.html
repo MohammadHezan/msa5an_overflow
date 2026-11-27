@@ -1,0 +1,38 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ url_for('yalla.pickup_time') }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Ride preferences · 2 of 3", "Make the ride yours", "We’ll only offer groups that fit your choices.") }}
+  <form id="pref-form" method="post" action="{{ url_for('yalla.preferences') }}" data-prefs>{{ ui.token() }}
+    <fieldset class="yr-seg small"><legend>I am</legend>
+      <label><input type="radio" name="gender" value="woman"{% if draft.gender == "woman" %} checked{% endif %}><span>Woman</span></label>
+      <label><input type="radio" name="gender" value="man"{% if draft.gender == "man" %} checked{% endif %}><span>Man</span></label>
+    </fieldset>
+    <div class="yr-card yr-pref">
+      <div class="yr-pref-head">{{ ui.icon("people") }}<span><strong>Ride with</strong><small>The captain may be any gender.</small></span></div>
+      <fieldset class="yr-seg"><legend class="sr">Ride with</legend>
+        <label><input type="radio" name="preference" value="mixed"{% if draft.preference == "mixed" %} checked{% endif %}><span>Anyone</span></label>
+        <label><input type="radio" name="preference" value="women" data-gender="woman"{% if draft.preference == "women" %} checked{% endif %}><span>Women only</span></label>
+        <label><input type="radio" name="preference" value="men" data-gender="man"{% if draft.preference == "men" %} checked{% endif %}><span>Men only</span></label>
+      </fieldset>
+      <p class="yr-muted" data-slow{% if draft.preference == "mixed" %} hidden{% endif %}>Matching may take longer.</p>
+    </div>
+    <label class="yr-card yr-toggle">{{ ui.icon("mute") }}<span><strong>Quiet ride</strong><small>Keep conversation to trip essentials. Shared with your car, not used for matching.</small></span><input type="checkbox" name="quiet" value="yes"{% if draft.quiet %} checked{% endif %}><i aria-hidden="true"></i></label>
+    {% if not batch or not batch.matched %}
+    <div class="yr-card yr-pref">
+      <div class="yr-pref-head">{{ ui.icon("users") }}<span><strong>Book with friends</strong><small>Friends in a group always ride in one car.</small></span></div>
+      <fieldset class="yr-seg"><legend class="sr">Book with friends</legend>
+        <label><input type="radio" name="friends" value=""{% if not draft.friends %} checked{% endif %}><span>Just me</span></label>
+        <label><input type="radio" name="friends" value="start"{% if draft.friends == "start" %} checked{% endif %}><span>Start a group</span></label>
+        <label><input type="radio" name="friends" value="join"{% if draft.friends == "join" %} checked{% endif %}><span>Join a group</span></label>
+      </fieldset>
+      <label class="yr-inline-toggle" data-friends="start"{% if draft.friends != "start" %} hidden{% endif %}><span>Let others fill empty seats</span><input type="checkbox" name="group_open" value="yes"{% if draft.group_open %} checked{% endif %}><i aria-hidden="true"></i></label>
+      <label class="yr-inline-field" data-friends="join"{% if draft.friends != "join" %} hidden{% endif %}><small>Group code</small><input name="group_code" value="{{ draft.group_code }}" maxlength="10" placeholder="GR-48" autocapitalize="characters"></label>
+    </div>
+    {% endif %}
+    {{ ui.row("clock", "Maximum wait for your group", rules.gap ~ " minutes") }}
+    {{ ui.row("walk", "Maximum walk to the pickup street", "200 m") }}
+  </form>
+  {{ ui.info("people", "One street pickup. Up to " ~ rules.seats ~ " students.", "Meet the car on your street, then get dropped off at your own stop.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot"><button class="yr-cta" form="pref-form" type="submit">Review my request</button></div>{% endblock %}

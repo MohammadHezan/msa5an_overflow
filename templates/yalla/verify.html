@@ -1,0 +1,16 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block body %}
+  {{ ui.intro("Student access", "Share with your campus", "Verify once using your university email.") }}
+  <form id="verify-form" method="post" action="{{ url_for('yalla.verify') }}">{{ ui.token() }}
+    <input type="hidden" name="next" value="{{ next }}">
+    {{ ui.row("cap", "University", university.name ~ " · " ~ university.campus, url_for('yalla.choose_university', next=request.full_path)) }}
+    <label class="yr-row yr-field">{{ ui.icon("mail") }}<span class="yr-row-text"><small>University email</small><input type="email" name="email" value="{{ email }}" required maxlength="254" autocomplete="email"></span></label>
+  </form>
+  {{ ui.info("shield", "Your student community", "University verification helps keep this option for students. Your email stays private.") }}
+  <div class="yr-steps">
+    <div><b>1</b><span><strong>Use your university email</strong><small>We’ll show a one-time code. This demo sends no email.</small></span></div>
+    <div><b>2</b><span><strong>Join your campus</strong><small>Then choose your route and ride preferences.</small></span></div>
+  </div>
+{% endblock %}
+{% block foot %}<div class="yr-foot"><button class="yr-cta" form="verify-form" type="submit">Send verification code</button></div>{% endblock %}

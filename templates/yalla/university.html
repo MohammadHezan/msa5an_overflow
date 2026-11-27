@@ -1,0 +1,22 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block body %}
+  {{ ui.intro("Your community", "Choose your university", "Start with the campus you’re leaving from.") }}
+  <label class="yr-row yr-field">{{ ui.icon("search") }}<span class="yr-row-text"><small>Search</small><input type="search" placeholder="University or city" data-filter=".yr-uni"></span></label>
+  <form id="uni-form" method="post" action="{{ url_for('yalla.choose_university') }}">{{ ui.token() }}
+    <input type="hidden" name="next" value="{{ next }}">
+    {% for u in universities %}
+      {% if u.open %}
+      <label class="yr-uni"><input type="radio" name="university" value="{{ u.id }}"{% if u.id == university.id %} checked{% endif %}>
+        {{ ui.icon("cap") }}<span><strong>{{ u.name }}</strong><small>{{ u.detail }}</small><em>Available for this route</em></span></label>
+      {% else %}
+      <div class="yr-uni off">{{ ui.icon("cap") }}<span><strong>{{ u.name }}</strong><small>{{ u.detail }}</small>
+        <button class="yr-textlink" type="submit" form="notify-{{ u.id }}">{% if u.id in session.get('yalla_notify', []) %}You’ll be notified{% else %}Get notified when available{% endif %}</button></span></div>
+      {% endif %}
+    {% endfor %}
+  </form>
+  {% for u in universities if not u.open %}
+    <form id="notify-{{ u.id }}" method="post" action="{{ url_for('yalla.notify') }}" hidden>{{ ui.token() }}<input type="hidden" name="university" value="{{ u.id }}"><input type="hidden" name="next" value="{{ request.full_path }}"></form>
+  {% endfor %}
+{% endblock %}
+{% block foot %}<div class="yr-foot"><button class="yr-cta" form="uni-form" type="submit">Continue with {{ university.campus }}</button></div>{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ url_for('yalla.verify', next=next) }}{% endblock %}
+{% block body %}
+  {{ ui.intro("Student access", "Check your university email", "Enter the 6-digit code sent to " ~ masked ~ ".") }}
+  <form id="code-form" method="post" action="{{ url_for('yalla.verify_code') }}" class="yr-code" data-otp>{{ ui.token() }}
+    <input type="hidden" name="next" value="{{ next }}">
+    {% for i in range(6) %}<input name="digit" inputmode="numeric" maxlength="1" pattern="[0-9]" aria-label="Digit {{ i + 1 }}" required autocomplete="{{ 'one-time-code' if i == 0 else 'off' }}">{% endfor %}
+  </form>
+  <p class="yr-muted">Code expires in {{ left }}</p>
+  <p class="yr-demo-code">Demo code: <b>{{ demo_code }}</b></p>
+  <form method="post" action="{{ url_for('yalla.resend_code') }}">{{ ui.token() }}<input type="hidden" name="next" value="{{ next }}"><button class="yr-textlink" type="submit">Resend code</button></form>
+  <a class="yr-textlink" href="{{ url_for('yalla.verify', next=next) }}">Use a different email</a>
+  {{ ui.info("shield", "Your email is not shared", "Other students see your first name and student-verification badge, not your email.") }}
+{% endblock %}
+{% block foot %}<div class="yr-foot"><button class="yr-cta" form="code-form" type="submit">Verify &amp; continue</button></div>{% endblock %}

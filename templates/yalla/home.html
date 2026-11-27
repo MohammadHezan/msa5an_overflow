@@ -1,0 +1,29 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block back %}{{ url_for('index', screen='book', ride='campus') }}{% endblock %}
+{% block bodyclass %} with-nav{% endblock %}
+{% block body %}
+  <p class="yr-verified">{% if verified %}Student verified · {{ university.campus }}{% else %}<a href="{{ url_for('yalla.verify') }}">Verify your university email</a>{% endif %}</p>
+  <section class="yr-hero">
+    <p class="yr-eyebrow">{{ ui.icon("cap") }} For your campus</p>
+    <h2>Same campus.<br>Better way home.</h2>
+    <p>One pickup street. Your own stop.<br>A fair share of the fare.</p>
+    <img src="{{ url_for('static', filename='rides/campus.webp') }}" alt="">
+  </section>
+  {{ ui.cta("Plan a shared ride", url_for('yalla.destination')) }}
+  <a class="yr-cta ghost" href="{{ url_for('index', screen='book', ride='campus') }}">Leave now &amp; share</a>
+  {{ ui.info("shield", "Know before you go", "Your pickup street, co-riders and fare are shown before you confirm. You choose what works.") }}
+  <a class="yr-card yr-trips-card" href="{{ url_for('yalla.ride') if rider else url_for('yalla.destination') }}">
+    <p class="yr-eyebrow">Your campus trips</p>
+    <strong>Every shared ride, in one place</strong>
+    <small>{% if rider %}{{ rider.stop }} · {{ rider.status | replace('_', ' ') }}{% else %}Upcoming rides, receipts and savings{% endif %}</small>
+    <span class="yr-link-row">View my trips <b aria-hidden="true">→</b></span>
+  </a>
+{% endblock %}
+{% block foot %}
+  <nav class="yr-nav" aria-label="Yalla Ride">
+    <a class="on" href="{{ url_for('yalla.home') }}" aria-current="page">{{ ui.icon("cap") }}<span>Campus</span></a>
+    <a href="{{ url_for('yalla.ride') if rider else url_for('yalla.home') }}">{{ ui.icon("history") }}<span>Trips</span></a>
+    <a href="{{ url_for('yalla.destination') }}">{{ ui.icon("bookmark") }}<span>Saved</span></a>
+  </nav>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "yalla/base.html" %}
+{% import "yalla/_ui.html" as ui with context %}
+{% block body %}
+  {{ ui.intro("Trip details · 1 of 3", "Where are you headed?", "Your own stop, along a shared route.") }}
+  <form id="dest-form" method="post" action="{{ url_for('yalla.destination') }}">{{ ui.token() }}
+    <fieldset class="yr-seg"><legend class="sr">Direction</legend>
+      <label><input type="radio" name="direction" value="from_campus"{% if draft.direction == "from_campus" %} checked{% endif %} data-autosubmit><span>From campus</span></label>
+      <label><input type="radio" name="direction" value="to_campus"{% if draft.direction == "to_campus" %} checked{% endif %} data-autosubmit><span>To campus</span></label>
+    </fieldset>
+    {% set stop_select %}<select name="stop" aria-label="{{ 'Your drop-off' if draft.direction == 'from_campus' else 'Your neighborhood' }}">{% for name, corridor in corridors.items() %}<optgroup label="{{ name }} corridor">{% for stop in corridor.stops %}<option{% if stop == draft.stop %} selected{% endif %}>{{ stop }}</option>{% endfor %}</optgroup>{% endfor %}</select>{% endset %}
+    {% if draft.direction == "from_campus" %}
+      {{ ui.row("cap", "From", university.campus ~ " · Campus street") }}
+      <label class="yr-row yr-field">{{ ui.icon("pin") }}<span class="yr-row-text"><small>Your drop-off</small>{{ stop_select }}</span>{{ ui.chevron() }}</label>
+    {% else %}
+      <label class="yr-row yr-field">{{ ui.icon("pin") }}<span class="yr-row-text"><small>From your street in</small>{{ stop_select }}</span>{{ ui.chevron() }}</label>
+      {{ ui.row("cap", "To", university.campus) }}
+    {% endif %}
+    <input type="hidden" name="go" value="next">
+  </form>
+  {% if recent or saved %}
+  <p class="yr-label">Recent &amp; saved</p>
+  {% for route in saved %}{{ ui.row("home", route.label, route.stop ~ " · Saved route", url_for('yalla.destination', stop=route.stop, direction=route.direction)) }}{% endfor %}
+  {% for stop in recent %}{{ ui.row("history", "Recent destination", stop, url_for('yalla.destination', stop=stop, direction=draft.direction)) }}{% endfor %}
+  {% endif %}
+{% endblock %}
+{% block foot %}<div class="yr-foot"><button class="yr-cta" form="dest-form" type="submit">Continue</button></div>{% endblock %}
