@@ -40,6 +40,17 @@ def public_student(db, student_id):
     }
 
 
+def booking_identity(db, token):
+    """(name, student_key) for a booking by this student token, from its verified profile.
+
+    Raises 403 verification_required for a token without a verified student.
+    """
+    student = public_student(db, token["student_id"])
+    if not student or not student["verified"]:
+        raise Problem("verification_required", "Verify your university email before booking a ride.", 403)
+    return student["firstName"], f"student:{student['id']}"
+
+
 def search_universities(db, search):
     term = search.strip()
     if len(term) > config.UNIVERSITY_SEARCH_MAX:

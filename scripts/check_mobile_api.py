@@ -1,8 +1,10 @@
 """Run the real TypeScript phone client against a disposable Flask server.
 
 No preview, join code, environment file, or persistent database is needed.
-The harness adds one test-only route, POST /__harness__/batches/<id>/delete, so the
-client test can expire a batch the way cleanup does; it never exists in the real app.
+The harness adds two test-only routes that never exist in the real app:
+- POST /__harness__/batches/<id>/delete expires a batch the way cleanup does;
+- POST /__harness__/sessions/verify?firstName=<name> (with the session's bearer token) marks that
+  session as a verified student, for tests that only need a verified booking.
 It also makes this disposable server issue the verification code 123456 (the next code,
 after a resend, is 123457), because real codes are only written to the server log.
 """
@@ -22,18 +24,42 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app import app  # noqa: E402
-from store import database  # noqa: E402
+from store import database, find_token, now  # noqa: E402
 import student_verification  # noqa: E402
+from urllib.parse import parse_qs  # noqa: E402
 
 HARNESS_CODE = 123456
 
 HARNESS_PREFIX = "/__harness__/batches/"
+VERIFY_PATH = "/__harness__/sessions/verify"
+
+
+def verify_session(environ):
+    """Give the bearer token a verified student profile; returns False for an unknown token."""
+    token = environ.get("HTTP_AUTHORIZATION", "").partition(" ")[2].strip()
+    first_name = parse_qs(environ.get("QUERY_STRING", "")).get("firstName", ["Student"])[0]
+    with app.app_context():
+        db = database()
+        with db:
+            row = find_token(db, token) if token else None
+            if not row or row["role"] != "student":
+                return False
+            school = db.execute("SELECT id FROM universities WHERE email_domain = 'bau.edu.jo'").fetchone()["id"]
+            student_id = db.execute(
+                "INSERT INTO students (university, email, first_name, verified_at) VALUES (?, ?, ?, ?)",
+                (school, f"{first_name.lower()}.{secrets.token_hex(4)}@bau.edu.jo", first_name, now().isoformat()),
+            ).lastrowid
+            db.execute("UPDATE api_tokens SET student_id = ? WHERE token_hash = ?", (student_id, row["token_hash"]))
+    return True
 
 
 def with_harness_routes(wsgi_app):
-    """Wrap the app with a delete-batch hook that only this disposable server exposes."""
+    """Wrap the app with test hooks that only this disposable server exposes."""
     def harness(environ, start_response):
         path = environ.get("PATH_INFO", "")
+        if environ.get("REQUEST_METHOD") == "POST" and path == VERIFY_PATH:
+            start_response("204 No Content" if verify_session(environ) else "401 Unauthorized", [])
+            return [b""]
         if environ.get("REQUEST_METHOD") == "POST" and path.startswith(HARNESS_PREFIX) and path.endswith("/delete"):
             batch_id = path[len(HARNESS_PREFIX):-len("/delete")]
             with app.app_context():

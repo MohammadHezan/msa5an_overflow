@@ -2,11 +2,13 @@
 
 import json
 import re
+import secrets
 from datetime import datetime, timedelta
 
 import pytest
 
 import app as campus
+import store
 import student_verification
 
 
@@ -33,6 +35,26 @@ def join(client, code):
     return response.get_json()["token"]
 
 
+def verify(token, first_name, email=None):
+    """Mark this phone session as a verified student (the real email flow is tested below)."""
+    with campus.app.app_context():
+        db = campus.database()
+        with db:
+            school = db.execute("SELECT id FROM universities WHERE email_domain = 'bau.edu.jo'").fetchone()["id"]
+            email = email or f"{first_name.lower()}.{secrets.token_hex(4)}@bau.edu.jo"
+            student_id = db.execute(
+                "INSERT INTO students (university, email, first_name, verified_at) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(university, email) DO UPDATE SET first_name = first_name RETURNING id",
+                (school, email, first_name, store.now().isoformat()),
+            ).fetchone()[0]
+            db.execute("UPDATE api_tokens SET student_id = ? WHERE token_hash = ?", (student_id, store._hash(token)))
+    return token
+
+
+def verified_join(client, code, first_name, email=None):
+    return verify(join(client, code), first_name, email)
+
+
 def book(client, batch, token, name, stop="Dabouq", class_end="16:00", woman=True, women_only=False, request_id=None):
     return client.post(
         f"/api/v1/batches/{batch['id']}/riders", headers=auth(token),
@@ -42,7 +64,7 @@ def book(client, batch, token, name, stop="Dabouq", class_end="16:00", woman=Tru
 
 
 def student(client, batch, name, **kwargs):
-    token = join(client, batch["joinCode"])
+    token = verified_join(client, batch["joinCode"], name)
     response = book(client, batch, token, name, **kwargs)
     assert response.status_code == 201, response.get_json()
     return token, response.get_json()["id"]
@@ -79,7 +101,7 @@ def test_health_and_stops(client):
 
 def test_booking_returns_waiting_and_retry_returns_same_rider(client):
     batch = new_batch(client)
-    token = join(client, batch["joinCode"])
+    token = verified_join(client, batch["joinCode"], "Sara")
     first = book(client, batch, token, "Sara", women_only=True)
     assert first.status_code == 201
     assert first.get_json()["status"] == "waiting" and first.get_json()["plan"] is None
@@ -92,19 +114,61 @@ def test_booking_returns_waiting_and_retry_returns_same_rider(client):
 
 def test_booking_conflicts(client):
     batch = new_batch(client)
-    token = join(client, batch["joinCode"])
+    token = verified_join(client, batch["joinCode"], "Sara", "sara@bau.edu.jo")
     book(client, batch, token, "Sara")
     changed = book(client, batch, token, "Sara", stop="Khalda")
     assert changed.status_code == 409 and changed.get_json()["error"]["code"] == "request_conflict"
     second = book(client, batch, token, "Rama", request_id="another-request")
     assert second.status_code == 409 and second.get_json()["error"]["code"] == "already_booked"
-    duplicate = book(client, batch, join(client, batch["joinCode"]), "sara", request_id="other-phone-01")
-    assert duplicate.status_code == 409 and duplicate.get_json()["error"]["code"] == "duplicate_name"
+    # The same verified student on a second phone still has only one request in the batch.
+    other_phone = verified_join(client, batch["joinCode"], "Sara", "sara@bau.edu.jo")
+    duplicate = book(client, batch, other_phone, "Sara", request_id="other-phone-01")
+    assert duplicate.status_code == 409 and duplicate.get_json()["error"]["code"] == "already_booked"
+    # A different verified student who is also called Sara may book.
+    namesake = book(client, batch, verified_join(client, batch["joinCode"], "Sara"), "Sara", request_id="namesake-0001")
+    assert namesake.status_code == 201 and namesake.get_json()["name"] == "Sara"
+
+
+def test_unverified_student_cannot_book(client):
+    batch = new_batch(client)
+    token = join(client, batch["joinCode"])
+    rejected = book(client, batch, token, "Sara")
+    assert rejected.status_code == 403 and rejected.get_json()["error"]["code"] == "verification_required"
+    # Verification was started but not confirmed: still rejected, and nothing was saved.
+    school = _university(client, token, "Al-Balqa Applied University")
+    started = client.post("/api/v1/verification/start", headers=auth(token), json={
+        "universityId": school["id"], "email": "sara@bau.edu.jo", "firstName": "Sara",
+    })
+    assert started.status_code == 200
+    pending = book(client, batch, token, "Sara")
+    assert pending.status_code == 403 and pending.get_json()["error"]["code"] == "verification_required"
+    detail = client.get(f"/api/v1/batches/{batch['id']}", headers=auth(batch["operatorToken"])).get_json()
+    assert detail["riders"] == []
+    with campus.app.app_context():
+        assert campus.database().execute(
+            "SELECT rider FROM api_tokens WHERE token_hash = ?", (store._hash(token),)).fetchone()["rider"] is None
+
+
+def test_verified_booking_uses_profile_name_not_client_name(client):
+    batch = new_batch(client)
+    token = verified_join(client, batch["joinCode"], "Lina")
+    first = book(client, batch, token, "Someone Else", request_id="lina-request-0001")
+    assert first.status_code == 201 and first.get_json()["name"] == "Lina"
+    # A retry is matched on the profile identity, so a different client `name` cannot fork the request.
+    retry = book(client, batch, token, "Another Name", request_id="lina-request-0001")
+    assert retry.status_code == 200 and retry.get_json()["id"] == first.get_json()["id"]
+    no_name = client.post(f"/api/v1/batches/{batch['id']}/riders", headers=auth(token), json={
+        "classEnd": "16:00", "stop": "Dabouq", "woman": True, "womenOnly": False,
+        "clientRequestId": "lina-request-0001",
+    })
+    assert no_name.status_code == 200 and no_name.get_json()["id"] == first.get_json()["id"]
+    detail = client.get(f"/api/v1/batches/{batch['id']}", headers=auth(batch["operatorToken"])).get_json()
+    assert [r["name"] for r in detail["riders"]] == ["Lina"]
 
 
 def test_invalid_input(client):
     batch = new_batch(client)
-    token = join(client, batch["joinCode"])
+    token = verified_join(client, batch["joinCode"], "Ali")
     man = book(client, batch, token, "Ali", woman=False, women_only=True)
     assert man.status_code == 400 and man.get_json()["error"]["code"] == "invalid_input"
     late = book(client, batch, token, "Ali", class_end="22:00")
@@ -151,7 +215,7 @@ def test_matching_closes_batch_and_repeat_returns_saved_cars(client, west_car):
     again = match(client, batch).get_json()
     assert again["ranNow"] is False and len(again["batch"]["cars"]) == 1
     # After matching, a late request is placed at once (here: alone, with the lone-rider choices)
-    late = book(client, batch, join(client, batch["joinCode"]), "Lina", request_id="late-request-1")
+    late = book(client, batch, verified_join(client, batch["joinCode"], "Lina"), "Lina", request_id="late-request-1")
     assert late.status_code == 201 and late.get_json()["status"] == "no_match"
 
 
@@ -217,7 +281,7 @@ def test_morning_sample_forms_shared_cars_with_individual_pickup_times(client):
 
 def test_to_campus_booking_accepts_class_start_without_class_end(client):
     batch = new_batch(client)
-    token = join(client, batch["joinCode"])
+    token = verified_join(client, batch["joinCode"], "Demo")
     response = client.post(f"/api/v1/batches/{batch['id']}/riders", headers=auth(token), json={
         "name": "Demo student", "direction": "to_campus", "classStart": "08:30",
         "stop": "Dabouq", "gender": "woman", "preference": "mixed",
@@ -242,7 +306,7 @@ def test_phone_and_dashboard_share_one_batch(client):
         code, _ = campus.join_code(campus.database(), batch_id)
     assert code in page
 
-    token = join(client, code)
+    token = verified_join(client, code, "Maha")
     phone = book(client, {"id": batch_id}, token, "Maha", stop="Khalda", class_end="16:00", women_only=True)
     assert phone.status_code == 201
     rider_id = phone.get_json()["id"]

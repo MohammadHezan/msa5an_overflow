@@ -17,7 +17,7 @@ from store import (
     respond_to_plan, run_matching, summarize, verify_ride_code,
 )
 from student_verification import (
-    confirm_verification, public_student, request_notification, resend_verification,
+    booking_identity, confirm_verification, public_student, request_notification, resend_verification,
     search_universities, start_verification,
 )
 
@@ -380,6 +380,8 @@ def book(batch_id):
     token = bearer(db)
     if token["role"] != "student" or token["batch"] != batch_id:
         raise forbidden()
+    # Identity comes from the verified profile; a client-sent `name` is ignored.
+    name, student_key = booking_identity(db, token)
     body = json_body()
     client_request_id = field(body, "clientRequestId", str)
     if not CLIENT_REQUEST_ID.fullmatch(client_request_id):
@@ -390,7 +392,7 @@ def book(batch_id):
         gender, preference = field(body, "gender", str), field(body, "preference", str, "mixed")
     else:  # Older clients send woman/womenOnly flags
         gender, preference = legacy_options(field(body, "woman", bool, False), field(body, "womenOnly", bool, False))
-    name = check_request(field(body, "name", str), class_end, stop, gender, preference, direction, class_start)
+    name = check_request(name, class_end, stop, gender, preference, direction, class_start)
 
     with db:
         batch = locked_batch(db, batch_id)
@@ -407,7 +409,8 @@ def book(batch_id):
             rider_id, status = saved["id"], 200
         else:
             rider_id, status = insert_request(db, batch, name, class_end, stop, gender, preference,
-                                              direction=direction, class_start=class_start), 201
+                                              direction=direction, class_start=class_start,
+                                              student_key=student_key), 201
             bind_token(db, token["token_hash"], rider_id, client_request_id)
     return jsonify(rider_json(*load_rider(db, batch_id, rider_id))), status
 

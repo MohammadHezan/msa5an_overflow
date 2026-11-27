@@ -253,13 +253,13 @@ def _street_location(name, stop, direction):
 
 
 def add_rider(db, batch, name, class_end, stop, gender, preference, direction="from_campus",
-              class_start=None, friend_group=None):
+              class_start=None, friend_group=None, student_key=None):
     corridor, start_km, start_side_m, end_km, end_side_m = _street_location(name, stop, direction)
     return db.execute(
         "INSERT INTO riders (batch, name, student_key, class_end, class_start, stop, gender, preference, "
         "friend_group, direction, corridor, start_km, start_side_m, end_km, end_side_m) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (batch, name, name.casefold(), class_end, class_start, stop, gender, preference, friend_group,
+        (batch, name, student_key or name.casefold(), class_end, class_start, stop, gender, preference, friend_group,
          direction, corridor, start_km, start_side_m, end_km, end_side_m),
     ).lastrowid
 
@@ -524,17 +524,22 @@ def _new_group_code(db, batch_id):
 
 
 def insert_request(db, batch, name, class_end, stop, gender, preference, friends=None,
-                   direction="from_campus", class_start=None):
+                   direction="from_campus", class_start=None, student_key=None):
     """Save a checked request. Call inside a locked_batch transaction.
 
     friends: None (just me), {"mode": "start", "open": bool} or {"mode": "join", "code": "GR-48"}.
+    student_key: one request per verified student (e.g. "student:7"); defaults to the casefolded name.
     After matching has run, the request is a late request: it is placed at once (see place_late_request).
     """
     if db.execute("SELECT COUNT(*) FROM riders WHERE batch = ?", (batch["id"],)).fetchone()[0] >= MAX_REQUESTS:
         raise Problem("batch_full", "This demo batch is full.")
     if batch["matched"] and friends:
         raise Problem("batch_matched", "Matching already ran, so friends can't book together now. Book on your own.")
-    if db.execute("SELECT 1 FROM riders WHERE batch = ? AND student_key = ?", (batch["id"], name.casefold())).fetchone():
+    if student_key and db.execute("SELECT 1 FROM riders WHERE batch = ? AND student_key = ?",
+                                  (batch["id"], student_key)).fetchone():
+        raise Problem("already_booked", "You already have a request in this batch.")
+    if not student_key and db.execute("SELECT 1 FROM riders WHERE batch = ? AND student_key = ?",
+                                      (batch["id"], name.casefold())).fetchone():
         raise Problem("duplicate_name", "That name already has a request in this batch.")
     code = None
     if friends and friends["mode"] == "start":
@@ -557,7 +562,7 @@ def insert_request(db, batch, name, class_end, stop, gender, preference, friends
         if problem:
             raise Problem("group_mismatch", problem)
     rider_id = add_rider(db, batch["id"], name, class_end, stop, gender, preference,
-                         direction, class_start, friend_group=code)
+                         direction, class_start, friend_group=code, student_key=student_key)
     if batch["matched"]:
         place_late_request(db, batch, rider_id)
     return rider_id
