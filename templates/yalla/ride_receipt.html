@@ -13,7 +13,7 @@
     <p><strong>How was your shared ride?</strong></p>
     <div>{% for n in range(1, 6) %}<button type="submit" name="stars" value="{{ n }}" class="{{ 'on' if session.get('yalla_rating', 0) >= n }}" aria-label="{{ n }} star{{ 's' if n > 1 }}">★</button>{% endfor %}</div>
   </form>
-  <a class="yr-textlink" href="{{ url_for('yalla.destination', stop=rider.stop, direction=rider.direction) }}">Book this campus route again</a>
+  <form method="post" action="{{ url_for('yalla.save_route') }}">{{ ui.token() }}<input type="hidden" name="stop" value="{{ rider.stop }}"><input type="hidden" name="direction" value="{{ rider.direction }}"><input type="hidden" name="next" value="{{ request.full_path }}"><button class="yr-textlink" type="submit">{% if session.get('yalla_saved') and session['yalla_saved'][0].stop == rider.stop %}Campus route saved{% else %}Save this campus route{% endif %}</button></form>
   <a class="yr-textlink" href="{{ url_for('yalla.home') }}">View all campus trips</a>
 {% endblock %}
 {% block foot %}<div class="yr-foot">{{ ui.cta("Done", url_for('yalla.home')) }}</div>{% endblock %}

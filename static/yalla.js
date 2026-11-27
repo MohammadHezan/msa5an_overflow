@@ -68,3 +68,15 @@
     sync();
   }
 })();
+
+// 15: "Share trip" copies the trip link (no message is sent from the demo).
+document.querySelectorAll("[data-share]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(button.dataset.share); } catch (error) { /* clipboard blocked: still show the link */ }
+    const toast = document.createElement("p");
+    toast.className = "yr-toast"; toast.setAttribute("role", "status");
+    toast.textContent = "Trip link copied";
+    document.querySelector(".screen.yr").appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
+  });
+});

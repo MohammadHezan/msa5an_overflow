@@ -1,6 +1,6 @@
 {% import "yalla/_ui.html" as ui with context %}
 <div class="yr-card yr-captain">
-  <span class="yr-initial big">{{ (plan.captain.name[:2] if plan.captain else "JC") | upper }}</span>
+  <span class="yr-initial big">{% set words = (plan.captain.name if plan.captain else "Jeeny Captain").split() %}{{ (words[0][0] ~ (words[1][0] if words | length > 1 else words[0][1])) | upper }}</span>
   <span><strong>{{ plan.captain.name if plan.captain else "Jeeny captain" }}</strong><small>★ {{ car.rating }} · {{ car.ratings }} ratings</small></span>
   <img src="{{ url_for('static', filename='rides/campus.webp') }}" alt="">
   <p><b>{{ car.car }} · {{ car.plate }}</b><small>Check the plate before boarding</small></p>

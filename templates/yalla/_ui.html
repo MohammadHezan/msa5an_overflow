@@ -16,6 +16,7 @@
   "car": '<path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v3H3z"/><circle cx="7.5" cy="13" r=".8"/><circle cx="16.5" cy="13" r=".8"/>',
   "search": '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/>',
   "check": '<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
+  "tick": '<path d="M7 12.5l3.2 3.2L17 9"/>',
   "money": '<circle cx="12" cy="12" r="9"/><path d="M15 8.5c-.6-.9-1.7-1.5-3-1.5-1.7 0-3 1-3 2.4 0 3.2 6 1.8 6 5 0 1.4-1.3 2.6-3 2.6-1.4 0-2.6-.6-3.2-1.6M12 5v2M12 17v2"/>',
   "route": '<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 6H15a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h6.5"/>',
   "walk": '<circle cx="13" cy="4.5" r="1.8"/><path d="M10 21l2-6-2-3 1-5 3 3 3 1M8 11l2-4M12 15l3 6"/>',
@@ -66,25 +67,27 @@
 
 {% macro initial(name) %}<span class="yr-initial">{{ name[0] }}</span>{% endmacro %}
 
-{# Simulated map in the design's style: soft streets, pink route from the pickup street to the drop-offs. #}
-{% macro map(m, campus_label, you_stop=none, label_start="Pickup street") %}
-  {% set pts = m.points %}
-  <figure class="yr-map" aria-label="Simulated route map">
-    <svg viewBox="0 0 {{ m.width }} {{ m.height }}" preserveAspectRatio="xMidYMid meet" role="img" aria-hidden="true">
-      <path d="M40 -10 C70 60 20 120 60 200" class="st"/>
-      <path d="M{{ m.width - 60 }} -10 C{{ m.width - 90 }} 60 {{ m.width - 40 }} 120 {{ m.width - 70 }} 200" class="st"/>
-      <path d="M-10 {{ m.height - 30 }} C80 {{ m.height - 60 }} 200 {{ m.height }} {{ m.width + 10 }} {{ m.height - 50 }}" class="st"/>
-      <rect x="{{ pts[0].x - 20 }}" y="{{ pts[0].y - 18 }}" width="40" height="34" rx="6" class="zone"/>
-      <rect x="{{ pts[-1].x - 16 }}" y="{{ pts[-1].y - 14 }}" width="32" height="26" rx="6" class="zone green"/>
-      <polyline points="{{ m.path }}" class="route"/>
-      {% for p in pts %}
-        {% if loop.first %}<circle cx="{{ p.x }}" cy="{{ p.y }}" r="7" class="start"/>
-        {% elif loop.last %}<circle cx="{{ p.x }}" cy="{{ p.y }}" r="6" class="end"/>
-        {% else %}<circle cx="{{ p.x }}" cy="{{ p.y }}" r="4.5" class="mid"/>{% endif %}
+{# Simulated map drawn like the design: soft streets, campus zone top left, pink route to the last drop-off.
+   `mids` small rings mark the other students' stops on the way. #}
+{% macro map(campus_label, start_label, end_label, mids=1) %}
+  {% set route = [(111, 86), (127, 118), (245, 168)] %}
+  <figure class="yr-map" aria-label="Simulated route map: {{ start_label }} to {{ end_label }}">
+    <svg viewBox="0 0 342 212" role="img" aria-hidden="true">
+      <path d="M62 -10 C82 60 48 140 72 222" class="st"/>
+      <path d="M186 -10 C176 70 214 140 196 222" class="st"/>
+      <path d="M282 -10 C268 70 300 150 276 222" class="st"/>
+      <path d="M-10 188 C80 168 140 214 220 190 S310 160 352 178" class="st"/>
+      <rect x="88" y="62" width="58" height="42" rx="6" class="zone"/>
+      <rect x="218" y="146" width="38" height="32" rx="6" class="zone green"/>
+      <polyline points="111,86 127,118 245,168" class="route"/>
+      <circle cx="111" cy="86" r="9" class="start"/>
+      {% for i in range(mids if mids < 3 else 3) %}{% set t = (i + 1) / ((mids if mids < 3 else 3) + 1) %}
+        <circle cx="{{ 127 + 118 * t }}" cy="{{ 118 + 50 * t }}" r="5" class="mid"/>
       {% endfor %}
-      <text x="{{ pts[0].x - 10 }}" y="{{ pts[0].y - 26 }}" class="lbl">{{ campus_label }}</text>
-      <text x="{{ pts[0].x - 4 }}" y="{{ pts[0].y + 24 }}" class="lbl pink" text-anchor="middle">{{ label_start }}</text>
-      <text x="{{ pts[-1].x }}" y="{{ pts[-1].y + 26 }}" class="lbl" text-anchor="middle">{{ you_stop or pts[-1].name }}</text>
+      <circle cx="245" cy="168" r="7" class="end"/>
+      <text x="88" y="50" class="lbl">{{ campus_label }}</text>
+      <text x="100" y="114" class="lbl pink" text-anchor="end">{{ start_label }}</text>
+      <text x="238" y="196" class="lbl">{{ end_label }}</text>
     </svg>
   </figure>
 {% endmacro %}

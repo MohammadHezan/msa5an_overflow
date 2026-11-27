@@ -228,3 +228,11 @@ a.yr-row:hover, label.yr-row:hover { border-color: #D3D3D3; }
 .yr-rowbtn { width: 100%; font: inherit; text-align: left; cursor: pointer; }
 .yr-field input::-webkit-calendar-picker-indicator { display: none; }
 .yr-label { margin-top: 18px; }
+.yr-people li > span:not(.yr-initial) { flex: 1; }
+.yr-people li > .yr-initial { flex: 0 0 38px; }
+.yr-foot-links { flex-direction: row; justify-content: space-between; align-items: center; padding-bottom: 28px; }
+.yr-checks b .yr-ico { stroke-width: 2.2; }
+.yr-map { height: 212px; }
+.yr-map svg { height: 100%; }
+.yr-map .lbl { font-size: 11px; }
+.yr-rate button { font-size: 2.3rem; }

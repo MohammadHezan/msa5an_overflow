@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 
 from pooling.config import DETOUR_EXTRA_KM, SPEED_KMH
-from sharing import CORRIDORS, STOPS, route_map
+from sharing import CORRIDORS, STOPS
 from store import (
     RULES, Problem, check_request, clock, create_batch, database, fare_estimates, get_batch, insert_request,
     load_riders, locked_batch, refresh, respond_to_plan, run_matching,
@@ -271,11 +271,14 @@ def preferences():
 
 @yalla.post("/plan/save")
 def save_route():
-    """Save the chosen stop as the student's Home route (this browser only)."""
-    d = draft()
-    session["yalla_saved"] = [{"label": "Home", "stop": d["stop"], "direction": d["direction"]}]
-    flash(f"Saved {d['stop']} as Home")
-    return redirect(url_for("yalla.destination"))
+    """Save a stop (the draft's, or the one just ridden) as the student's Home route (this browser only)."""
+    stop = request.form.get("stop") or draft()["stop"]
+    direction = request.form.get("direction") or draft()["direction"]
+    if stop not in STOPS or direction not in ("from_campus", "to_campus"):
+        abort(400)
+    session["yalla_saved"] = [{"label": "Home", "stop": stop, "direction": direction}]
+    flash(f"Saved {stop} as Home")
+    return redirect(safe_next() or url_for("yalla.destination"))
 
 
 @yalla.get("/plan/review")
@@ -328,7 +331,11 @@ def book():
 
 def batch_date():
     batch = get_batch(database(), session.get("batch"))
-    return datetime.fromisoformat(batch["trip_date"]).strftime("%a, %d %b") if batch else "Tomorrow"
+    if not batch:
+        return "Tomorrow"
+    day = datetime.fromisoformat(batch["trip_date"]).date()
+    days = (day - clock(batch).date()).days
+    return {0: "Today", 1: "Tomorrow"}.get(days, day.strftime("%a, %d %b"))
 
 
 def ride_context(batch, rider):
@@ -336,13 +343,16 @@ def ride_context(batch, rider):
     members = plan.get("members") or [rider]
     me_first = [rider] + [m for m in members if m["id"] != rider["id"]]
     saving = round((rider["solo"] - rider["share"]) * 100 / rider["solo"]) if rider.get("share") and rider["solo"] else 0
-    stops = [m["stop"] for m in members]
     pickup = rider.get("pickup_at") or plan.get("pickup")
     drop = (plan.get("drop_times") or {}).get(rider["id"])
+    walk_min = walk_minutes((plan.get("walk_m") or {}).get(rider["id"], rider.get("walk_m") or 0))
+    now = clock(batch)
+    arrive_in = minutes_between(now.strftime("%H:%M"), pickup) if pickup and now.date().isoformat() == batch["trip_date"][:10] else None
     return {"plan": plan, "members": members, "me_first": me_first, "saving": saving,
-            "street": pickup_street(rider), "walk_min": walk_minutes((plan.get("walk_m") or {}).get(rider["id"], rider.get("walk_m") or 0)),
+            "street": pickup_street(rider), "walk_min": walk_min,
+            "ready": add_minutes(rider["class_end"] or "16:00", walk_min),
+            "arrive_in": arrive_in if arrive_in and arrive_in > 0 else None,
             "pickup": pickup, "drop": drop, "car": car_details(plan) if plan else None,
-            "map": route_map(plan.get("gate") or CORRIDORS[STOPS[rider["stop"]]["corridor"]]["gate"], stops),
             "ride_minutes": minutes_between(pickup, drop) if pickup and drop else None,
             "now": clock(batch), "batch_date": batch_date(), "quiet": draft()["quiet"]}
 

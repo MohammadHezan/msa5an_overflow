@@ -3,14 +3,13 @@
 {% block body %}
   {{ ui.intro("Your group is ready", "A shared ride, your way", "Review the details before you confirm.") }}
   {{ ui.price("Your share", rider.share | jod, (rider.solo | jod) ~ " riding alone", "Save " ~ saving ~ "%") }}
-  {{ ui.row("walk", "Walk " ~ walk_min ~ " min to " ~ street, batch_date ~ " · " ~ (pickup | ampm)) }}
+  {{ ui.row("pin", "Meet on " ~ street ~ " · walk " ~ walk_min ~ " min", batch_date ~ " · " ~ (pickup | ampm)) }}
   {% if rider.hold_until %}<p class="yr-warn">Your seat is held for {{ ((rider.hold_until - now).total_seconds() / 60) | round(0, "ceil") | int }} more min. Confirm before then or it goes back to the others.</p>{% endif %}
   <ul class="yr-people">
     {% for m in members %}
       <li>{{ ui.initial(m.name) }}<span><strong>{{ "You" if m.id == rider.id else m.name }}</strong><small>{{ m.stop }} · {{ "Your own drop-off" if m.id == rider.id else "Verified student" }}</small></span><em>{{ loop.index }}{{ ["st","nd","rd","th"][[loop.index0, 3]|min] }} stop</em>{{ ui.icon("check") }}</li>
     {% endfor %}
   </ul>
-  {% if plan.captain %}<p class="yr-fine">Captain {{ plan.captain.name }}{% if plan.only %} · {{ "Women only" if plan.only == "women" else "Men only" }} car{% endif %}</p>{% endif %}
   <a class="yr-textlink" href="{{ url_for('yalla.fare') }}">How is my fare split?</a>
   <form method="post" action="{{ url_for('yalla.respond', action='decline') }}">{{ ui.token() }}<button class="yr-textlink muted" type="submit">Not for me</button></form>
 {% endblock %}

@@ -2,13 +2,13 @@
 {% import "yalla/_ui.html" as ui with context %}
 {% block back %}{{ url_for('yalla.ride') }}{% endblock %}
 {% block body %}
-  {{ ui.intro("Pickup at " ~ (pickup | ampm), "Your captain is on the way", "Pickup on " ~ street ~ " · " ~ (pickup | ampm)) }}
-  {{ ui.map(map, university.campus, "Your stop", street if rider.direction == "from_campus" else "Campus") }}
+  {{ ui.intro("Pickup at " ~ (pickup | ampm), "Your captain is on the way", ("Arriving in " ~ arrive_in ~ " minutes · " ~ street) if arrive_in else ("Pickup on " ~ street)) }}
+  {{ ui.map(university.campus ~ " campus", "Campus street" if rider.direction == "from_campus" else rider.stop ~ " street", "Your stop" if rider.direction == "from_campus" else "Campus", members | length - 1) }}
   {% include "yalla/_captain.html" %}
   <div class="yr-two">
     <a class="yr-cta ghost" href="{{ url_for('yalla.help_page') }}">Call captain</a>
     <a class="yr-cta ghost" href="{{ url_for('yalla.help_page') }}">Message</a>
   </div>
-  {{ ui.info("nav", "Walk to " ~ street, "About " ~ walk_min ~ " min (at most 200 m). Check the plate before showing your code.") }}
+  {{ ui.info("nav", "Walk to " ~ street, "About a " ~ walk_min ~ "-minute walk (at most 200 m). Check the plate before showing your code.") }}
 {% endblock %}
 {% block foot %}<div class="yr-foot">{{ ui.cta("Show boarding code", url_for('yalla.ride', step='code')) }}</div>{% endblock %}

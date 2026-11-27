@@ -4,11 +4,11 @@
 {% block body %}
   {% set mine = members | selectattr("id", "equalto", rider.id) | first %}
   {{ ui.intro("Trip in progress", "Next stop: " ~ (members[0].stop if members[0].id != rider.id else "your destination"), "Boarding verified" ~ (" · Quiet ride" if quiet else "")) }}
-  {{ ui.map(map, university.campus, "Your stop", street if rider.direction == "from_campus" else "Campus") }}
+  {{ ui.map(university.campus ~ " campus", "Campus street" if rider.direction == "from_campus" else rider.stop ~ " street", "Your stop" if rider.direction == "from_campus" else "Campus", members | length - 1) }}
   <ol class="yr-stops">
     {% for m in members %}<li><b>{{ loop.index }}</b><span><strong>{{ m.stop }}{% if m.id == rider.id %} · Your stop{% endif %}</strong><small>{% if m.id == rider.id %}Estimated arrival · {{ plan.drop_times[m.id] | ampm }}{% else %}{{ m.name }}’s stop{% endif %}</small></span></li>{% endfor %}
     {% if rider.direction == "to_campus" %}<li><b>{{ members|length + 1 }}</b><span><strong>{{ university.campus }}</strong><small>Arrive by {{ plan.campus_arrival | ampm }}</small></span></li>{% endif %}
   </ol>
-  <a class="yr-textlink" href="{{ url_for('yalla.ride', step='receipt') }}">Demo: finish the ride</a>
+  <a class="yr-textlink muted" href="{{ url_for('yalla.ride', step='receipt') }}">Demo: finish the ride</a>
 {% endblock %}
-{% block foot %}<div class="yr-foot yr-two"><a class="yr-cta ghost" href="{{ url_for('yalla.ride', step='receipt') }}">Share trip</a>{{ ui.cta("Get help", url_for('yalla.help_page')) }}</div>{% endblock %}
+{% block foot %}<div class="yr-foot yr-two"><button class="yr-cta ghost" type="button" data-share="{{ url_for('yalla.ride', step='trip', _external=True) }}">Share trip</button>{{ ui.cta("Get help", url_for('yalla.help_page')) }}</div>{% endblock %}
