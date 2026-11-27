@@ -12,11 +12,12 @@ def test_simulation_compares_three_methods_over_thirty_paired_seeds():
     assert result["counts"] == (8, 16, 24, 32)
     for n in COUNTS:
         assert _scenario(n, 0) == _scenario(n, 0)
-        assert {r.direction for r in _scenario(n, 0)} == {"from_campus", "to_campus"}
+        riders, _ = _scenario(n, 0)
+        assert {r.direction for r in riders} == {"from_campus", "to_campus"}
         assert set(result["summary"][n]) == set(METHODS)
         for method in METHODS:
             metrics = result["summary"][n][method]
-            assert len(metrics) == 7
+            assert len(metrics) == 10
             for metric in metrics.values():
                 assert all(math.isfinite(value) for value in metric.values())
                 assert metric["min"] <= metric["mean"] <= metric["max"]

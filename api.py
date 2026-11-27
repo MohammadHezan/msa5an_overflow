@@ -21,6 +21,7 @@ from store import (
     locked_batch, now, choose, respond_to_plan, run_matching, summarize, verify_ride_code, check_ride_options,
     request_checks, ride_estimate, RIDE_OPTION_KEYS,
 )
+from simulation import run_simulation
 from yalla import car_details, leg_split, pickup_street
 from student_verification import (
     booking_identity, confirm_verification, public_student, request_notification, resend_verification,
@@ -451,6 +452,19 @@ def estimate():
         "riders": {"low": config.ESTIMATE_FULL_RIDERS, "high": config.ESTIMATE_PAIR_RIDERS},
         "paymentMethod": "cash", "paymentTakenNow": False,
         **sample_estimate(result["stop"], request.args.get("direction", "from_campus")),
+    })
+
+
+@api.get("/simulation")
+def simulation_results():
+    """Judge comparison: riding alone vs first-come vs optimizer on the same simulated waves. No auth."""
+    result = run_simulation()
+    return jsonify({
+        "simulated": True,
+        "note": "Simulated numbers: synthetic students, corridors, timing, limits and friends groups. "
+                "Not live demand, real street routing or fares actually paid.",
+        "counts": list(result["counts"]), "seeds": result["seeds"], "methods": list(result["methods"]),
+        "summary": {str(n): result["summary"][n] for n in result["counts"]},
     })
 
 
