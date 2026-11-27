@@ -182,7 +182,7 @@ def _street_shares(total: int, rider_ids: list[str], segments: list[tuple[float,
     """
     if not rider_ids:
         return {}
-    raw = {rid: total / len(rider_ids) * 0 for rid in rider_ids}
+    raw = {rid: 0.0 for rid in rider_ids}
     start = min(total, config.START_DAY)
     for rid in rider_ids:
         raw[rid] = start / len(rider_ids)
@@ -204,7 +204,7 @@ def _street_shares(total: int, rider_ids: list[str], segments: list[tuple[float,
         if not eligible:
             # Mathematically impossible for valid inputs (car fare <= summed solo fares).
             return {}
-        rid = max(eligible, key=lambda item: (exact[item] - int(exact[item]), -rider_ids.index(item)))
+        rid = max(eligible, key=lambda item: (exact[item] - shares[item], -rider_ids.index(item)))
         shares[rid] += 1
         remainder -= 1
     return shares

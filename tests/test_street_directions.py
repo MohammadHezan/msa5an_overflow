@@ -126,3 +126,13 @@ def test_street_cars_enforce_preferences_seats_and_individual_savings():
     assert plan is not None
     assert all(plan.shares[rid] <= .75 * plan.solo_fare[rid] for rid in plan.shares)
     assert evaluate([*women, replace(woman, request_id="fifth")]) is None
+
+
+def test_street_fare_largest_remainders_distribute_distinct_rounding_fils():
+    plan = evaluate([
+        street(rid, "from_campus", 0, 8.007, ready_at=at("16:00"))
+        for rid in ("a", "b", "c")
+    ])
+    assert plan.car_fare == 468 + round(336 * 8.007) == 3158
+    assert list(plan.shares.values()) == [1053, 1053, 1052]
+    assert sum(plan.shares.values()) == plan.car_fare

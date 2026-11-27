@@ -77,7 +77,7 @@ def split(riders, at: datetime, direction="from_campus", extras=None, caps=None)
         eligible = [rid for rid in ids if shares[rid] < caps.get(rid, total)]
         if not eligible:
             break
-        rid = max(eligible, key=lambda item: (raw[item] - int(raw[item]), -ids.index(item)))
+        rid = max(eligible, key=lambda item: (raw[item] - shares[item], -ids.index(item)))
         shares[rid] += 1
         remainder -= 1
     return shares, total, route_km
