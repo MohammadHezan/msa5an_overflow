@@ -55,7 +55,18 @@ def verified_join(client, code, first_name, email=None):
     return verify(join(client, code), first_name, email)
 
 
+def profile_gender(token, gender):
+    """Set the verified student's profile gender (Jeeny supplies it; booking never takes it from the phone)."""
+    with campus.app.app_context():
+        db = campus.database()
+        with db:
+            db.execute("UPDATE students SET gender = ? WHERE id = (SELECT student_id FROM api_tokens WHERE token_hash = ?)",
+                       (gender, store._hash(token)))
+    return token
+
+
 def book(client, batch, token, name, stop="Dabouq", class_end="16:00", woman=True, women_only=False, request_id=None):
+    profile_gender(token, "woman" if woman else "man")
     return client.post(
         f"/api/v1/batches/{batch['id']}/riders", headers=auth(token),
         json={"name": name, "classEnd": class_end, "stop": stop, "woman": woman, "womenOnly": women_only,
@@ -508,7 +519,7 @@ def test_successful_verification_issues_student_token_and_limits_other_rider_det
         assert "email" not in body["student"] and "phone" not in json.dumps(body).lower()
         me = client.get("/api/v1/me", headers=auth(body["token"]))
         assert me.status_code == 200 and me.get_json()["verified"] is True
-        verified_tokens.append(body["token"])
+        verified_tokens.append(profile_gender(body["token"], "woman"))  # Both book women-only rides below
 
     rider_ids = []
     for student_token, name, stop, request_id in (

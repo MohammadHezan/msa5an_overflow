@@ -114,7 +114,7 @@ def _masked(email):
     return f"{local[0]}***@{domain}"
 
 
-def start_verification(db, token, university_id, email, first_name=None):
+def start_verification(db, token, university_id, email, first_name=None, gender=None):
     school = university(db, university_id)
     if not school["available"]:
         raise Problem("campus_unavailable", "Yalla Ride is not available at this campus yet.", 409)
@@ -131,6 +131,8 @@ def start_verification(db, token, university_id, email, first_name=None):
         first_name = first_name.strip().split()[0] if first_name.strip() else ""
     if not first_name or len(first_name) > config.STUDENT_FIRST_NAME_MAX:
         raise Problem("invalid_input", "Enter a valid first name.", 400)
+    if gender is not None and gender not in ("man", "woman"):
+        raise Problem("invalid_input", "`gender` must be man or woman.", 400)
     student = db.execute(
         "SELECT * FROM students WHERE university = ? AND email = ?", (school["id"], email),
     ).fetchone()
@@ -141,7 +143,7 @@ def start_verification(db, token, university_id, email, first_name=None):
     if student is None:
         student_id = db.execute(
             "INSERT INTO students (university, email, first_name, gender) VALUES (?, ?, ?, ?)",
-            (school["id"], email, first_name, config.DEMO_STUDENT_GENDER),
+            (school["id"], email, first_name, gender or config.DEMO_STUDENT_GENDER),  # Set once, from the Jeeny profile
         ).lastrowid
     else:
         student_id = student["id"]

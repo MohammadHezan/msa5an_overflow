@@ -33,8 +33,12 @@ async function deleteBatch(batchId: string): Promise<void> {
 }
 
 /** Test-only hook served by scripts/check_mobile_api.py: marks a session as a verified student. */
+/** The demo students who are women; everyone else gets a man's profile. Gender comes from the profile, never the form. */
+const DEMO_WOMEN = new Set(['Sara', 'Rama', 'Huda', 'Lina', 'Noor']);
+
 async function verifySession(token: string, firstName: string): Promise<void> {
-  const response = await fetch(`${origin}/__harness__/sessions/verify?firstName=${encodeURIComponent(firstName)}`, {
+  const gender = DEMO_WOMEN.has(firstName) ? 'woman' : 'man';
+  const response = await fetch(`${origin}/__harness__/sessions/verify?firstName=${encodeURIComponent(firstName)}&gender=${gender}`, {
     method: 'POST', headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000),
   });
   assert.equal(response.status, 204, `Harness could not verify ${firstName}`);

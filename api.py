@@ -155,9 +155,10 @@ def verification_start():
     university_id = field(body, "universityId", int)
     email = field(body, "email", str)
     first = field(body, "firstName", str) if "firstName" in body else None
+    gender = field(body, "gender", str) if "gender" in body else None  # Demo stand-in for the Jeeny profile
     with db:
         locked_batch(db, token["batch"])
-        delivery, result = start_verification(db, token, university_id, email, first)
+        delivery, result = start_verification(db, token, university_id, email, first, gender)
     log_verification(delivery)
     return jsonify(result)
 
@@ -510,15 +511,12 @@ def book(batch_id):
         raise Problem("invalid_input", "`clientRequestId` must be 8–64 letters, digits, `-` or `_`.", 400)
     direction = field(body, "direction", str, "from_campus")
     class_end, class_start, stop = field(body, "classEnd", str, ""), field(body, "classStart", str, ""), field(body, "stop", str)
-    if "gender" in body or "preference" in body:
-        women_only = field(body, "womenOnly", bool, False)
-        # Gender defaults to the demo profile's; the phone sends the profile value
-        gender = field(body, "gender", str, profile_gender)
-        preference = field(body, "preference", str, "women" if women_only else "mixed")
-        if women_only and preference != "women":
-            raise Problem("invalid_input", "`womenOnly` is true but `preference` is not \"women\".", 400)
-    else:  # Older clients send woman/womenOnly flags
-        gender, preference = legacy_options(field(body, "woman", bool, False), field(body, "womenOnly", bool, False))
+    # Gender always comes from the verified profile; a client-sent gender/woman is ignored (it gates men/women-only).
+    gender = profile_gender
+    women_only = field(body, "womenOnly", bool, False)
+    preference = field(body, "preference", str, "women" if women_only else "mixed")
+    if women_only and preference != "women":
+        raise Problem("invalid_input", "`womenOnly` is true but `preference` is not \"women\".", 400)
     name = check_request(name, class_end, stop, gender, preference, direction, class_start)
     optional = {key: field(body, key, kind) if body.get(key) is not None else None
                 for key, kind in (("rideDate", str), ("readyAt", str), ("preferredPickup", str),

@@ -37,7 +37,11 @@ VERIFY_PATH = "/__harness__/sessions/verify"
 def verify_session(environ):
     """Give the bearer token a verified student profile; returns False for an unknown token."""
     token = environ.get("HTTP_AUTHORIZATION", "").partition(" ")[2].strip()
-    first_name = parse_qs(environ.get("QUERY_STRING", "")).get("firstName", ["Student"])[0]
+    query = parse_qs(environ.get("QUERY_STRING", ""))
+    first_name = query.get("firstName", ["Student"])[0]
+    gender = query.get("gender", ["man"])[0]  # The Jeeny profile's gender; booking never takes it from the phone
+    if gender not in ("man", "woman"):
+        return False
     with app.app_context():
         db = database()
         with db:
@@ -46,8 +50,8 @@ def verify_session(environ):
                 return False
             school = db.execute("SELECT id FROM universities WHERE email_domain = 'bau.edu.jo'").fetchone()["id"]
             student_id = db.execute(
-                "INSERT INTO students (university, email, first_name, verified_at) VALUES (?, ?, ?, ?)",
-                (school, f"{first_name.lower()}.{secrets.token_hex(4)}@bau.edu.jo", first_name, now().isoformat()),
+                "INSERT INTO students (university, email, first_name, gender, verified_at) VALUES (?, ?, ?, ?, ?)",
+                (school, f"{first_name.lower()}.{secrets.token_hex(4)}@bau.edu.jo", first_name, gender, now().isoformat()),
             ).lastrowid
             db.execute("UPDATE api_tokens SET student_id = ? WHERE token_hash = ?", (student_id, row["token_hash"]))
     return True
