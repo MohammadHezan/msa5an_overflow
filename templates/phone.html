@@ -44,14 +44,21 @@
       </div>
       <div class="side-card">
         <p class="side-label">View the app as</p>
-        <div class="people{% if scenario_labels %} scenarios{% endif %}">
-          <a href="{{ url_for('index') }}" class="person{% if not selected %} on{% endif %}">New student{% if scenario_labels %}<small>Book a ride</small>{% endif %}</a>
+        <div class="people">
+          <a href="{{ url_for('index') }}" class="person{% if not selected %} on{% endif %}">New student</a>
           {% for rider in riders %}
-            {% set scenario = scenario_labels.get(rider.name) %}
-            <a href="{{ url_for('index', rider=rider.id) }}" class="person{% if selected and rider.id == selected.id %} on{% endif %}"{% if scenario %} title="{{ scenario[1] }}"{% endif %}>{{ rider.name }}{% if scenario %}<small>{{ scenario[0] }}</small>{% endif %}</a>
+            <a href="{{ url_for('index', rider=rider.id) }}" class="person{% if selected and rider.id == selected.id %} on{% endif %}">{{ rider.name }}</a>
           {% endfor %}
         </div>
-        {% if selected and scenario_labels.get(selected.name) %}<p class="scenario-note">{{ scenario_labels[selected.name][1] }}</p>{% endif %}
+      </div>
+      <div class="side-card">
+        <p class="side-label">New student is</p>
+        <form action="{{ url_for('set_student_gender') }}" method="post" class="side-reset">
+          {{ token() }}
+          <input type="hidden" name="back" value="{{ request.full_path }}">
+          <button name="gender" value="woman" type="submit"{% if profile.gender == "woman" %} class="on"{% endif %}>A woman · can pick Women only</button>
+          <button name="gender" value="man" type="submit"{% if profile.gender == "man" %} class="on"{% endif %}>A man · can pick Men only</button>
+        </form>
       </div>
       <div class="side-links">
         <a href="{{ url_for('yalla.home') }}">Yalla Ride student screens</a>
@@ -59,14 +66,6 @@
         <a href="{{ url_for('index', view='trips') }}">Operator: all cars</a>
         <a href="{{ url_for('index', view='captains') }}">Captains</a>
       </div>
-      <form action="{{ url_for('reset') }}" method="post" class="side-reset">
-        {{ token() }}
-        <button name="mode" value="scenarios" type="submit">Load scenario tour</button>
-        <button name="mode" value="seeded" type="submit">Reload sample afternoon</button>
-        <button name="mode" value="morning" type="submit">Load morning sample</button>
-        <button name="mode" value="busy" type="submit">Load 28 students</button>
-        <button name="mode" value="empty" type="submit">Start empty</button>
-      </form>
       <p class="fine">Demo · simulated map, distances and fares · no real rides or payments</p>
     </aside>
 
@@ -279,10 +278,10 @@
             {% if selected.ride_code %}
               <div class="ride-code-card"><small>Show this to your driver</small><strong>{{ selected.ride_code }}</strong></div>
             {% endif %}
-            <div class="progress" role="img" aria-label="Car has driven {{ plan.position_km }} of {{ plan.route_km }} km">
+            <div class="progress" role="img" aria-label="Car has driven {{ plan.position_km }} of {{ "%.1f" | format(plan.route_km) }} km">
               <span style="width: {{ (plan.position_km * 100 / plan.route_km) | round | int if plan.route_km else 100 }}%"></span>
             </div>
-            <p class="sub">Car at {{ plan.position_km }} of {{ "%g" | format(plan.route_km) }} km · {{ plan.members | length }} {{ "student" if plan.members | length == 1 else "students" }} in this car</p>
+            <p class="sub">Car at {{ plan.position_km }} of {{ "%.1f" | format(plan.route_km) }} km · {{ plan.members | length }} {{ "student" if plan.members | length == 1 else "students" }} in this car</p>
             <div class="price-card">
               <div><small>{{ "Final price" if plan.arrived else "Your price so far" }}</small><strong>{{ selected.share | jod }}</strong></div>
               <div class="was"><small>Alone</small><s>{{ selected.solo | jod }}</s></div>
@@ -348,8 +347,8 @@
             <details class="how" open>
               <summary>How your share is worked out</summary>
               <ol>
-                <li><span>Car fare <small>JOD {{ "%.3f" | format(rules.base / 1000) }} + JOD {{ "%.3f" | format(rules.per_km / 1000) }} × {{ "%g" | format(plan.route_km) }} route km</small></span><b>{{ plan.car_fare | jod }}</b></li>
-                <li><span>Your part <small>{% if plan.street %}{% for part in plan.segment_breakdown[selected.id] %}{{ part.km }} km shared by {{ part.riders }}{% if not loop.last %}; {% endif %}{% endfor %}{% else %}your {{ "%g" | format(selected.km) }} km of everyone's {{ "%g" | format(total_km) }} km × {{ plan.car_fare | jod }}{% endif %}</small></span><b>{{ selected.share | jod }}</b></li>
+                <li><span>Car fare <small>JOD {{ "%.3f" | format(rules.base / 1000) }} + JOD {{ "%.3f" | format(rules.per_km / 1000) }} × {{ "%.1f" | format(plan.route_km) }} route km</small></span><b>{{ plan.car_fare | jod }}</b></li>
+                <li><span>Your part <small>{% if plan.street %}{% for part in plan.segment_breakdown[selected.id] %}{{ part.km }} km shared by {{ part.riders }}{% if not loop.last %}; {% endif %}{% endfor %}{% else %}your {{ "%.1f" | format(selected.km) }} km of everyone's {{ "%.1f" | format(total_km) }} km × {{ plan.car_fare | jod }}{% endif %}</small></span><b>{{ selected.share | jod }}</b></li>
                 <li><span>Fare covered <small>{% for m in plan.members %}{{ "%.2f" | format(plan.shares[m.id] / 1000) }}{% if not loop.last %} + {% endif %}{% endfor %}{% if plan.jeeny_cover %} + {{ "%.2f" | format(plan.jeeny_cover / 1000) }} paid by Jeeny{% endif %}</small></span><b>{{ plan.car_fare | jod }}</b></li>
               </ol>
               <p>One regulated Jeeny fare. The start fare is split equally; each street-distance segment is split among the riders aboard.</p>
